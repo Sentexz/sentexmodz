@@ -1,5 +1,5 @@
 -- CONFIGURACIÓN DEL BANNER PERSONALIZADO
-local bannerURL = "https://turaw.githubusercontent.com/tuusuario/turepo/main/tu_imagen.png"  -- <--- CAMBIA ESTA URL
+local bannerURL = "https://i.ibb.co/4nTvq9w9/k-ZN3Yet.png"  -- <--- CAMBIA ESTA URL
 
 -- Esta función será llamada desde el menú para dibujar el banner
 function DrawCustomBanner(x, y, width, height)
