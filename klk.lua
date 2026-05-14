@@ -1,46 +1,21 @@
 --[[
-    SENTEXMODZ PREMIUM 2026 - Menú con banner desde URL (imgur)
+    SENTEXMODZ PREMIUM 2026 - Menú con banner externo desde URL fiable
+    Abre con PAGEDOWN (control 11). Sección "Self Options" con 3 funciones.
+    Banner desde URL sin fallback para evitar recuadros blancos.
 ]]
 
--- ==================== BANNER DESDE URL ====================
-local BANNER_URL = "https://i.imgur.com/JV6Drrz.png"
+-- ==================== CONFIGURACIÓN ====================
+local BANNER_URL = "https://i.ibb.co/9Hc78NTn/JV6Drrz.png"  -- Nueva URL del banner
 
-local bannerDict = "sentex_banner"
-local bannerLoaded = false
-
-local function LoadBanner()
-    if bannerLoaded then return true end
-    local txd = CreateRuntimeTxd(bannerDict)
-    if txd then
-        -- Intentar crear textura desde URL directa
-        local success = CreateRuntimeTextureFromImage(txd, "banner", BANNER_URL)
-        if success then
-            bannerLoaded = true
-            print("^2[SENTEX] Banner cargado desde URL")
-            return true
-        else
-            print("^1[SENTEX] No se pudo cargar banner desde URL")
-        end
-    end
-    return false
-end
-
-local function DibujarBanner(x, y, w, h)
-    if not bannerLoaded then LoadBanner() end
-    if bannerLoaded and HasStreamedTextureDictLoaded(bannerDict) then
-        DrawSprite(bannerDict, "banner", x, y, w, h, 0.0, 255, 255, 255, 255)
-    end
-    -- NO dibujar nada si falla (sin recuadro blanco)
-end
-
--- ==================== MENÚ ====================
+-- ==================== FUNCIONES AUXILIARES ====================
 local function MostrarNotificacion(texto)
     SetNotificationTextEntry("STRING")
     AddTextComponentString(texto)
     DrawNotification(false, false)
 end
 
-local function Curar()
+-- ==================== ACCIONES ====================
+function Curar()
     local ped = PlayerPedId()
     SetEntityHealth(ped, GetEntityMaxHealth(ped))
     SetPedArmour(ped, 100)
@@ -48,26 +23,28 @@ local function Curar()
     MostrarNotificacion("~g~Salud y armadura restauradas")
 end
 
-local function RevivirESX()
+function RevivirESX()
     TriggerEvent('esx_ambulancejob:revive')
     MostrarNotificacion("~g~Reviviendo (ESX)")
 end
 
-local function RevivirQB()
+function RevivirQB()
     TriggerEvent("hospital:client:Revive")
     MostrarNotificacion("~g~Reviviendo (QB)")
 end
 
--- Estructura del menú
+-- ==================== ESTRUCTURA DEL MENÚ ====================
 local menuAbierto = false
 local currentMenu = "main"
 local currentOption = 1
 local opcionesMenu = {}
 local descripcionActual = ""
 
+-- Colores y estilos
 local neonColor = {0, 255, 255, 255}
 local neonGlow = {0, 180, 255, 80}
 local bgColor = {0, 0, 0, 210}
+local bannerColor = {0, 80, 160, 255}
 local selectBg = {30, 144, 255, 60}
 
 opcionesMenu["main"] = {
@@ -79,6 +56,35 @@ opcionesMenu["self"] = {
     { nombre = "⚕️ Revivir (QB)", accion = RevivirQB, desc = "Bypass QB" },
 }
 
+-- ==================== BANNER DESDE URL SIN FALLBACK ====================
+local bannerDict = "sentex_banner"
+local bannerLoaded = false
+
+local function LoadBanner()
+    if bannerLoaded then return true end
+    local txd = CreateRuntimeTxd(bannerDict)
+    if txd then
+        local success = CreateRuntimeTextureFromImage(txd, "banner", BANNER_URL)
+        if success then
+            bannerLoaded = true
+            print("^2[SENTEX] Banner cargado correctamente")
+            return true
+        else
+            print("^1[SENTEX] No se pudo cargar el banner desde la URL")
+        end
+    end
+    return false
+end
+
+local function DibujarBanner(x, y, w, h)
+    if not bannerLoaded then LoadBanner() end
+    if bannerLoaded and HasStreamedTextureDictLoaded(bannerDict) then
+        DrawSprite(bannerDict, "banner", x, y, w, h, 0.0, 255, 255, 255, 255)
+    end
+    -- No dibuja nada si falla (evita el recuadro blanco)
+end
+
+-- ==================== FUNCIÓN DE TEXTO CON SOMBRA ====================
 local function DrawShadowText(text, x, y, scale, font, center, color)
     SetTextFont(font)
     SetTextScale(scale, scale)
@@ -90,6 +96,7 @@ local function DrawShadowText(text, x, y, scale, font, center, color)
     DrawText(x, y)
 end
 
+-- ==================== DIBUJO DEL MENÚ ====================
 function DibujarMenu()
     local ancho = 0.26
     local x = 0.7
@@ -103,6 +110,7 @@ function DibujarMenu()
     local opciones = opcionesMenu[currentMenu]
     local numOpt = #opciones
 
+    -- Preparar descripción
     local lineasDesc = {}
     if descripcionActual and descripcionActual ~= "" then
         local temp = descripcionActual
@@ -121,25 +129,31 @@ function DibujarMenu()
     local totalAlto = altoBanner + altoTitulo + (numOpt * altoOpcion) + descH + 0.015
     local startY = y
 
+    -- Fondo
     DrawRect(x, startY + totalAlto/2, ancho, totalAlto, bgColor[1], bgColor[2], bgColor[3], bgColor[4])
 
+    -- Bordes ultrafinos
     DrawRect(x, startY, ancho, 0.0005, neonColor[1], neonColor[2], neonColor[3], neonColor[4])
     DrawRect(x, startY + totalAlto, ancho, 0.0005, neonColor[1], neonColor[2], neonColor[3], neonColor[4])
     DrawRect(x - ancho/2, startY + totalAlto/2, 0.0005, totalAlto, neonColor[1], neonColor[2], neonColor[3], neonColor[4])
     DrawRect(x + ancho/2, startY + totalAlto/2, 0.0005, totalAlto, neonColor[1], neonColor[2], neonColor[3], neonColor[4])
 
+    -- Resplandor exterior
     DrawRect(x, startY, ancho + 0.006, 0.001, neonGlow[1], neonGlow[2], neonGlow[3], neonGlow[4])
     DrawRect(x, startY + totalAlto, ancho + 0.006, 0.001, neonGlow[1], neonGlow[2], neonGlow[3], neonGlow[4])
 
-    -- Banner desde URL (sin fallback)
+    -- Banner
     DibujarBanner(x, startY + altoBanner/2, ancho - 0.01, altoBanner - 0.01)
 
+    -- Línea de brillo bajo el banner
     DrawRect(x, startY + altoBanner - 0.001, ancho, 0.0005, neonColor[1], neonColor[2], neonColor[3], 200)
 
+    -- Título de la sección
     local tituloY = startY + altoBanner + 0.008
     local tituloStr = (currentMenu == "main" and "=== MENU PRINCIPAL ===") or (currentMenu == "self" and "⚙️ SELF OPTIONS ⚙️")
     DrawShadowText(tituloStr, x, tituloY, 0.48, 0, true, neonColor)
 
+    -- Opciones
     local optsY = startY + altoBanner + altoTitulo + 0.008
     for i, opt in ipairs(opciones) do
         local yOff = optsY + (i-1) * altoOpcion
@@ -153,6 +167,7 @@ function DibujarMenu()
         end
     end
 
+    -- Descripción
     local descY = startY + altoBanner + altoTitulo + (numOpt * altoOpcion) + 0.008
     if #lineasDesc > 0 then
         for i, linea in ipairs(lineasDesc) do
@@ -162,6 +177,7 @@ function DibujarMenu()
     end
 end
 
+-- ==================== HILO PRINCIPAL ====================
 local function StartMenu()
     Citizen.CreateThread(function()
         while true do
@@ -172,9 +188,10 @@ local function StartMenu()
                     currentOption = 1
                     currentMenu = "main"
                     PlaySoundFrontend(-1, "SELECT", "HUD_FRONTEND_DEFAULT_SOUNDSET", true)
-                    MostrarNotificacion("~b~★ SENTEXMODZ 2026 ★~s~ | Menú abierto")
+                    MostrarNotificacion("~b~★ SENTEXMODZ PREMIUM 2026 ★~s~ | Menú abierto")
                 else
                     PlaySoundFrontend(-1, "BACK", "HUD_FRONTEND_DEFAULT_SOUNDSET", true)
+                    MostrarNotificacion("~b~★ SENTEXMODZ PREMIUM 2026 ★~s~ | Menú cerrado")
                 end
                 Citizen.Wait(200)
             end
@@ -182,6 +199,7 @@ local function StartMenu()
             if menuAbierto then
                 DibujarMenu()
                 local maxOpt = #opcionesMenu[currentMenu]
+
                 if IsDisabledControlJustReleased(0, 172) then
                     currentOption = currentOption - 1
                     if currentOption < 1 then currentOption = maxOpt end
@@ -221,4 +239,5 @@ local function StartMenu()
     end)
 end
 
+-- Retornar la función de inicio
 return { Start = StartMenu }
