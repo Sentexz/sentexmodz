@@ -1,5 +1,5 @@
 -- CONFIGURACIÓN DEL BANNER PERSONALIZADO
-local BANNER_URL = "https://raw.githubusercontent.com/Sentexz/sentexmodz/main/banner.png"  -- <-- CAMBIA A TU URL RAW
+local BANNER_URL = "https://raw.githubusercontent.com/Sentexz/sentexmodz/refs/heads/main/JV6Drrz.png"  -- <-- CAMBIA A TU URL RAW
 
 -- Variable global para la función de dibujo
 DrawCustomBanner = nil
