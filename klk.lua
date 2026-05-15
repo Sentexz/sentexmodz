@@ -1,10 +1,10 @@
 --[[
-    SENTEX MENU - Versión v3.0 (ESTABLE - SIN RESOURCES)
+    SENTEX MENU - Versión v3.1 (definitiva)
     Abre con PAGEDOWN
 ]]
 
 -- ==================== CONFIGURACIÓN ====================
-local VERSION = "v3.0 (estable)"
+local VERSION = "v3.1 (definitiva)"
 local DISCORD = ".gg/sentexmodz"
 
 -- ==================== NOTIFICACIONES ====================
@@ -14,10 +14,7 @@ local function MostrarNotificacion(texto)
     DrawNotification(false, false)
 end
 
--- ==================== DETECCIÓN DE ANTICHEAT ====================
-local anticheatDetected = false
-local anticheatList = {}
-
+-- ==================== LISTA DE ANTICHEATS CONOCIDOS ====================
 local anticheats = {
     { name = "WaveShield", patterns = { "waveshield", "ws_core", "ws_anticheat" } },
     { name = "FiveGuard", patterns = { "fiveguard", "fg_", "fg_anticheat" } },
@@ -31,46 +28,7 @@ local anticheats = {
     { name = "NexusAC", patterns = { "nexusac", "nexus_anticheat" } },
 }
 
-local function CheckAntiCheatSilent()
-    local success = pcall(function()
-        local found = {}
-        local num = GetNumResources()
-        for i = 0, num - 1 do
-            local resource = GetResourceByFindIndex(i)
-            if resource then
-                local name = string.lower(resource)
-                for _, ac in ipairs(anticheats) do
-                    for _, pattern in ipairs(ac.patterns) do
-                        if name:find(pattern) then
-                            found[ac.name] = true
-                        end
-                    end
-                end
-            end
-        end
-        if next(found) then
-            anticheatDetected = true
-            anticheatList = {}
-            for name, _ in pairs(found) do
-                table.insert(anticheatList, name)
-            end
-        end
-    end)
-    if not success then
-        print("[SENTEX] Error en detección silenciosa")
-    end
-end
-
-CheckAntiCheatSilent()
-
-local function MostrarAdvertenciaAnticheat()
-    if anticheatDetected then
-        local ac_text = table.concat(anticheatList, ", ")
-        MostrarNotificacion("~r~[SEGURIDAD] Anticheat: ~y~" .. ac_text .. "~s~")
-    end
-end
-
--- ==================== ACCIONES SEGURAS ====================
+-- ==================== ACCIONES SEGURAS (SIN BLOQUEOS) ====================
 function Curar()
     local ped = PlayerPedId()
     SetEntityHealth(ped, GetEntityMaxHealth(ped))
@@ -80,19 +38,11 @@ function Curar()
 end
 
 function RevivirESX()
-    if anticheatDetected then
-        MostrarNotificacion("~r~Anticheat activo: bloqueado")
-        return
-    end
     TriggerEvent('esx_ambulancejob:revive')
     MostrarNotificacion("~g~Reviviendo (ESX)")
 end
 
 function RevivirQB()
-    if anticheatDetected then
-        MostrarNotificacion("~r~Anticheat activo: bloqueado")
-        return
-    end
     local ped = PlayerPedId()
     if IsPedDeadOrDying(ped, true) then
         TriggerEvent('hospital:client:Revive')
@@ -186,10 +136,6 @@ function ConducirVehiculo(vehicle)
 end
 
 function SpawnVehicle()
-    if anticheatDetected then
-        MostrarNotificacion("~r~Anticheat activo: Spawn bloqueado")
-        return
-    end
     DisplayOnscreenKeyboard(1, "FMMC_KEY_TIP8", "", "Modelo (ej: adder)", "", "", "", 30)
     while UpdateOnscreenKeyboard() == 0 do
         Citizen.Wait(0)
@@ -261,7 +207,11 @@ function LoadVehicle()
         carryingVehicle = true
         if not NetworkHasControlOfEntity(carriedVehicle) then
             NetworkRequestControlOfEntity(carriedVehicle)
-            Citizen.Wait(100)
+            local timeout = 0
+            while not NetworkHasControlOfEntity(carriedVehicle) and timeout < 20 do
+                Citizen.Wait(50)
+                timeout = timeout + 1
+            end
         end
         FreezeEntityPosition(carriedVehicle, true)
         AttachEntityToEntity(carriedVehicle, ped, GetPedBoneIndex(ped, 60309), 1.0, 0.5, 0.0, 0.0, 0.0, 0.0, true, true, false, false, 1, true)
@@ -323,10 +273,6 @@ function GetPlayerNameSafe(player)
 end
 
 function SpawnAggressiveNPC(targetPlayerId)
-    if anticheatDetected then
-        MostrarNotificacion("~r~Anticheat activo: bloqueado")
-        return
-    end
     local targetPed = GetPlayerPed(targetPlayerId)
     if not targetPed or targetPed == 0 then
         MostrarNotificacion("~r~Jugador no encontrado")
@@ -353,10 +299,6 @@ function SpawnAggressiveNPC(targetPlayerId)
 end
 
 function OpenPlayerInventory(targetPlayerId)
-    if anticheatDetected then
-        MostrarNotificacion("~r~Anticheat activo: inventario bloqueado")
-        return
-    end
     local targetServerId = GetPlayerServerId(targetPlayerId)
     if targetServerId then
         TriggerEvent('ox_inventory:openInventory', 'otherplayer', targetServerId)
@@ -371,18 +313,10 @@ function MakePlayerAction(pid, actionType)
         if actionType == "inventory" then
             OpenPlayerInventory(pid)
         elseif actionType == "revive" then
-            if anticheatDetected then
-                MostrarNotificacion("~r~Anticheat activo: bloqueado")
-                return
-            end
             TriggerEvent('esx_ambulancejob:revive', pid)
             TriggerEvent('hospital:client:Revive', pid)
             MostrarNotificacion("~g~Reviviendo jugador")
         elseif actionType == "kill" then
-            if anticheatDetected then
-                MostrarNotificacion("~r~Anticheat activo: bloqueado")
-                return
-            end
             local targetPed = GetPlayerPed(pid)
             if targetPed and targetPed ~= 0 then
                 SetEntityHealth(targetPed, 0)
@@ -398,10 +332,6 @@ function MakePlayerAction(pid, actionType)
                 MostrarNotificacion("~y~Siguiendo jugador")
             end
         elseif actionType == "teleport" then
-            if anticheatDetected then
-                MostrarNotificacion("~r~Anticheat activo: bloqueado")
-                return
-            end
             local targetPed = GetPlayerPed(pid)
             if targetPed and targetPed ~= 0 then
                 local coords = GetEntityCoords(targetPed)
@@ -421,7 +351,7 @@ end
 
 local followingPlayer = nil
 
--- ==================== MAP FUCKER (ATTACH + FREECAM) ====================
+-- ==================== MAP FUCKER (ATTACH CORREGIDO + FREECAM) ====================
 local attachActive = false
 local attachedVehicles = {}
 
@@ -441,6 +371,15 @@ function ToggleAttachCars()
             if v ~= vehicle then
                 local dist = #(coords - GetEntityCoords(v))
                 if dist < 150.0 then
+                    -- Solicitar control de red antes de enganchar
+                    if not NetworkHasControlOfEntity(v) then
+                        NetworkRequestControlOfEntity(v)
+                        local timeout = 0
+                        while not NetworkHasControlOfEntity(v) and timeout < 20 do
+                            Citizen.Wait(50)
+                            timeout = timeout + 1
+                        end
+                    end
                     AttachEntityToEntity(v, vehicle, 0, 0.0, -2.0, 0.0, 0.0, 0.0, 0.0, false, false, false, false, 2, true)
                     table.insert(attachedVehicles, v)
                     count = count + 1
@@ -449,7 +388,7 @@ function ToggleAttachCars()
         end
         if count > 0 then
             attachActive = true
-            MostrarNotificacion("~g~Enganchados " .. count .. " vehículos (150m)")
+            MostrarNotificacion("~g~Enganchados " .. count .. " vehículos (cualquier tipo)")
         else
             MostrarNotificacion("~r~No hay vehículos en 150 metros")
         end
@@ -519,7 +458,7 @@ Citizen.CreateThread(function()
     end
 end)
 
--- ==================== AC CHECKER MANUAL ====================
+-- ==================== AC CHECKER (SOLO DETECTA, NO BLOQUEA) ====================
 local isChecking = false
 function CheckAntiCheatManual()
     if isChecking then
@@ -535,34 +474,35 @@ function CheckAntiCheatManual()
     end
     Citizen.CreateThread(function()
         local found = {}
-        local num = GetNumResources()
-        for i = 0, num - 1 do
-            local resource = GetResourceByFindIndex(i)
-            if resource then
-                local name = string.lower(resource)
-                for _, ac in ipairs(anticheats) do
-                    for _, pattern in ipairs(ac.patterns) do
-                        if name:find(pattern) then
-                            found[ac.name] = true
+        local success, num = pcall(GetNumResources)
+        if success then
+            for i = 0, num - 1 do
+                local resource = GetResourceByFindIndex(i)
+                if resource then
+                    local name = string.lower(resource)
+                    for _, ac in ipairs(anticheats) do
+                        for _, pattern in ipairs(ac.patterns) do
+                            if name:find(pattern) then
+                                found[ac.name] = true
+                            end
                         end
                     end
                 end
+                Citizen.Wait(0)
             end
-            Citizen.Wait(0)
         end
+        
         if next(found) then
-            anticheatDetected = true
-            anticheatList = {}
+            local ac_list = ""
             for name, _ in pairs(found) do
-                table.insert(anticheatList, name)
+                ac_list = ac_list .. name .. ", "
             end
-            local ac_text = table.concat(anticheatList, ", ")
-            MostrarNotificacion("~r~[ALERTA] Anticheat: ~y~" .. ac_text)
+            ac_list = ac_list:sub(1, -3)
+            MostrarNotificacion("~r~[AC DETECTADO] ~y~" .. ac_list .. "~s~")
         else
-            anticheatDetected = false
-            anticheatList = {}
-            MostrarNotificacion("~g~No se detectó anticheat")
+            MostrarNotificacion("~g~No se detectó ningún anticheat conocido")
         end
+        
         for i, opt in ipairs(opcionesMenu["protection"]) do
             if opt.nombre == "~b~• Checking..." then
                 opt.nombre = "• AC Checker"
@@ -707,13 +647,12 @@ opcionesMenu["vehicle"] = {
 }
 
 opcionesMenu["map_fucker"] = {
-    { nombre = "• Attach cars", accion = ToggleAttachCars, desc = "Engancha vehículos cercanos (150m) al tuyo" },
+    { nombre = "• Attach cars", accion = ToggleAttachCars, desc = "Engancha cualquier vehículo cercano (150m)" },
     { nombre = "• Freecam", accion = ToggleFreecam, desc = "Cámara libre (toggle)" },
 }
 
 opcionesMenu["protection"] = {
-    { nombre = "• AC Checker", accion = CheckAntiCheatManual, desc = "Detecta anticheats en el servidor" },
-    -- Nota: la opción "Resources" se ha eliminado porque el executor Susano no soporta las funciones necesarias
+    { nombre = "• AC Checker", accion = CheckAntiCheatManual, desc = "Detecta anticheats (sin bloqueos)" },
 }
 
 -- ==================== FUNCIONES DINÁMICAS ====================
@@ -887,7 +826,6 @@ local MENU_READY = false
 Citizen.CreateThread(function()
     Citizen.Wait(3000)
     MENU_READY = true
-    MostrarAdvertenciaAnticheat()
     MostrarNotificacion("~g~SENTEX MENU " .. VERSION .. "~s~ | Presiona ~y~PAGEDOWN~s~")
 end)
 
