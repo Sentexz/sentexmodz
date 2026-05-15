@@ -10,8 +10,8 @@ local VERSION = "v1.0.1 (beta)"
 local DISCORD = ".gg/sentexmodz"
 
 -- Lista de secciones (en orden de navegación)
-local sections = { "main", "self" }
-local currentSectionIndex = 1  -- 1 = main, 2 = self
+local sections = { "main", "self", "vehicle" }
+local currentSectionIndex = 1
 
 -- ==================== NOTIFICACIONES ====================
 local function MostrarNotificacion(texto)
@@ -39,7 +39,32 @@ function RevivirQB()
     MostrarNotificacion("~g~Reviviendo (QB)")
 end
 
--- ==================== NOCLIP (WASD + Shift/Ctrl) ====================
+-- ==================== ACCIONES VEHÍCULO ====================
+function RepararVehiculo()
+    local ped = PlayerPedId()
+    local vehicle = GetVehiclePedIsIn(ped, false)
+    if vehicle ~= 0 then
+        SetVehicleFixed(vehicle)
+        SetVehicleDirtLevel(vehicle, 0.0)
+        MostrarNotificacion("~g~Vehículo reparado y limpiado")
+    else
+        MostrarNotificacion("~r~No estás en un vehículo")
+    end
+end
+
+function FlipVehiculo()
+    local ped = PlayerPedId()
+    local vehicle = GetVehiclePedIsIn(ped, false)
+    if vehicle ~= 0 then
+        local rot = GetEntityRotation(vehicle)
+        SetEntityRotation(vehicle, rot.x, rot.y, rot.z + 180.0, 2, true)
+        MostrarNotificacion("~g~Vehículo volteado")
+    else
+        MostrarNotificacion("~r~No estás en un vehículo")
+    end
+end
+
+-- ==================== NOCLIP ====================
 local noclipActive = false
 local noclipSpeed = 5.0
 local boostMultiplier = 3.0
@@ -129,21 +154,17 @@ local function LoadBannerAsync()
     end)
 end
 
--- Dibuja el banner (o fallback azul oscuro con título y versión)
 local function DibujarBanner(x, y, w, h)
     if not bannerLoaded then
         LoadBannerAsync()
-        -- Fallback: rectángulo azul oscuro
         DrawRect(x, y, w, h, 0, 30, 60, 200)
-        -- Título "SENTEX MENU" centrado (fuente más estilizada)
-        SetTextFont(7)  -- fuente elegante tipo 'ligada'
+        SetTextFont(7)
         SetTextScale(0.55, 0.55)
         SetTextColour(255, 255, 255, 255)
         SetTextCentre(true)
         SetTextEntry("STRING")
         AddTextComponentString("SENTEX MENU")
         DrawText(x, y - 0.02)
-        -- Versión abajo a la derecha del rectángulo (dentro)
         SetTextFont(0)
         SetTextScale(0.28, 0.28)
         SetTextColour(200, 200, 200, 255)
@@ -155,7 +176,6 @@ local function DibujarBanner(x, y, w, h)
     end
     if HasStreamedTextureDictLoaded(bannerDict) then
         DrawSprite(bannerDict, "banner", x, y, w, h, 0.0, 255, 255, 255, 255)
-        -- Aunque el banner real se muestre, también superponemos la versión (opcional)
         SetTextFont(0)
         SetTextScale(0.28, 0.28)
         SetTextColour(255, 255, 255, 255)
@@ -168,7 +188,7 @@ local function DibujarBanner(x, y, w, h)
     end
 end
 
--- ==================== MENÚ (sin emojis) ====================
+-- ==================== ESTRUCTURA DEL MENÚ ====================
 local menuAbierto = false
 local currentMenu = "main"
 local currentOption = 1
@@ -180,14 +200,18 @@ local neonGlow = {0, 180, 255, 80}
 local bgColor = {0, 0, 0, 210}
 local selectBg = {30, 144, 255, 60}
 
+-- Menú principal
 opcionesMenu["main"] = {
-    { nombre = "> Self Options", submenu = "self", desc = "Opciones del jugador" },
+    { nombre = "[»] Self options", submenu = "self", desc = "Opciones del jugador" },
+    { nombre = "[»] Vehicle options", submenu = "vehicle", desc = "Opciones para vehículos" },
 }
+
+-- Submenú Self
 opcionesMenu["self"] = {
-    { nombre = "[C] Curar", accion = Curar, desc = "Restaura salud y armadura" },
-    { nombre = "[R] Revivir ESX", accion = RevivirESX, desc = "Resucita en servidores ESX" },
-    { nombre = "[R] Revivir QB", accion = RevivirQB, desc = "Resucita en servidores QB" },
-    { nombre = "[N] Noclip",
+    { nombre = "• Curar", accion = Curar, desc = "Restaura salud y armadura" },
+    { nombre = "• Revivir ESX", accion = RevivirESX, desc = "Resucita en servidores ESX" },
+    { nombre = "• Revivir QB", accion = RevivirQB, desc = "Resucita en servidores QB" },
+    { nombre = "• Noclip",
       accion = function()
           noclipActive = not noclipActive
           if noclipActive then
@@ -204,7 +228,13 @@ opcionesMenu["self"] = {
       desc = "Atraviesa paredes. Controles: WASD, Shift (boost), Ctrl (bajar)" },
 }
 
--- Función para actualizar el índice de sección según currentMenu
+-- Submenú Vehicle
+opcionesMenu["vehicle"] = {
+    { nombre = "• Reparar", accion = RepararVehiculo, desc = "Repara y limpia tu vehículo actual" },
+    { nombre = "• Voltear", accion = FlipVehiculo, desc = "Voltea el vehículo si está patas arriba" },
+}
+
+-- ==================== FUNCIONES AUXILIARES ====================
 local function updateSectionIndex()
     for i, sec in ipairs(sections) do
         if sec == currentMenu then
@@ -214,7 +244,6 @@ local function updateSectionIndex()
     end
 end
 
--- ==================== TEXTO SEGURO ====================
 local function DrawShadowText(text, x, y, scale, font, center, color)
     SetTextFont(font)
     SetTextScale(scale, scale)
@@ -226,7 +255,7 @@ local function DrawShadowText(text, x, y, scale, font, center, color)
     DrawText(x, y)
 end
 
--- ==================== DIBUJO COMPLETO ====================
+-- ==================== DIBUJO DEL MENÚ ====================
 function DibujarMenu()
     local ancho = 0.26
     local x = 0.7
@@ -240,7 +269,6 @@ function DibujarMenu()
     local opciones = opcionesMenu[currentMenu]
     local numOpt = #opciones
 
-    -- Preparar descripción
     local lineasDesc = {}
     if descripcionActual and descripcionActual ~= "" then
         local temp = descripcionActual
@@ -259,24 +287,26 @@ function DibujarMenu()
     local totalAlto = altoBanner + altoTitulo + (numOpt * altoOpcion) + descH + 0.015
     local startY = y
 
-    -- Fondo principal
+    -- Fondo
     DrawRect(x, startY + totalAlto/2, ancho, totalAlto, bgColor[1], bgColor[2], bgColor[3], bgColor[4])
-
-    -- Bordes y resplandor
+    -- Bordes
     DrawRect(x, startY, ancho, 0.0005, neonColor[1], neonColor[2], neonColor[3], neonColor[4])
     DrawRect(x, startY + totalAlto, ancho, 0.0005, neonColor[1], neonColor[2], neonColor[3], neonColor[4])
     DrawRect(x - ancho/2, startY + totalAlto/2, 0.0005, totalAlto, neonColor[1], neonColor[2], neonColor[3], neonColor[4])
     DrawRect(x + ancho/2, startY + totalAlto/2, 0.0005, totalAlto, neonColor[1], neonColor[2], neonColor[3], neonColor[4])
+    -- Resplandor
     DrawRect(x, startY, ancho + 0.006, 0.001, neonGlow[1], neonGlow[2], neonGlow[3], neonGlow[4])
     DrawRect(x, startY + totalAlto, ancho + 0.006, 0.001, neonGlow[1], neonGlow[2], neonGlow[3], neonGlow[4])
 
-    -- Banner (con versión incluida)
+    -- Banner
     DibujarBanner(x, startY + altoBanner/2, ancho - 0.01, altoBanner - 0.01)
     DrawRect(x, startY + altoBanner - 0.001, ancho, 0.0005, neonColor[1], neonColor[2], neonColor[3], 200)
 
-    -- Título de sección (sin símbolos raros)
+    -- Título de sección
     local tituloY = startY + altoBanner + 0.008
-    local tituloStr = (currentMenu == "main" and "[ MENU PRINCIPAL ]") or (currentMenu == "self" and "[ SELF OPTIONS ]")
+    local tituloStr = (currentMenu == "main" and "[ MENU PRINCIPAL ]") or
+                      (currentMenu == "self" and "[ SELF OPTIONS ]") or
+                      (currentMenu == "vehicle" and "[ VEHICLE OPTIONS ]")
     DrawShadowText(tituloStr, x, tituloY, 0.48, 0, true, neonColor)
 
     -- Opciones
@@ -302,8 +332,7 @@ function DibujarMenu()
         end
     end
 
-    -- ========== ELEMENTOS EXTRA EN LOS BORDES ==========
-    -- Indicador de página abajo a la derecha (ej: "1/2")
+    -- Indicador de página (abajo derecha)
     local pageText = currentSectionIndex .. "/" .. #sections
     SetTextFont(0)
     SetTextScale(0.28, 0.28)
@@ -313,17 +342,17 @@ function DibujarMenu()
     AddTextComponentString(pageText)
     DrawText(x + ancho/2 - 0.02, startY + totalAlto - 0.022)
 
-    -- Texto del discord abajo a la izquierda
+    -- Discord pegado a la esquina inferior izquierda (sin tocar borde)
     SetTextFont(0)
     SetTextScale(0.28, 0.28)
     SetTextColour(150, 150, 150, 255)
     SetTextCentre(false)
     SetTextEntry("STRING")
     AddTextComponentString(DISCORD)
-    DrawText(x - ancho/2 + 0.02, startY + totalAlto - 0.022)
+    DrawText(x - ancho/2 + 0.01, startY + totalAlto - 0.022)
 end
 
--- ==================== ESPERA INICIAL Y CONTROL PRINCIPAL ====================
+-- ==================== HILO PRINCIPAL ====================
 Citizen.CreateThread(function()
     Citizen.Wait(3000)
     MENU_READY = true
