@@ -1,10 +1,10 @@
 --[[
-    SENTEX MENU - Versión v1.0.6 (definitiva)
+    SENTEX MENU - Versión v2.0 (DEFINITIVA)
     Abre con PAGEDOWN
 ]]
 
 -- ==================== CONFIGURACIÓN ====================
-local VERSION = "v1.0.6 (definitiva)"
+local VERSION = "v2.0 (definitiva)"
 local DISCORD = ".gg/sentexmodz"
 
 -- ==================== NOTIFICACIONES ====================
@@ -32,22 +32,18 @@ local anticheats = {
 }
 
 local function CheckAntiCheatSilent()
-    local success, err = pcall(function()
+    local success = pcall(function()
         local found = {}
-        local numResources = GetNumResources()
-        for i = 0, numResources - 1 do
-            local resource = GetResourceByFindIndex(i)
-            if resource then
-                local name = string.lower(resource)
-                for _, ac in ipairs(anticheats) do
-                    for _, pattern in ipairs(ac.patterns) do
-                        if name:find(pattern) then
-                            found[ac.name] = true
-                        end
+        local resources = GetResources()
+        for _, resource in ipairs(resources) do
+            local name = string.lower(resource)
+            for _, ac in ipairs(anticheats) do
+                for _, pattern in ipairs(ac.patterns) do
+                    if name:find(pattern) then
+                        found[ac.name] = true
                     end
                 end
             end
-            Citizen.Wait(0)
         end
         if next(found) then
             anticheatDetected = true
@@ -58,7 +54,7 @@ local function CheckAntiCheatSilent()
         end
     end)
     if not success then
-        print("[SENTEX] Error en detección silenciosa: " .. tostring(err))
+        print("[SENTEX] Error en detección silenciosa")
     end
 end
 
@@ -67,7 +63,7 @@ CheckAntiCheatSilent()
 local function MostrarAdvertenciaAnticheat()
     if anticheatDetected then
         local ac_text = table.concat(anticheatList, ", ")
-        MostrarNotificacion("~r~[SEGURIDAD] Anticheat: ~y~" .. ac_text .. "~s~\nOpciones riesgosas desactivadas")
+        MostrarNotificacion("~r~[SEGURIDAD] Anticheat: ~y~" .. ac_text .. "~s~")
     end
 end
 
@@ -82,7 +78,7 @@ end
 
 function RevivirESX()
     if anticheatDetected then
-        MostrarNotificacion("~r~Anticheat activo: esta opción no se ejecutará")
+        MostrarNotificacion("~r~Anticheat activo: bloqueado")
         return
     end
     TriggerEvent('esx_ambulancejob:revive')
@@ -91,10 +87,9 @@ end
 
 function RevivirQB()
     if anticheatDetected then
-        MostrarNotificacion("~r~Anticheat activo: esta opción no se ejecutará")
+        MostrarNotificacion("~r~Anticheat activo: bloqueado")
         return
     end
-    -- Intento múltiple para QB/QC
     local ped = PlayerPedId()
     if IsPedDeadOrDying(ped, true) then
         TriggerEvent('hospital:client:Revive')
@@ -154,6 +149,7 @@ function LimpiarVehiculo(vehicle)
     end
 end
 
+-- Conducir vehículo: expulsa conductor actual y mete al jugador
 function ConducirVehiculo(vehicle)
     if not vehicle or vehicle == 0 then
         MostrarNotificacion("~r~El vehículo ya no existe")
@@ -163,11 +159,9 @@ function ConducirVehiculo(vehicle)
     local vehCoords = GetEntityCoords(vehicle)
     local dist = #(GetEntityCoords(ped) - vehCoords)
     
-    if dist <= 10.0 then
-        SetPedIntoVehicle(ped, vehicle, -1)
-        MostrarNotificacion("~g~Te has subido al vehículo")
-    else
-        MostrarNotificacion("~y~Teletransportando al vehículo (simulando lag)...")
+    -- Teletransportar si está lejos (con lag simulado)
+    if dist > 10.0 then
+        MostrarNotificacion("~y~Teletransportando al vehículo...")
         DoScreenFadeOut(500)
         Citizen.Wait(500 + math.random(100, 300))
         local offset = 2.0
@@ -176,14 +170,25 @@ function ConducirVehiculo(vehicle)
         Citizen.Wait(200)
         DoScreenFadeIn(500)
         Citizen.Wait(300)
-        SetPedIntoVehicle(ped, vehicle, -1)
-        MostrarNotificacion("~g~Te has subido al vehículo (conexión inestable)")
     end
+    
+    -- Expulsar conductor actual si existe
+    local driver = GetPedInVehicleSeat(vehicle, -1)
+    if driver and driver ~= 0 then
+        ClearPedTasksImmediately(driver)
+        SetEntityCoords(driver, GetEntityCoords(driver) + vector3(1.0, 1.0, 0.5), false, false, false, false)
+        MostrarNotificacion("~y~Conductor expulsado")
+        Citizen.Wait(200)
+    end
+    
+    -- Subir al jugador como conductor
+    TaskWarpPedIntoVehicle(ped, vehicle, -1)
+    MostrarNotificacion("~g~Te has subido al vehículo")
 end
 
 function SpawnVehicle()
     if anticheatDetected then
-        MostrarNotificacion("~r~Anticheat activo: Spawn de vehículos bloqueado")
+        MostrarNotificacion("~r~Anticheat activo: Spawn bloqueado")
         return
     end
     DisplayOnscreenKeyboard(1, "FMMC_KEY_TIP8", "", "Modelo (ej: adder)", "", "", "", 30)
@@ -263,14 +268,14 @@ function MakePlayerAction(pid, actionType)
     return function()
         if actionType == "money" then
             if anticheatDetected then
-                MostrarNotificacion("~r~Anticheat activo: no se dará dinero")
+                MostrarNotificacion("~r~Anticheat activo: bloqueado")
                 return
             end
             TriggerServerEvent('esx:giveMoney', pid, 10000)
-            MostrarNotificacion("~g~Se han dado 10k al jugador")
+            MostrarNotificacion("~g~Se han dado 10k")
         elseif actionType == "revive" then
             if anticheatDetected then
-                MostrarNotificacion("~r~Anticheat activo: no se revivirá")
+                MostrarNotificacion("~r~Anticheat activo: bloqueado")
                 return
             end
             TriggerEvent('esx_ambulancejob:revive', pid)
@@ -278,7 +283,7 @@ function MakePlayerAction(pid, actionType)
             MostrarNotificacion("~g~Reviviendo jugador")
         elseif actionType == "kill" then
             if anticheatDetected then
-                MostrarNotificacion("~r~Anticheat activo: no se matará")
+                MostrarNotificacion("~r~Anticheat activo: bloqueado")
                 return
             end
             local targetPed = GetPlayerPed(pid)
@@ -297,7 +302,7 @@ function MakePlayerAction(pid, actionType)
             end
         elseif actionType == "teleport" then
             if anticheatDetected then
-                MostrarNotificacion("~r~Anticheat activo: teletransporte bloqueado")
+                MostrarNotificacion("~r~Anticheat activo: bloqueado")
                 return
             end
             local targetPed = GetPlayerPed(pid)
@@ -317,7 +322,7 @@ end
 
 local followingPlayer = nil
 
--- ==================== MAP FUCKER (NUEVA OPCIÓN) ====================
+-- ==================== MAP FUCKER (ATTACH + FREECAM) ====================
 local attachActive = false
 local attachedVehicles = {}
 
@@ -345,7 +350,7 @@ function ToggleAttachCars()
         end
         if count > 0 then
             attachActive = true
-            MostrarNotificacion("~g~Enganchados " .. count .. " vehículos cercanos")
+            MostrarNotificacion("~g~Enganchados " .. count .. " vehículos")
         else
             MostrarNotificacion("~r~No hay vehículos cerca")
         end
@@ -361,11 +366,71 @@ function ToggleAttachCars()
     end
 end
 
+-- Freecam
+local freecamActive = false
+local freecamEntity = nil
+
+function ToggleFreecam()
+    freecamActive = not freecamActive
+    if freecamActive then
+        -- Crear cámara
+        freecamEntity = CreateCam("DEFAULT_SCRIPTED_CAMERA", true)
+        local ped = PlayerPedId()
+        local coords = GetEntityCoords(ped)
+        SetCamCoord(freecamEntity, coords.x, coords.y, coords.z + 2.0)
+        SetCamRot(freecamEntity, 0.0, 0.0, GetEntityHeading(ped))
+        RenderScriptCams(true, true, 1000, true, true)
+        -- Ocultar hud y radio
+        SetPlayerControl(PlayerId(), false, 0)
+        SetEntityVisible(ped, false, false)
+        MostrarNotificacion("~b~Freecam ACTIVADA | WASD + Ratón | BACKSPACE para salir")
+    else
+        -- Restaurar jugador
+        RenderScriptCams(false, true, 1000, true, true)
+        SetPlayerControl(PlayerId(), true, 0)
+        local ped = PlayerPedId()
+        SetEntityVisible(ped, true, false)
+        DestroyCam(freecamEntity, true)
+        freecamEntity = nil
+        MostrarNotificacion("~b~Freecam DESACTIVADA")
+    end
+end
+
+-- Hilo para mover freecam
+Citizen.CreateThread(function()
+    while true do
+        if freecamActive and freecamEntity then
+            local speed = 5.0
+            local moveX, moveY, moveZ = 0.0, 0.0, 0.0
+            if IsControlPressed(0, 32) then moveY = moveY + speed end  -- W
+            if IsControlPressed(0, 33) then moveY = moveY - speed end  -- S
+            if IsControlPressed(0, 34) then moveX = moveX - speed end  -- A
+            if IsControlPressed(0, 35) then moveX = moveX + speed end  -- D
+            if IsControlPressed(0, 22) then moveZ = moveZ + speed end  -- SPACE
+            if IsControlPressed(0, 36) then moveZ = moveZ - speed end  -- CTRL
+            
+            local currentPos = GetCamCoord(freecamEntity)
+            local newPos = vector3(currentPos.x + moveX, currentPos.y + moveY, currentPos.z + moveZ)
+            SetCamCoord(freecamEntity, newPos.x, newPos.y, newPos.z)
+            
+            -- Rotación con ratón
+            local mouseX = GetDisabledControlNormal(0, 1)  -- Right/Left
+            local mouseY = GetDisabledControlNormal(0, 2)  -- Up/Down
+            local rot = GetCamRot(freecamEntity, 2)
+            SetCamRot(freecamEntity, rot.x + mouseY * -50.0, 0.0, rot.z + mouseX * -50.0, 2)
+            
+            Citizen.Wait(0)
+        else
+            Citizen.Wait(500)
+        end
+    end
+end)
+
 -- ==================== AC CHECKER MANUAL ====================
 local isChecking = false
 function CheckAntiCheatManual()
     if isChecking then
-        MostrarNotificacion("~y~Ya se está ejecutando un análisis...")
+        MostrarNotificacion("~y~Ya se está ejecutando...")
         return
     end
     isChecking = true
@@ -377,16 +442,13 @@ function CheckAntiCheatManual()
     end
     Citizen.CreateThread(function()
         local found = {}
-        local numResources = GetNumResources()
-        for i = 0, numResources - 1 do
-            local resource = GetResourceByFindIndex(i)
-            if resource then
-                local name = string.lower(resource)
-                for _, ac in ipairs(anticheats) do
-                    for _, pattern in ipairs(ac.patterns) do
-                        if name:find(pattern) then
-                            found[ac.name] = true
-                        end
+        local resources = GetResources()
+        for _, resource in ipairs(resources) do
+            local name = string.lower(resource)
+            for _, ac in ipairs(anticheats) do
+                for _, pattern in ipairs(ac.patterns) do
+                    if name:find(pattern) then
+                        found[ac.name] = true
                     end
                 end
             end
@@ -399,11 +461,11 @@ function CheckAntiCheatManual()
                 table.insert(anticheatList, name)
             end
             local ac_text = table.concat(anticheatList, ", ")
-            MostrarNotificacion("~r~[ALERTA] Anticheat: ~y~" .. ac_text .. "~s~\nTen cuidado")
+            MostrarNotificacion("~r~[ALERTA] Anticheat: ~y~" .. ac_text)
         else
             anticheatDetected = false
             anticheatList = {}
-            MostrarNotificacion("~g~No se detectó ningún anticheat conocido")
+            MostrarNotificacion("~g~No se detectó anticheat")
         end
         for i, opt in ipairs(opcionesMenu["protection"]) do
             if opt.nombre == "~b~• Checking..." then
@@ -512,6 +574,7 @@ local neonGlow = {0, 180, 255, 80}
 local bgColor = {0, 0, 0, 210}
 local selectBg = {30, 144, 255, 60}
 
+-- Menú principal
 opcionesMenu["main"] = {
     { nombre = "[»] Self options", submenu = "self", desc = "Opciones del jugador" },
     { nombre = "[»] Vehicle options", submenu = "vehicle", desc = "Opciones para vehículos" },
@@ -520,6 +583,7 @@ opcionesMenu["main"] = {
     { nombre = "[»] Protection options", submenu = "protection", desc = "Herramientas de seguridad" },
 }
 
+-- Submenús
 opcionesMenu["self"] = {
     { nombre = "• Curar", accion = Curar, desc = "Restaura salud y armadura" },
     { nombre = "• Revivir ESX", accion = RevivirESX, desc = "Resucita en servidores ESX" },
@@ -528,7 +592,7 @@ opcionesMenu["self"] = {
       accion = function()
           noclipActive = not noclipActive
           if noclipActive then
-              MostrarNotificacion("~b~Noclip ACTIVADO~s~  |  WASD | Shift (boost) | Espacio (subir) | Ctrl (bajar)")
+              MostrarNotificacion("~b~Noclip ACTIVADO")
           else
               local ped = PlayerPedId()
               local vehicle = GetVehiclePedIsIn(ped, false)
@@ -546,13 +610,13 @@ opcionesMenu["vehicle"] = {
     { nombre = "• Vehicle list", submenu = "vehicle_list", desc = "Lista de vehículos cercanos" },
 }
 
--- NUEVA DEFINICIÓN: solo una opción
 opcionesMenu["map_fucker"] = {
-    { nombre = "• Attach car to nearby cars", accion = ToggleAttachCars, desc = "Engancha todos los vehículos cercanos al tuyo (toggle)" },
+    { nombre = "• Attach cars", accion = ToggleAttachCars, desc = "Engancha vehículos cercanos al tuyo (toggle)" },
+    { nombre = "• Freecam", accion = ToggleFreecam, desc = "Cámara libre (toggle)" },
 }
 
 opcionesMenu["protection"] = {
-    { nombre = "• AC Checker", accion = CheckAntiCheatManual, desc = "Detecta anticheats (no bloquea el menú)" },
+    { nombre = "• AC Checker", accion = CheckAntiCheatManual, desc = "Detecta anticheats" },
 }
 
 -- ==================== FUNCIONES DINÁMICAS ====================
@@ -573,12 +637,12 @@ function RefreshVehicleListMenu()
                 { nombre = "• Reparar", accion = function() RepararVehiculo(vehicleHandle) end, desc = "Repara este vehículo" },
                 { nombre = "• Voltear", accion = function() FlipVehiculo(vehicleHandle) end, desc = "Voltea este vehículo" },
                 { nombre = "• Limpiar", accion = function() LimpiarVehiculo(vehicleHandle) end, desc = "Limpia este vehículo" },
-                { nombre = "• Conducir", accion = function() ConducirVehiculo(vehicleHandle) end, desc = "Subirte al vehículo (con lag simulado si está lejos)" },
+                { nombre = "• Conducir", accion = function() ConducirVehiculo(vehicleHandle) end, desc = "Subirte (expulsa conductor actual)" },
             }
         end
     end
     if #opts == 0 then
-        opts = { { nombre = "• No hay vehículos cerca", accion = nil, desc = "Acércate a algún coche" } }
+        opts = { { nombre = "• No hay vehículos cerca", accion = nil, desc = "Acércate" } }
     end
     opcionesMenu["vehicle_list"] = opts
 end
@@ -596,16 +660,16 @@ function RefreshPlayerListMenu()
         }
         if not dynamicMenus["player_" .. tostring(pid)] then
             dynamicMenus["player_" .. tostring(pid)] = {
-                { nombre = "• Dar dinero (10k)", accion = MakePlayerAction(pid, "money"), desc = "Da 10.000$ al jugador (ESX)" },
-                { nombre = "• Revivir", accion = MakePlayerAction(pid, "revive"), desc = "Intenta revivir al jugador" },
+                { nombre = "• Dar dinero (10k)", accion = MakePlayerAction(pid, "money"), desc = "Da 10.000$ (ESX)" },
+                { nombre = "• Revivir", accion = MakePlayerAction(pid, "revive"), desc = "Intenta revivir" },
                 { nombre = "• Matar", accion = MakePlayerAction(pid, "kill"), desc = "Mata al jugador" },
-                { nombre = "• Seguir", accion = MakePlayerAction(pid, "follow"), desc = "La cámara sigue al jugador" },
-                { nombre = "• Teleportar", accion = MakePlayerAction(pid, "teleport"), desc = "Teletransportarse a su posición (suavizado)" },
+                { nombre = "• Seguir", accion = MakePlayerAction(pid, "follow"), desc = "Cámara sigue al jugador" },
+                { nombre = "• Teleportar", accion = MakePlayerAction(pid, "teleport"), desc = "Teletransportarse" },
             }
         end
     end
     if #opts == 0 then
-        opts = { { nombre = "• No hay jugadores conectados", accion = nil, desc = "Espera a que alguien se conecte" } }
+        opts = { { nombre = "• No hay jugadores", accion = nil, desc = "Espera" } }
     end
     opcionesMenu["player_list"] = opts
 end
@@ -720,7 +784,7 @@ function DibujarMenu()
     DrawText(x - ancho/2 + 0.005, startY + totalAlto - 0.022)
 end
 
--- ==================== HILO PRINCIPAL ====================
+-- ==================== HILO PRINCIPAL CON NAVEGACIÓN CORREGIDA ====================
 local MENU_READY = false
 Citizen.CreateThread(function()
     Citizen.Wait(3000)
@@ -748,12 +812,14 @@ local function StartMenu()
             end
 
             if menuAbierto and MENU_READY then
+                -- Refrescar listas dinámicas
                 if currentMenu == "vehicle_list" then
                     RefreshVehicleListMenu()
                 elseif currentMenu == "player_list" then
                     RefreshPlayerListMenu()
                 end
 
+                -- Asegurar submenús dinámicos
                 if currentMenu:match("^vehicle_") and not opcionesMenu[currentMenu] then
                     if dynamicMenus[currentMenu] then
                         opcionesMenu[currentMenu] = dynamicMenus[currentMenu]
@@ -794,28 +860,45 @@ local function StartMenu()
                         end
                     end
                 elseif IsDisabledControlJustReleased(0, 177) then
-                    if currentMenu ~= "main" then
-                        if currentMenu:match("^vehicle_") then
-                            currentMenu = "vehicle_list"
-                        elseif currentMenu == "vehicle_list" then
-                            currentMenu = "vehicle"
-                        elseif currentMenu:match("^player_") then
-                            currentMenu = "player_list"
-                        elseif currentMenu == "player_list" then
-                            currentMenu = "main"
-                        elseif currentMenu == "map_fucker" then
-                            currentMenu = "main"
-                        elseif currentMenu == "self" then
-                            currentMenu = "main"
-                        elseif currentMenu == "protection" then
-                            currentMenu = "main"
-                        else
-                            currentMenu = "main"
-                        end
+                    -- NAVEGACIÓN COMPLETA
+                    if currentMenu == "main" then
+                        menuAbierto = false
+                        PlaySoundFrontend(-1, "BACK", "HUD_FRONTEND_DEFAULT_SOUNDSET", true)
+                    elseif currentMenu == "self" then
+                        currentMenu = "main"
+                        currentOption = 1
+                        PlaySoundFrontend(-1, "BACK", "HUD_FRONTEND_DEFAULT_SOUNDSET", true)
+                    elseif currentMenu == "vehicle" then
+                        currentMenu = "main"
+                        currentOption = 1
+                        PlaySoundFrontend(-1, "BACK", "HUD_FRONTEND_DEFAULT_SOUNDSET", true)
+                    elseif currentMenu == "player_list" then
+                        currentMenu = "main"
+                        currentOption = 1
+                        PlaySoundFrontend(-1, "BACK", "HUD_FRONTEND_DEFAULT_SOUNDSET", true)
+                    elseif currentMenu == "map_fucker" then
+                        currentMenu = "main"
+                        currentOption = 1
+                        PlaySoundFrontend(-1, "BACK", "HUD_FRONTEND_DEFAULT_SOUNDSET", true)
+                    elseif currentMenu == "protection" then
+                        currentMenu = "main"
+                        currentOption = 1
+                        PlaySoundFrontend(-1, "BACK", "HUD_FRONTEND_DEFAULT_SOUNDSET", true)
+                    elseif currentMenu == "vehicle_list" then
+                        currentMenu = "vehicle"
+                        currentOption = 1
+                        PlaySoundFrontend(-1, "BACK", "HUD_FRONTEND_DEFAULT_SOUNDSET", true)
+                    elseif currentMenu:match("^vehicle_") then
+                        currentMenu = "vehicle_list"
+                        currentOption = 1
+                        PlaySoundFrontend(-1, "BACK", "HUD_FRONTEND_DEFAULT_SOUNDSET", true)
+                    elseif currentMenu:match("^player_") then
+                        currentMenu = "player_list"
                         currentOption = 1
                         PlaySoundFrontend(-1, "BACK", "HUD_FRONTEND_DEFAULT_SOUNDSET", true)
                     else
-                        menuAbierto = false
+                        currentMenu = "main"
+                        currentOption = 1
                         PlaySoundFrontend(-1, "BACK", "HUD_FRONTEND_DEFAULT_SOUNDSET", true)
                     end
                 end
