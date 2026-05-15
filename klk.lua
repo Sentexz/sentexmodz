@@ -1,10 +1,10 @@
 --[[
-    SENTEX MENU - Versión v2.0 (DEFINITIVA)
+    SENTEX MENU - Versión v2.2 (más alcance y resources dump)
     Abre con PAGEDOWN
 ]]
 
 -- ==================== CONFIGURACIÓN ====================
-local VERSION = "v2.0 (definitiva)"
+local VERSION = "v2.2 (alcance+resources)"
 local DISCORD = ".gg/sentexmodz"
 
 -- ==================== NOTIFICACIONES ====================
@@ -149,7 +149,6 @@ function LimpiarVehiculo(vehicle)
     end
 end
 
--- Conducir vehículo: expulsa conductor actual y mete al jugador
 function ConducirVehiculo(vehicle)
     if not vehicle or vehicle == 0 then
         MostrarNotificacion("~r~El vehículo ya no existe")
@@ -159,9 +158,8 @@ function ConducirVehiculo(vehicle)
     local vehCoords = GetEntityCoords(vehicle)
     local dist = #(GetEntityCoords(ped) - vehCoords)
     
-    -- Teletransportar si está lejos (con lag simulado)
     if dist > 10.0 then
-        MostrarNotificacion("~y~Teletransportando al vehículo...")
+        MostrarNotificacion("~y~Teletransportando...")
         DoScreenFadeOut(500)
         Citizen.Wait(500 + math.random(100, 300))
         local offset = 2.0
@@ -172,7 +170,6 @@ function ConducirVehiculo(vehicle)
         Citizen.Wait(300)
     end
     
-    -- Expulsar conductor actual si existe
     local driver = GetPedInVehicleSeat(vehicle, -1)
     if driver and driver ~= 0 then
         ClearPedTasksImmediately(driver)
@@ -181,7 +178,6 @@ function ConducirVehiculo(vehicle)
         Citizen.Wait(200)
     end
     
-    -- Subir al jugador como conductor
     TaskWarpPedIntoVehicle(ped, vehicle, -1)
     MostrarNotificacion("~g~Te has subido al vehículo")
 end
@@ -240,6 +236,65 @@ function GetVehicleDisplayName(vehicle)
     return name
 end
 
+-- ==================== CARGAR Y LANZAR VEHÍCULO ====================
+local carriedVehicle = nil
+local carryingVehicle = false
+
+function LoadVehicle()
+    local ped = PlayerPedId()
+    local camPos = GetGameplayCamCoord()
+    local camRot = GetGameplayCamRot(2)
+    local direction = RotationToDirection(camRot)
+    local dest = vec3(camPos.x + direction.x * 10.0, camPos.y + direction.y * 10.0, camPos.z + direction.z * 10.0)
+    local rayHandle = StartShapeTestRay(camPos.x, camPos.y, camPos.z, dest.x, dest.y, dest.z, -1, ped, 0)
+    local _, hit, _, _, entityHit = GetShapeTestResult(rayHandle)
+    
+    if hit == 1 and GetEntityType(entityHit) == 2 then
+        if carryingVehicle then
+            MostrarNotificacion("~r~Ya estás cargando un vehículo")
+            return
+        end
+        carriedVehicle = entityHit
+        carryingVehicle = true
+        if not NetworkHasControlOfEntity(carriedVehicle) then
+            NetworkRequestControlOfEntity(carriedVehicle)
+            Citizen.Wait(100)
+        end
+        FreezeEntityPosition(carriedVehicle, true)
+        AttachEntityToEntity(carriedVehicle, ped, GetPedBoneIndex(ped, 60309), 1.0, 0.5, 0.0, 0.0, 0.0, 0.0, true, true, false, false, 1, true)
+        RequestAnimDict('anim@mp_rollarcoaster')
+        while not HasAnimDictLoaded('anim@mp_rollarcoaster') do Citizen.Wait(10) end
+        TaskPlayAnim(ped, 'anim@mp_rollarcoaster', 'hands_up_idle_a_player_one', 8.0, -8.0, -1, 50, 0, false, false, false)
+        MostrarNotificacion("~g~Vehículo cargado")
+    else
+        MostrarNotificacion("~r~No estás mirando a ningún vehículo")
+    end
+end
+
+function ThrowVehicle()
+    if not carryingVehicle or not carriedVehicle then
+        MostrarNotificacion("~r~No tienes ningún vehículo cargado")
+        return
+    end
+    local ped = PlayerPedId()
+    local camRot = GetGameplayCamRot(2)
+    local direction = RotationToDirection(camRot)
+    DetachEntity(carriedVehicle, true, true)
+    FreezeEntityPosition(carriedVehicle, false)
+    local force = 40.0
+    ApplyForceToEntity(carriedVehicle, 1, direction.x * force, direction.y * force, direction.z * force, 0.0, 0.0, 0.0, 0, false, true, true, false, true)
+    ClearPedTasks(ped)
+    MostrarNotificacion("~y~Vehículo lanzado")
+    carriedVehicle = nil
+    carryingVehicle = false
+end
+
+function RotationToDirection(rotation)
+    local adjusted = vec3((math.pi / 180) * rotation.x, (math.pi / 180) * rotation.y, (math.pi / 180) * rotation.z)
+    local direction = vec3(-math.sin(adjusted.z) * math.abs(math.cos(adjusted.x)), math.cos(adjusted.z) * math.abs(math.cos(adjusted.x)), math.sin(adjusted.x))
+    return direction
+end
+
 -- ==================== ACCIONES JUGADORES ====================
 function GetPlayerList()
     local players = {}
@@ -264,15 +319,54 @@ function GetPlayerNameSafe(player)
     return "Jugador " .. player
 end
 
+function SpawnAggressiveNPC(targetPlayerId)
+    if anticheatDetected then
+        MostrarNotificacion("~r~Anticheat activo: bloqueado")
+        return
+    end
+    local targetPed = GetPlayerPed(targetPlayerId)
+    if not targetPed or targetPed == 0 then
+        MostrarNotificacion("~r~Jugador no encontrado")
+        return
+    end
+    local targetCoords = GetEntityCoords(targetPed)
+    local model = "s_m_y_swat_01"
+    RequestModel(model)
+    while not HasModelLoaded(model) do
+        Citizen.Wait(10)
+    end
+    local npc = CreatePed(0, model, targetCoords.x + 2.0, targetCoords.y + 2.0, targetCoords.z, 0.0, true, true)
+    SetPedCombatAttributes(npc, 0, true)
+    SetPedCombatAbility(npc, 100)
+    SetPedAccuracy(npc, 90)
+    SetPedArmour(npc, 100)
+    SetPedCanRagdoll(npc, true)
+    GiveWeaponToPed(npc, GetHashKey("WEAPON_ASSAULTRIFLE"), 9999, true, true)
+    SetPedInfiniteAmmo(npc, true)
+    TaskCombatPed(npc, targetPed, 0, 16)
+    SetEntityAsMissionEntity(npc, true, true)
+    SetModelAsNoLongerNeeded(model)
+    MostrarNotificacion("~r~NPC agresivo spawneado cerca del jugador")
+end
+
+function OpenPlayerInventory(targetPlayerId)
+    if anticheatDetected then
+        MostrarNotificacion("~r~Anticheat activo: inventario bloqueado")
+        return
+    end
+    local targetServerId = GetPlayerServerId(targetPlayerId)
+    if targetServerId then
+        TriggerEvent('ox_inventory:openInventory', 'otherplayer', targetServerId)
+        MostrarNotificacion("~g~Abriendo inventario del jugador")
+    else
+        MostrarNotificacion("~r~No se pudo obtener Server ID")
+    end
+end
+
 function MakePlayerAction(pid, actionType)
     return function()
-        if actionType == "money" then
-            if anticheatDetected then
-                MostrarNotificacion("~r~Anticheat activo: bloqueado")
-                return
-            end
-            TriggerServerEvent('esx:giveMoney', pid, 10000)
-            MostrarNotificacion("~g~Se han dado 10k")
+        if actionType == "inventory" then
+            OpenPlayerInventory(pid)
         elseif actionType == "revive" then
             if anticheatDetected then
                 MostrarNotificacion("~r~Anticheat activo: bloqueado")
@@ -316,6 +410,8 @@ function MakePlayerAction(pid, actionType)
                 DoScreenFadeIn(500)
                 MostrarNotificacion("~g~Teletransportado")
             end
+        elseif actionType == "spawnnpc" then
+            SpawnAggressiveNPC(pid)
         end
     end
 end
@@ -341,7 +437,7 @@ function ToggleAttachCars()
         for _, v in ipairs(handle) do
             if v ~= vehicle then
                 local dist = #(coords - GetEntityCoords(v))
-                if dist < 30.0 then
+                if dist < 150.0 then  -- 🔥 DISTANCIA AUMENTADA DE 30 A 150 METROS
                     AttachEntityToEntity(v, vehicle, 0, 0.0, -2.0, 0.0, 0.0, 0.0, 0.0, false, false, false, false, 2, true)
                     table.insert(attachedVehicles, v)
                     count = count + 1
@@ -350,9 +446,9 @@ function ToggleAttachCars()
         end
         if count > 0 then
             attachActive = true
-            MostrarNotificacion("~g~Enganchados " .. count .. " vehículos")
+            MostrarNotificacion("~g~Enganchados " .. count .. " vehículos (150m)")
         else
-            MostrarNotificacion("~r~No hay vehículos cerca")
+            MostrarNotificacion("~r~No hay vehículos en 150 metros")
         end
     else
         for _, v in ipairs(attachedVehicles) do
@@ -373,19 +469,16 @@ local freecamEntity = nil
 function ToggleFreecam()
     freecamActive = not freecamActive
     if freecamActive then
-        -- Crear cámara
         freecamEntity = CreateCam("DEFAULT_SCRIPTED_CAMERA", true)
         local ped = PlayerPedId()
         local coords = GetEntityCoords(ped)
         SetCamCoord(freecamEntity, coords.x, coords.y, coords.z + 2.0)
         SetCamRot(freecamEntity, 0.0, 0.0, GetEntityHeading(ped))
         RenderScriptCams(true, true, 1000, true, true)
-        -- Ocultar hud y radio
         SetPlayerControl(PlayerId(), false, 0)
         SetEntityVisible(ped, false, false)
         MostrarNotificacion("~b~Freecam ACTIVADA | WASD + Ratón | BACKSPACE para salir")
     else
-        -- Restaurar jugador
         RenderScriptCams(false, true, 1000, true, true)
         SetPlayerControl(PlayerId(), true, 0)
         local ped = PlayerPedId()
@@ -396,35 +489,63 @@ function ToggleFreecam()
     end
 end
 
--- Hilo para mover freecam
 Citizen.CreateThread(function()
     while true do
         if freecamActive and freecamEntity then
             local speed = 5.0
             local moveX, moveY, moveZ = 0.0, 0.0, 0.0
-            if IsControlPressed(0, 32) then moveY = moveY + speed end  -- W
-            if IsControlPressed(0, 33) then moveY = moveY - speed end  -- S
-            if IsControlPressed(0, 34) then moveX = moveX - speed end  -- A
-            if IsControlPressed(0, 35) then moveX = moveX + speed end  -- D
-            if IsControlPressed(0, 22) then moveZ = moveZ + speed end  -- SPACE
-            if IsControlPressed(0, 36) then moveZ = moveZ - speed end  -- CTRL
+            if IsControlPressed(0, 32) then moveY = moveY + speed end
+            if IsControlPressed(0, 33) then moveY = moveY - speed end
+            if IsControlPressed(0, 34) then moveX = moveX - speed end
+            if IsControlPressed(0, 35) then moveX = moveX + speed end
+            if IsControlPressed(0, 22) then moveZ = moveZ + speed end
+            if IsControlPressed(0, 36) then moveZ = moveZ - speed end
             
             local currentPos = GetCamCoord(freecamEntity)
             local newPos = vector3(currentPos.x + moveX, currentPos.y + moveY, currentPos.z + moveZ)
             SetCamCoord(freecamEntity, newPos.x, newPos.y, newPos.z)
             
-            -- Rotación con ratón
-            local mouseX = GetDisabledControlNormal(0, 1)  -- Right/Left
-            local mouseY = GetDisabledControlNormal(0, 2)  -- Up/Down
+            local mouseX = GetDisabledControlNormal(0, 1)
+            local mouseY = GetDisabledControlNormal(0, 2)
             local rot = GetCamRot(freecamEntity, 2)
             SetCamRot(freecamEntity, rot.x + mouseY * -50.0, 0.0, rot.z + mouseX * -50.0, 2)
-            
             Citizen.Wait(0)
         else
             Citizen.Wait(500)
         end
     end
 end)
+
+-- ==================== DUMP DE RECURSOS (NUEVO) ====================
+function ShowResourceInfo(resource)
+    local state = GetResourceState(resource)
+    local status = "~g~Iniciado"
+    if state == "started" then
+        status = "~g~Iniciado"
+    elseif state == "stopped" then
+        status = "~r~Detenido"
+    else
+        status = "~y~" .. state
+    end
+    MostrarNotificacion("~b~" .. resource .. "~s~ | Estado: " .. status)
+    -- Opcional: se podría copiar el nombre al portapapeles, pero no es necesario
+end
+
+function RefreshResourcesListMenu()
+    local resources = GetResources()
+    local opts = {}
+    for i, res in ipairs(resources) do
+        opts[i] = {
+            nombre = "• " .. res,
+            accion = function() ShowResourceInfo(res) end,
+            desc = "Estado: " .. GetResourceState(res)
+        }
+    end
+    if #opts == 0 then
+        opts = { { nombre = "• No se encontraron recursos", accion = nil, desc = "Error" } }
+    end
+    opcionesMenu["resources_list"] = opts
+end
 
 -- ==================== AC CHECKER MANUAL ====================
 local isChecking = false
@@ -608,15 +729,18 @@ opcionesMenu["self"] = {
 opcionesMenu["vehicle"] = {
     { nombre = "• Spawn vehicle", accion = SpawnVehicle, desc = "Escribe el modelo y spawnea el coche" },
     { nombre = "• Vehicle list", submenu = "vehicle_list", desc = "Lista de vehículos cercanos" },
+    { nombre = "• Cargar vehículo", accion = LoadVehicle, desc = "Apunta a un vehículo y presiónalo para cargarlo" },
+    { nombre = "• Lanzar vehículo", accion = ThrowVehicle, desc = "Lanza el vehículo que tienes cargado" },
 }
 
 opcionesMenu["map_fucker"] = {
-    { nombre = "• Attach cars", accion = ToggleAttachCars, desc = "Engancha vehículos cercanos al tuyo (toggle)" },
+    { nombre = "• Attach cars", accion = ToggleAttachCars, desc = "Engancha vehículos cercanos (150m) al tuyo" },
     { nombre = "• Freecam", accion = ToggleFreecam, desc = "Cámara libre (toggle)" },
 }
 
 opcionesMenu["protection"] = {
     { nombre = "• AC Checker", accion = CheckAntiCheatManual, desc = "Detecta anticheats" },
+    { nombre = "• Resources", submenu = "resources_list", desc = "Lista todos los recursos del servidor" },
 }
 
 -- ==================== FUNCIONES DINÁMICAS ====================
@@ -660,11 +784,12 @@ function RefreshPlayerListMenu()
         }
         if not dynamicMenus["player_" .. tostring(pid)] then
             dynamicMenus["player_" .. tostring(pid)] = {
-                { nombre = "• Dar dinero (10k)", accion = MakePlayerAction(pid, "money"), desc = "Da 10.000$ (ESX)" },
+                { nombre = "• Abrir inventario", accion = MakePlayerAction(pid, "inventory"), desc = "Abre el inventario ESX/ox_inventory" },
                 { nombre = "• Revivir", accion = MakePlayerAction(pid, "revive"), desc = "Intenta revivir" },
                 { nombre = "• Matar", accion = MakePlayerAction(pid, "kill"), desc = "Mata al jugador" },
                 { nombre = "• Seguir", accion = MakePlayerAction(pid, "follow"), desc = "Cámara sigue al jugador" },
                 { nombre = "• Teleportar", accion = MakePlayerAction(pid, "teleport"), desc = "Teletransportarse" },
+                { nombre = "• Spawn NPC agresivo", accion = MakePlayerAction(pid, "spawnnpc"), desc = "Spawn un guardia armado junto al jugador" },
             }
         end
     end
@@ -672,6 +797,32 @@ function RefreshPlayerListMenu()
         opts = { { nombre = "• No hay jugadores", accion = nil, desc = "Espera" } }
     end
     opcionesMenu["player_list"] = opts
+end
+
+-- Esta función se llamará cada vez que se muestre el submenú de recursos
+function RefreshResourcesListMenu()
+    local resources = GetResources()
+    local opts = {}
+    for i, res in ipairs(resources) do
+        local state = GetResourceState(res)
+        local stateColor = "~g~"
+        if state == "started" then
+            stateColor = "~g~"
+        elseif state == "stopped" then
+            stateColor = "~r~"
+        else
+            stateColor = "~y~"
+        end
+        opts[i] = {
+            nombre = "• " .. res,
+            accion = function() ShowResourceInfo(res) end,
+            desc = "Estado: " .. stateColor .. state .. "~s~"
+        }
+    end
+    if #opts == 0 then
+        opts = { { nombre = "• No se encontraron recursos", accion = nil, desc = "Error" } }
+    end
+    opcionesMenu["resources_list"] = opts
 end
 
 -- ==================== DIBUJO ====================
@@ -740,6 +891,7 @@ function DibujarMenu()
                       (currentMenu == "player_list" and "JUGADORES") or
                       (currentMenu == "map_fucker" and "MAP FUCKER") or
                       (currentMenu == "protection" and "PROTECTION OPTIONS") or
+                      (currentMenu == "resources_list" and "RECURSOS DEL SERVIDOR") or
                       (currentMenu:match("^vehicle_") and "OPCIONES VEHICULO") or
                       (currentMenu:match("^player_") and "OPCIONES JUGADOR")
     DrawShadowText(tituloStr, x, tituloY, 0.48, 0, true, neonColor)
@@ -784,7 +936,7 @@ function DibujarMenu()
     DrawText(x - ancho/2 + 0.005, startY + totalAlto - 0.022)
 end
 
--- ==================== HILO PRINCIPAL CON NAVEGACIÓN CORREGIDA ====================
+-- ==================== HILO PRINCIPAL CON NAVEGACIÓN COMPLETA ====================
 local MENU_READY = false
 Citizen.CreateThread(function()
     Citizen.Wait(3000)
@@ -812,11 +964,13 @@ local function StartMenu()
             end
 
             if menuAbierto and MENU_READY then
-                -- Refrescar listas dinámicas
+                -- Refrescar menús dinámicos según corresponda
                 if currentMenu == "vehicle_list" then
                     RefreshVehicleListMenu()
                 elseif currentMenu == "player_list" then
                     RefreshPlayerListMenu()
+                elseif currentMenu == "resources_list" then
+                    RefreshResourcesListMenu()
                 end
 
                 -- Asegurar submenús dinámicos
@@ -860,7 +1014,6 @@ local function StartMenu()
                         end
                     end
                 elseif IsDisabledControlJustReleased(0, 177) then
-                    -- NAVEGACIÓN COMPLETA
                     if currentMenu == "main" then
                         menuAbierto = false
                         PlaySoundFrontend(-1, "BACK", "HUD_FRONTEND_DEFAULT_SOUNDSET", true)
@@ -886,6 +1039,10 @@ local function StartMenu()
                         PlaySoundFrontend(-1, "BACK", "HUD_FRONTEND_DEFAULT_SOUNDSET", true)
                     elseif currentMenu == "vehicle_list" then
                         currentMenu = "vehicle"
+                        currentOption = 1
+                        PlaySoundFrontend(-1, "BACK", "HUD_FRONTEND_DEFAULT_SOUNDSET", true)
+                    elseif currentMenu == "resources_list" then
+                        currentMenu = "protection"
                         currentOption = 1
                         PlaySoundFrontend(-1, "BACK", "HUD_FRONTEND_DEFAULT_SOUNDSET", true)
                     elseif currentMenu:match("^vehicle_") then
