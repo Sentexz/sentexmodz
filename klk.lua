@@ -62,14 +62,19 @@ function FlipVehiculo()
     end
 end
 
--- ==================== NOCLIP (WASD + Shift/Ctrl) ====================
+-- ==================== NOCLIP (WASD + Shift + Espacio + Ctrl) ====================
 local noclipActive = false
 local noclipSpeed = 5.0
 local boostMultiplier = 3.0
 
 local controls = {
-    forward = 32, backward = 33, left = 34, right = 35,
-    boost = 21, descend = 36
+    forward = 32,   -- W
+    backward = 33,  -- S
+    left = 34,      -- A
+    right = 35,     -- D
+    boost = 21,     -- LEFT SHIFT
+    ascend = 22,    -- SPACE (barra espaciadora)
+    descend = 36    -- LEFT CTRL
 }
 
 local function getCamVectors()
@@ -103,7 +108,8 @@ Citizen.CreateThread(function()
             if IsControlPressed(0, controls.backward) then moveY = moveY - 1.0 end
             if IsControlPressed(0, controls.left) then moveX = moveX - 1.0 end
             if IsControlPressed(0, controls.right) then moveX = moveX + 1.0 end
-            if IsControlPressed(0, controls.descend) then moveZ = moveZ - 1.0 end
+            if IsControlPressed(0, controls.ascend) then moveZ = moveZ + 1.0 end   -- ESPACIO sube
+            if IsControlPressed(0, controls.descend) then moveZ = moveZ - 1.0 end   -- CTRL baja
 
             local speed = noclipSpeed
             if IsControlPressed(0, controls.boost) then speed = speed * boostMultiplier end
@@ -126,11 +132,11 @@ Citizen.CreateThread(function()
     end
 end)
 
--- ==================== BANNER DIBUJADO (SIN IMAGEN EXTERNA) ====================
+-- ==================== BANNER DIBUJADO (SIN NINGUNA IMAGEN EXTERNA) ====================
 local function DibujarBanner(x, y, w, h)
-    -- Rectángulo azul oscuro
+    -- Rectángulo azul oscuro (banner)
     DrawRect(x, y, w, h, 0, 30, 60, 200)
-    -- Texto "SENTEX MENU" centrado (fuente estilizada)
+    -- Texto "SENTEX MENU" centrado con fuente elegante
     SetTextFont(7)
     SetTextScale(0.55, 0.55)
     SetTextColour(255, 255, 255, 255)
@@ -138,7 +144,7 @@ local function DibujarBanner(x, y, w, h)
     SetTextEntry("STRING")
     AddTextComponentString("SENTEX MENU")
     DrawText(x, y - 0.02)
-    -- Versión abajo a la derecha
+    -- Versión abajo a la derecha dentro del banner
     SetTextFont(0)
     SetTextScale(0.28, 0.28)
     SetTextColour(200, 200, 200, 255)
@@ -175,7 +181,7 @@ opcionesMenu["self"] = {
       accion = function()
           noclipActive = not noclipActive
           if noclipActive then
-              MostrarNotificacion("~b~Noclip ACTIVADO~s~  |  WASD | Shift (boost) | Ctrl (bajar)")
+              MostrarNotificacion("~b~Noclip ACTIVADO~s~  |  WASD | Shift (boost) | Espacio (subir) | Ctrl (bajar)")
           else
               local ped = PlayerPedId()
               local vehicle = GetVehiclePedIsIn(ped, false)
@@ -185,7 +191,7 @@ opcionesMenu["self"] = {
               MostrarNotificacion("~r~Noclip DESACTIVADO")
           end
       end,
-      desc = "Atraviesa paredes. Controles: WASD, Shift (boost), Ctrl (bajar)" },
+      desc = "Atraviesa paredes. Controles: WASD, Shift (boost), Espacio (subir), Ctrl (bajar)" },
 }
 
 -- Submenú Vehicle
@@ -239,18 +245,20 @@ function DibujarMenu()
     local totalAlto = altoBanner + altoTitulo + (numOpt * altoOpcion) + descH + 0.015
     local startY = y
 
-    -- Fondo
+    -- Fondo principal
     DrawRect(x, startY + totalAlto/2, ancho, totalAlto, bgColor[1], bgColor[2], bgColor[3], bgColor[4])
-    -- Bordes
+
+    -- Bordes (líneas delgadas)
     DrawRect(x, startY, ancho, 0.0005, neonColor[1], neonColor[2], neonColor[3], neonColor[4])
     DrawRect(x, startY + totalAlto, ancho, 0.0005, neonColor[1], neonColor[2], neonColor[3], neonColor[4])
     DrawRect(x - ancho/2, startY + totalAlto/2, 0.0005, totalAlto, neonColor[1], neonColor[2], neonColor[3], neonColor[4])
     DrawRect(x + ancho/2, startY + totalAlto/2, 0.0005, totalAlto, neonColor[1], neonColor[2], neonColor[3], neonColor[4])
-    -- Resplandor
+
+    -- Resplandor exterior
     DrawRect(x, startY, ancho + 0.006, 0.001, neonGlow[1], neonGlow[2], neonGlow[3], neonGlow[4])
     DrawRect(x, startY + totalAlto, ancho + 0.006, 0.001, neonGlow[1], neonGlow[2], neonGlow[3], neonGlow[4])
 
-    -- Banner dibujado
+    -- Banner (dibujado 100% con código, sin texturas externas)
     DibujarBanner(x, startY + altoBanner/2, ancho - 0.01, altoBanner - 0.01)
     DrawRect(x, startY + altoBanner - 0.001, ancho, 0.0005, neonColor[1], neonColor[2], neonColor[3], 200)
 
@@ -284,7 +292,7 @@ function DibujarMenu()
         end
     end
 
-    -- ========== CONTADOR DE SECCIÓN (solo en submenús) ==========
+    -- Contador de sección (solo en submenús)
     if currentMenu ~= "main" then
         local pageText = currentSubmenuIndex .. "/" .. #submenus
         SetTextFont(0)
@@ -296,7 +304,7 @@ function DibujarMenu()
         DrawText(x + ancho/2 - 0.02, startY + totalAlto - 0.022)
     end
 
-    -- ========== TEXTO DISCORD (más a la izquierda) ==========
+    -- Texto Discord (más a la izquierda)
     SetTextFont(0)
     SetTextScale(0.28, 0.28)
     SetTextColour(150, 150, 150, 255)
