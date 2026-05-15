@@ -1,10 +1,10 @@
 --[[
-    SENTEX MENU - Versión v1.0.1 (beta)
+    SENTEX MENU - Versión v1.0.2 (beta)
     Abre con PAGEDOWN
 ]]
 
 -- ==================== CONFIGURACIÓN ====================
-local VERSION = "v1.0.1 (beta)"
+local VERSION = "v1.0.2 (beta)"
 local DISCORD = ".gg/sentexmodz"
 
 -- ==================== NOTIFICACIONES ====================
@@ -33,7 +33,7 @@ function RevivirQB()
     MostrarNotificacion("~g~Reviviendo (QB)")
 end
 
--- ==================== ACCIONES VEHÍCULO (nuevas) ====================
+-- ==================== ACCIONES VEHÍCULO ====================
 function RepararVehiculo(vehicle)
     if not vehicle then
         local ped = PlayerPedId()
@@ -85,7 +85,6 @@ function ConducirVehiculo(vehicle)
     end
 end
 
--- Spawnear vehículo con teclado
 function SpawnVehicle()
     DisplayOnscreenKeyboard(1, "FMMC_KEY_TIP8", "", "Escribe el nombre del modelo", "", "", "", 30)
     while UpdateOnscreenKeyboard() == 0 do
@@ -112,7 +111,6 @@ function SpawnVehicle()
     end
 end
 
--- Obtener vehículos cercanos
 function GetNearbyVehicles()
     local vehicles = {}
     local playerPed = PlayerPedId()
@@ -128,7 +126,6 @@ function GetNearbyVehicles()
     return vehicles
 end
 
--- Obtener nombre bonito del vehículo
 function GetVehicleDisplayName(vehicle)
     local model = GetEntityModel(vehicle)
     local name = GetLabelText(GetDisplayNameFromVehicleModel(model))
@@ -136,6 +133,161 @@ function GetVehicleDisplayName(vehicle)
         name = string.upper(GetDisplayNameFromVehicleModel(model))
     end
     return name
+end
+
+-- ==================== ACCIONES JUGADORES ====================
+function GetPlayerList()
+    local players = {}
+    for i = 0, 255 do
+        if NetworkIsPlayerActive(i) then
+            local ped = GetPlayerPed(i)
+            if ped ~= 0 then
+                table.insert(players, i)
+            end
+        end
+    end
+    return players
+end
+
+function GetPlayerName(player)
+    return GetPlayerName(player)
+end
+
+function GiveMoneyToPlayer(target)
+    TriggerServerEvent('esx:giveMoney', target, 10000)
+    MostrarNotificacion("~g~Se han dado 10k al jugador")
+end
+
+function RevivePlayer(target)
+    TriggerEvent('esx_ambulancejob:revive', target)
+    TriggerEvent('hospital:client:Revive', target)
+    MostrarNotificacion("~g~Reviviendo jugador")
+end
+
+function KillPlayer(target)
+    local targetPed = GetPlayerPed(target)
+    if targetPed and targetPed ~= 0 then
+        SetEntityHealth(targetPed, 0)
+        MostrarNotificacion("~r~Jugador eliminado")
+    end
+end
+
+local followingPlayer = nil
+function FollowPlayer(target)
+    if followingPlayer == target then
+        followingPlayer = nil
+        SetPlayerFollowing(PlayerId(), 0)
+        MostrarNotificacion("~y~Dejaste de seguir al jugador")
+    else
+        followingPlayer = target
+        MostrarNotificacion("~y~Ahora sigues al jugador")
+    end
+end
+
+function TeleportToPlayer(target)
+    local targetPed = GetPlayerPed(target)
+    if targetPed and targetPed ~= 0 then
+        local coords = GetEntityCoords(targetPed)
+        local ped = PlayerPedId()
+        SetEntityCoords(ped, coords.x, coords.y, coords.z, false, false, false, false)
+        MostrarNotificacion("~g~Teletransportado al jugador")
+    end
+end
+
+-- ==================== ACCIONES MAPA ====================
+local timeFrozen = false
+local frozenHour = 12
+
+function SetWeather(type)
+    SetWeatherTypeNowPersist(type)
+    SetWeatherTypeNow(type)
+    MostrarNotificacion("~b~Clima cambiado a: " .. type)
+end
+
+function SetTime(hour)
+    frozenHour = hour
+    if timeFrozen then
+        SetClockTime(hour, 0, 0)
+    else
+        SetClockTime(hour, 0, 0)
+        timeFrozen = true
+    end
+    MostrarNotificacion("~b~Hora fijada: " .. hour .. ":00")
+end
+
+function ToggleFreezeTime()
+    timeFrozen = not timeFrozen
+    if timeFrozen then
+        SetClockTime(frozenHour, 0, 0)
+        MostrarNotificacion("~y~Tiempo congelado")
+    else
+        MostrarNotificacion("~y~Tiempo normal (dinámico)")
+    end
+end
+
+function ResetWeatherAndTime()
+    SetWeatherTypeNowPersist("CLEAR")
+    SetWeatherTypeNow("CLEAR")
+    timeFrozen = false
+    MostrarNotificacion("~g~Clima y hora restaurados")
+end
+
+-- ==================== PROTECTION OPTIONS (AC CHECKER) ====================
+-- Lista de anticheats conocidos y sus patrones de detección
+local anticheats = {
+    { name = "WaveShield", patterns = { "waveshield", "ws_core", "ws_anticheat", "@waveshield" } },
+    { name = "FiveGuard", patterns = { "fiveguard", "fg_", "fg_anticheat", "@fiveguard" } },
+    { name = "ElectronAC", patterns = { "electronac", "electron_", "eac", "@electronac" } },
+    { name = "Likizao", patterns = { "likizao", "lkz", "likizao_anticheat", "@likizao" } },
+    { name = "Eulen", patterns = { "eulen", "eulencheat", "eulen_anticheat" } },
+    { name = "RedEngine", patterns = { "redengine", "red_anticheat", "reac" } },
+    { name = "InfinityAC", patterns = { "infinityac", "infinity_", "iac" } },
+    { name = "PhoenixAC", patterns = { "phoenixac", "phoenix_anticheat" } },
+    { name = "VexAC", patterns = { "vexac", "vex_anticheat" } },
+    { name = "NexusAC", patterns = { "nexusac", "nexus_anticheat" } },
+}
+
+function CheckAntiCheat()
+    local found = {}
+    local resources = GetNumResources()
+    for i = 0, resources - 1 do
+        local resource = GetResourceByFindIndex(i)
+        local name = string.lower(resource)
+        for _, ac in ipairs(anticheats) do
+            for _, pattern in ipairs(ac.patterns) do
+                if name:find(pattern) then
+                    found[ac.name] = true
+                end
+            end
+        end
+        -- También verificar exportaciones
+        local exports = GetResourceExports(resource)
+        if exports then
+            for exp_name, _ in pairs(exports) do
+                local exp_low = string.lower(exp_name)
+                for _, ac in ipairs(anticheats) do
+                    for _, pattern in ipairs(ac.patterns) do
+                        if exp_low:find(pattern) then
+                            found[ac.name] = true
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    if next(found) then
+        local ac_list = ""
+        for name, _ in pairs(found) do
+            ac_list = ac_list .. name .. ", "
+        end
+        ac_list = ac_list:sub(1, -3)
+        MostrarNotificacion("~r~[ALERTA] Anticheat detectado: ~y~" .. ac_list .. "~s~\nTen cuidado con opciones riesgosas")
+        print("[SENTEX] Anticheats detectados: " .. ac_list)
+    else
+        MostrarNotificacion("~g~No se detectó ningún anticheat conocido.\nPuedes usar opciones con más libertad")
+        print("[SENTEX] No se detectaron anticheats conocidos")
+    end
 end
 
 -- ==================== NOCLIP (NO TOCAR, FUNCIONA) ====================
@@ -229,17 +381,20 @@ local currentOption = 1
 local opcionesMenu = {}
 local descripcionActual = ""
 
--- Submenús dinámicos para vehículos cercanos
-local dynamicMenus = {} -- nombre -> tabla de opciones
+local dynamicMenus = {}
 
 local neonColor = {0, 255, 255, 255}
 local neonGlow = {0, 180, 255, 80}
 local bgColor = {0, 0, 0, 210}
 local selectBg = {30, 144, 255, 60}
 
+-- Menú principal (añadida Protection options)
 opcionesMenu["main"] = {
     { nombre = "[»] Self options", submenu = "self", desc = "Opciones del jugador" },
     { nombre = "[»] Vehicle options", submenu = "vehicle", desc = "Opciones para vehículos" },
+    { nombre = "[»] Player list", submenu = "player_list", desc = "Interactuar con otros jugadores" },
+    { nombre = "[»] Map fucker", submenu = "map_fucker", desc = "Modificar clima y hora" },
+    { nombre = "[»] Protection options", submenu = "protection", desc = "Herramientas de seguridad y detección" },
 }
 
 opcionesMenu["self"] = {
@@ -263,13 +418,25 @@ opcionesMenu["self"] = {
       desc = "Atraviesa paredes. Controles: WASD, Shift (boost), Espacio (subir), Ctrl (bajar)" },
 }
 
--- Menú vehicle estático
 opcionesMenu["vehicle"] = {
     { nombre = "• Spawn vehicle", accion = SpawnVehicle, desc = "Escribe el modelo y spawnea el coche" },
     { nombre = "• Vehicle list", submenu = "vehicle_list", desc = "Lista de vehículos cercanos" },
 }
 
--- Función para generar el submenú dinámico de la lista de vehículos
+opcionesMenu["map_fucker"] = {
+    { nombre = "• Lluvia intensa", accion = function() SetWeather("RAIN") end, desc = "Cambia el clima a lluvia" },
+    { nombre = "• Tormenta", accion = function() SetWeather("THUNDER") end, desc = "Tormenta eléctrica" },
+    { nombre = "• Noche cerrada", accion = function() SetTime(0) end, desc = "Fija la hora a 0:00" },
+    { nombre = "• Mediodía", accion = function() SetTime(12) end, desc = "Fija la hora a 12:00" },
+    { nombre = "• Congelar hora", accion = ToggleFreezeTime, desc = "Detiene el paso del tiempo" },
+    { nombre = "• Volver tiempo normal", accion = ResetWeatherAndTime, desc = "Restaura clima y hora original" },
+}
+
+opcionesMenu["protection"] = {
+    { nombre = "• AC Checker", accion = CheckAntiCheat, desc = "Detecta el anticheat del servidor y muestra advertencia" },
+}
+
+-- ==================== FUNCIONES PARA MENÚS DINÁMICOS ====================
 local function RefreshVehicleListMenu()
     local vehicles = GetNearbyVehicles()
     local opts = {}
@@ -282,7 +449,6 @@ local function RefreshVehicleListMenu()
             desc = "Opciones para " .. displayName,
             vehicle = vehicleHandle
         }
-        -- Crear submenú para cada vehículo
         if not dynamicMenus["vehicle_" .. tostring(v)] then
             dynamicMenus["vehicle_" .. tostring(v)] = {
                 { nombre = "• Reparar", accion = function() RepararVehiculo(vehicleHandle) end, desc = "Repara este vehículo" },
@@ -298,11 +464,34 @@ local function RefreshVehicleListMenu()
     opcionesMenu["vehicle_list"] = opts
 end
 
--- Registrar submenús dinámicos en opcionesMenu (se llenan en tiempo real)
--- vehicle_list se actualiza cada vez que se entra
--- Los vehicle_XXXX se crean bajo demanda
+local function RefreshPlayerListMenu()
+    local players = GetPlayerList()
+    local opts = {}
+    for i, pid in ipairs(players) do
+        local name = GetPlayerName(pid)
+        opts[i] = {
+            nombre = "• " .. name,
+            submenu = "player_" .. tostring(pid),
+            desc = "Opciones para " .. name,
+            player = pid
+        }
+        if not dynamicMenus["player_" .. tostring(pid)] then
+            dynamicMenus["player_" .. tostring(pid)] = {
+                { nombre = "• Dar dinero (10k)", accion = function() GiveMoneyToPlayer(pid) end, desc = "Da 10.000$ al jugador (ESX)" },
+                { nombre = "• Revivir", accion = function() RevivePlayer(pid) end, desc = "Intenta revivir al jugador" },
+                { nombre = "• Matar", accion = function() KillPlayer(pid) end, desc = "Mata al jugador" },
+                { nombre = "• Seguir", accion = function() FollowPlayer(pid) end, desc = "La cámara sigue al jugador" },
+                { nombre = "• Teleportar", accion = function() TeleportToPlayer(pid) end, desc = "Teletransportarse a su posición" },
+            }
+        end
+    end
+    if #opts == 0 then
+        opts = { { nombre = "• No hay jugadores conectados", accion = nil, desc = "Espera a que alguien se conecte" } }
+    end
+    opcionesMenu["player_list"] = opts
+end
 
--- ==================== FUNCIONES AUXILIARES ====================
+-- ==================== FUNCIONES AUXILIARES DE DIBUJO ====================
 local function DrawShadowText(text, x, y, scale, font, center, color)
     SetTextFont(font)
     SetTextScale(scale, scale)
@@ -327,7 +516,6 @@ function DibujarMenu()
 
     local opciones = opcionesMenu[currentMenu]
     if not opciones then
-        -- Si por alguna razón el submenú no existe, volver al principal
         currentMenu = "main"
         opciones = opcionesMenu["main"]
     end
@@ -367,7 +555,11 @@ function DibujarMenu()
                       (currentMenu == "self" and "SELF OPTIONS") or
                       (currentMenu == "vehicle" and "VEHICLE OPTIONS") or
                       (currentMenu == "vehicle_list" and "VEHICULOS CERCA") or
-                      (currentMenu:match("^vehicle_") and "OPCIONES VEHICULO")
+                      (currentMenu == "player_list" and "JUGADORES") or
+                      (currentMenu == "map_fucker" and "MAP FUCKER") or
+                      (currentMenu == "protection" and "PROTECTION OPTIONS") or
+                      (currentMenu:match("^vehicle_") and "OPCIONES VEHICULO") or
+                      (currentMenu:match("^player_") and "OPCIONES JUGADOR")
     DrawShadowText(tituloStr, x, tituloY, 0.48, 0, true, neonColor)
 
     local optsY = startY + altoBanner + altoTitulo + 0.008
@@ -391,7 +583,6 @@ function DibujarMenu()
         end
     end
 
-    -- Contador de opción
     local counterText = currentOption .. "/" .. numOpt
     SetTextFont(0)
     SetTextScale(0.28, 0.28)
@@ -401,7 +592,6 @@ function DibujarMenu()
     AddTextComponentString(counterText)
     DrawText(x + ancho/2 - 0.02, startY + totalAlto - 0.022)
 
-    -- Discord
     SetTextFont(0)
     SetTextScale(0.28, 0.28)
     SetTextColour(150, 150, 150, 255)
@@ -438,16 +628,24 @@ local function StartMenu()
             end
 
             if menuAbierto and MENU_READY then
-                -- Refrescar lista de vehículos si estamos en vehicle_list
+                -- Refrescar listas dinámicas
                 if currentMenu == "vehicle_list" then
                     RefreshVehicleListMenu()
+                elseif currentMenu == "player_list" then
+                    RefreshPlayerListMenu()
                 end
-                -- Asegurar que los submenús dinámicos existen en opcionesMenu
+                -- Asegurar submenús dinámicos
                 if currentMenu:match("^vehicle_") and not opcionesMenu[currentMenu] then
                     if dynamicMenus[currentMenu] then
                         opcionesMenu[currentMenu] = dynamicMenus[currentMenu]
                     else
                         currentMenu = "vehicle_list"
+                    end
+                elseif currentMenu:match("^player_") and not opcionesMenu[currentMenu] then
+                    if dynamicMenus[currentMenu] then
+                        opcionesMenu[currentMenu] = dynamicMenus[currentMenu]
+                    else
+                        currentMenu = "player_list"
                     end
                 end
 
@@ -475,11 +673,20 @@ local function StartMenu()
                     end
                 elseif IsDisabledControlJustReleased(0, 177) then
                     if currentMenu ~= "main" then
-                        -- Volver al menú anterior (si es vehicle_XXX volver a vehicle_list)
                         if currentMenu:match("^vehicle_") then
                             currentMenu = "vehicle_list"
                         elseif currentMenu == "vehicle_list" then
                             currentMenu = "vehicle"
+                        elseif currentMenu:match("^player_") then
+                            currentMenu = "player_list"
+                        elseif currentMenu == "player_list" then
+                            currentMenu = "main"
+                        elseif currentMenu == "map_fucker" then
+                            currentMenu = "main"
+                        elseif currentMenu == "self" then
+                            currentMenu = "main"
+                        elseif currentMenu == "protection" then
+                            currentMenu = "main"
                         else
                             currentMenu = "main"
                         end
