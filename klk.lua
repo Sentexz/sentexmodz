@@ -14,7 +14,7 @@ local function MostrarNotificacion(texto)
     DrawNotification(false, false)
 end
 
--- ==================== ACCIONES ====================
+-- ==================== ACCIONES GENERALES ====================
 function Curar()
     local ped = PlayerPedId()
     SetEntityHealth(ped, GetEntityMaxHealth(ped))
@@ -33,11 +33,13 @@ function RevivirQB()
     MostrarNotificacion("~g~Reviviendo (QB)")
 end
 
--- ==================== ACCIONES VEHÍCULO ====================
-function RepararVehiculo()
-    local ped = PlayerPedId()
-    local vehicle = GetVehiclePedIsIn(ped, false)
-    if vehicle ~= 0 then
+-- ==================== ACCIONES VEHÍCULO (nuevas) ====================
+function RepararVehiculo(vehicle)
+    if not vehicle then
+        local ped = PlayerPedId()
+        vehicle = GetVehiclePedIsIn(ped, false)
+    end
+    if vehicle and vehicle ~= 0 then
         SetVehicleFixed(vehicle)
         SetVehicleDirtLevel(vehicle, 0.0)
         MostrarNotificacion("~g~Vehículo reparado y limpiado")
@@ -46,10 +48,12 @@ function RepararVehiculo()
     end
 end
 
-function FlipVehiculo()
-    local ped = PlayerPedId()
-    local vehicle = GetVehiclePedIsIn(ped, false)
-    if vehicle ~= 0 then
+function FlipVehiculo(vehicle)
+    if not vehicle then
+        local ped = PlayerPedId()
+        vehicle = GetVehiclePedIsIn(ped, false)
+    end
+    if vehicle and vehicle ~= 0 then
         local rot = GetEntityRotation(vehicle)
         SetEntityRotation(vehicle, rot.x, rot.y, rot.z + 180.0, 2, true)
         MostrarNotificacion("~g~Vehículo volteado")
@@ -58,19 +62,90 @@ function FlipVehiculo()
     end
 end
 
--- ==================== NOCLIP (WASD + Shift + Espacio + Ctrl) ====================
+function LimpiarVehiculo(vehicle)
+    if not vehicle then
+        local ped = PlayerPedId()
+        vehicle = GetVehiclePedIsIn(ped, false)
+    end
+    if vehicle and vehicle ~= 0 then
+        SetVehicleDirtLevel(vehicle, 0.0)
+        MostrarNotificacion("~g~Vehículo limpiado")
+    else
+        MostrarNotificacion("~r~No estás en un vehículo")
+    end
+end
+
+function ConducirVehiculo(vehicle)
+    if vehicle and vehicle ~= 0 then
+        local ped = PlayerPedId()
+        TaskWarpPedIntoVehicle(ped, vehicle, -1)
+        MostrarNotificacion("~g~Te has subido al vehículo")
+    else
+        MostrarNotificacion("~r~El vehículo ya no existe")
+    end
+end
+
+-- Spawnear vehículo con teclado
+function SpawnVehicle()
+    DisplayOnscreenKeyboard(1, "FMMC_KEY_TIP8", "", "Escribe el nombre del modelo", "", "", "", 30)
+    while UpdateOnscreenKeyboard() == 0 do
+        Citizen.Wait(0)
+    end
+    local result = GetOnscreenKeyboardResult()
+    if result and result ~= "" then
+        local model = result:lower()
+        if IsModelValid(model) then
+            RequestModel(model)
+            while not HasModelLoaded(model) do
+                Citizen.Wait(10)
+            end
+            local ped = PlayerPedId()
+            local coords = GetEntityCoords(ped)
+            local heading = GetEntityHeading(ped)
+            local vehicle = CreateVehicle(model, coords.x + 2.0, coords.y + 2.0, coords.z, heading, true, false)
+            SetVehicleOnGroundProperly(vehicle)
+            SetModelAsNoLongerNeeded(model)
+            MostrarNotificacion("~g~Vehículo ~b~" .. model .. " ~g~spawneado")
+        else
+            MostrarNotificacion("~r~Modelo inválido: " .. model)
+        end
+    end
+end
+
+-- Obtener vehículos cercanos
+function GetNearbyVehicles()
+    local vehicles = {}
+    local playerPed = PlayerPedId()
+    local playerCoords = GetEntityCoords(playerPed)
+    local handle = GetGamePool("CVehicle")
+    for i = 1, #handle do
+        local v = handle[i]
+        local dist = #(playerCoords - GetEntityCoords(v))
+        if dist < 50.0 and v ~= 0 then
+            table.insert(vehicles, v)
+        end
+    end
+    return vehicles
+end
+
+-- Obtener nombre bonito del vehículo
+function GetVehicleDisplayName(vehicle)
+    local model = GetEntityModel(vehicle)
+    local name = GetLabelText(GetDisplayNameFromVehicleModel(model))
+    if name == "NULL" then
+        name = string.upper(GetDisplayNameFromVehicleModel(model))
+    end
+    return name
+end
+
+-- ==================== NOCLIP (NO TOCAR, FUNCIONA) ====================
 local noclipActive = false
 local noclipSpeed = 5.0
 local boostMultiplier = 3.0
 
 local controls = {
-    forward = 32,   -- W
-    backward = 33,  -- S
-    left = 34,      -- A
-    right = 35,     -- D
-    boost = 21,     -- LEFT SHIFT
-    ascend = 22,    -- SPACE
-    descend = 36    -- LEFT CTRL
+    forward = 32, backward = 33, left = 34, right = 35,
+    boost = 21, ascend = 22, descend = 36
 }
 
 local function getCamVectors()
@@ -102,8 +177,8 @@ Citizen.CreateThread(function()
             local moveX, moveY, moveZ = 0.0, 0.0, 0.0
             if IsControlPressed(0, controls.forward) then moveY = moveY + 1.0 end
             if IsControlPressed(0, controls.backward) then moveY = moveY - 1.0 end
-            if IsControlPressed(0, controls.left) then moveX = moveX + 1.0 end   -- A: izquierda (corregido)
-            if IsControlPressed(0, controls.right) then moveX = moveX - 1.0 end  -- D: derecha (corregido)
+            if IsControlPressed(0, controls.left) then moveX = moveX + 1.0 end
+            if IsControlPressed(0, controls.right) then moveX = moveX - 1.0 end
             if IsControlPressed(0, controls.ascend) then moveZ = moveZ + 1.0 end
             if IsControlPressed(0, controls.descend) then moveZ = moveZ - 1.0 end
 
@@ -128,7 +203,7 @@ Citizen.CreateThread(function()
     end
 end)
 
--- ==================== BANNER DIBUJADO ====================
+-- ==================== BANNER ====================
 local function DibujarBanner(x, y, w, h)
     DrawRect(x, y, w, h, 0, 30, 60, 200)
     SetTextFont(7)
@@ -138,7 +213,6 @@ local function DibujarBanner(x, y, w, h)
     SetTextEntry("STRING")
     AddTextComponentString("SENTEX MENU")
     DrawText(x, y - 0.02)
-    -- Versión un poco más arriba (antes y+0.02, ahora y+0.015)
     SetTextFont(0)
     SetTextScale(0.28, 0.28)
     SetTextColour(200, 200, 200, 255)
@@ -154,6 +228,9 @@ local currentMenu = "main"
 local currentOption = 1
 local opcionesMenu = {}
 local descripcionActual = ""
+
+-- Submenús dinámicos para vehículos cercanos
+local dynamicMenus = {} -- nombre -> tabla de opciones
 
 local neonColor = {0, 255, 255, 255}
 local neonGlow = {0, 180, 255, 80}
@@ -186,10 +263,44 @@ opcionesMenu["self"] = {
       desc = "Atraviesa paredes. Controles: WASD, Shift (boost), Espacio (subir), Ctrl (bajar)" },
 }
 
+-- Menú vehicle estático
 opcionesMenu["vehicle"] = {
-    { nombre = "• Reparar", accion = RepararVehiculo, desc = "Repara y limpia tu vehículo actual" },
-    { nombre = "• Voltear", accion = FlipVehiculo, desc = "Voltea el vehículo si está patas arriba" },
+    { nombre = "• Spawn vehicle", accion = SpawnVehicle, desc = "Escribe el modelo y spawnea el coche" },
+    { nombre = "• Vehicle list", submenu = "vehicle_list", desc = "Lista de vehículos cercanos" },
 }
+
+-- Función para generar el submenú dinámico de la lista de vehículos
+local function RefreshVehicleListMenu()
+    local vehicles = GetNearbyVehicles()
+    local opts = {}
+    for i, v in ipairs(vehicles) do
+        local displayName = GetVehicleDisplayName(v)
+        local vehicleHandle = v
+        opts[i] = {
+            nombre = "• " .. displayName,
+            submenu = "vehicle_" .. tostring(v),
+            desc = "Opciones para " .. displayName,
+            vehicle = vehicleHandle
+        }
+        -- Crear submenú para cada vehículo
+        if not dynamicMenus["vehicle_" .. tostring(v)] then
+            dynamicMenus["vehicle_" .. tostring(v)] = {
+                { nombre = "• Reparar", accion = function() RepararVehiculo(vehicleHandle) end, desc = "Repara este vehículo" },
+                { nombre = "• Voltear", accion = function() FlipVehiculo(vehicleHandle) end, desc = "Voltea este vehículo" },
+                { nombre = "• Limpiar", accion = function() LimpiarVehiculo(vehicleHandle) end, desc = "Limpia este vehículo" },
+                { nombre = "• Conducir", accion = function() ConducirVehiculo(vehicleHandle) end, desc = "Subirte al vehículo" },
+            }
+        end
+    end
+    if #opts == 0 then
+        opts = { { nombre = "• No hay vehículos cerca", accion = nil, desc = "Acércate a algún coche" } }
+    end
+    opcionesMenu["vehicle_list"] = opts
+end
+
+-- Registrar submenús dinámicos en opcionesMenu (se llenan en tiempo real)
+-- vehicle_list se actualiza cada vez que se entra
+-- Los vehicle_XXXX se crean bajo demanda
 
 -- ==================== FUNCIONES AUXILIARES ====================
 local function DrawShadowText(text, x, y, scale, font, center, color)
@@ -215,6 +326,11 @@ function DibujarMenu()
     local paddingDesc = 0.005
 
     local opciones = opcionesMenu[currentMenu]
+    if not opciones then
+        -- Si por alguna razón el submenú no existe, volver al principal
+        currentMenu = "main"
+        opciones = opcionesMenu["main"]
+    end
     local numOpt = #opciones
 
     local lineasDesc = {}
@@ -249,7 +365,9 @@ function DibujarMenu()
     local tituloY = startY + altoBanner + 0.008
     local tituloStr = (currentMenu == "main" and "MENU PRINCIPAL") or
                       (currentMenu == "self" and "SELF OPTIONS") or
-                      (currentMenu == "vehicle" and "VEHICLE OPTIONS")
+                      (currentMenu == "vehicle" and "VEHICLE OPTIONS") or
+                      (currentMenu == "vehicle_list" and "VEHICULOS CERCA") or
+                      (currentMenu:match("^vehicle_") and "OPCIONES VEHICULO")
     DrawShadowText(tituloStr, x, tituloY, 0.48, 0, true, neonColor)
 
     local optsY = startY + altoBanner + altoTitulo + 0.008
@@ -273,7 +391,7 @@ function DibujarMenu()
         end
     end
 
-    -- CONTADOR DE OPCIÓN ACTUAL / TOTAL DE OPCIONES (siempre visible)
+    -- Contador de opción
     local counterText = currentOption .. "/" .. numOpt
     SetTextFont(0)
     SetTextScale(0.28, 0.28)
@@ -283,7 +401,7 @@ function DibujarMenu()
     AddTextComponentString(counterText)
     DrawText(x + ancho/2 - 0.02, startY + totalAlto - 0.022)
 
-    -- Discord más a la izquierda
+    -- Discord
     SetTextFont(0)
     SetTextScale(0.28, 0.28)
     SetTextColour(150, 150, 150, 255)
@@ -320,6 +438,19 @@ local function StartMenu()
             end
 
             if menuAbierto and MENU_READY then
+                -- Refrescar lista de vehículos si estamos en vehicle_list
+                if currentMenu == "vehicle_list" then
+                    RefreshVehicleListMenu()
+                end
+                -- Asegurar que los submenús dinámicos existen en opcionesMenu
+                if currentMenu:match("^vehicle_") and not opcionesMenu[currentMenu] then
+                    if dynamicMenus[currentMenu] then
+                        opcionesMenu[currentMenu] = dynamicMenus[currentMenu]
+                    else
+                        currentMenu = "vehicle_list"
+                    end
+                end
+
                 DibujarMenu()
                 local maxOpt = #opcionesMenu[currentMenu]
 
@@ -344,7 +475,14 @@ local function StartMenu()
                     end
                 elseif IsDisabledControlJustReleased(0, 177) then
                     if currentMenu ~= "main" then
-                        currentMenu = "main"
+                        -- Volver al menú anterior (si es vehicle_XXX volver a vehicle_list)
+                        if currentMenu:match("^vehicle_") then
+                            currentMenu = "vehicle_list"
+                        elseif currentMenu == "vehicle_list" then
+                            currentMenu = "vehicle"
+                        else
+                            currentMenu = "main"
+                        end
                         currentOption = 1
                         PlaySoundFrontend(-1, "BACK", "HUD_FRONTEND_DEFAULT_SOUNDSET", true)
                     else
