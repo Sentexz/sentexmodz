@@ -7,10 +7,6 @@
 local VERSION = "v1.0.1 (beta)"
 local DISCORD = ".gg/sentexmodz"
 
--- Lista de submenús (excluyendo el principal) para el contador
-local submenus = { "self", "vehicle" }
-local currentSubmenuIndex = 0  -- 0 = en menú principal
-
 -- ==================== NOTIFICACIONES ====================
 local function MostrarNotificacion(texto)
     SetNotificationTextEntry("STRING")
@@ -106,8 +102,8 @@ Citizen.CreateThread(function()
             local moveX, moveY, moveZ = 0.0, 0.0, 0.0
             if IsControlPressed(0, controls.forward) then moveY = moveY + 1.0 end
             if IsControlPressed(0, controls.backward) then moveY = moveY - 1.0 end
-            if IsControlPressed(0, controls.left) then moveX = moveX - 1.0 end   -- A: izquierda
-            if IsControlPressed(0, controls.right) then moveX = moveX + 1.0 end  -- D: derecha
+            if IsControlPressed(0, controls.left) then moveX = moveX + 1.0 end   -- A: izquierda (corregido)
+            if IsControlPressed(0, controls.right) then moveX = moveX - 1.0 end  -- D: derecha (corregido)
             if IsControlPressed(0, controls.ascend) then moveZ = moveZ + 1.0 end
             if IsControlPressed(0, controls.descend) then moveZ = moveZ - 1.0 end
 
@@ -132,11 +128,9 @@ Citizen.CreateThread(function()
     end
 end)
 
--- ==================== BANNER DIBUJADO CON VERSIÓN CENTRADA ====================
+-- ==================== BANNER DIBUJADO ====================
 local function DibujarBanner(x, y, w, h)
-    -- Rectángulo azul oscuro
     DrawRect(x, y, w, h, 0, 30, 60, 200)
-    -- Texto "SENTEX MENU" centrado (fuente elegante)
     SetTextFont(7)
     SetTextScale(0.55, 0.55)
     SetTextColour(255, 255, 255, 255)
@@ -144,14 +138,14 @@ local function DibujarBanner(x, y, w, h)
     SetTextEntry("STRING")
     AddTextComponentString("SENTEX MENU")
     DrawText(x, y - 0.02)
-    -- Versión centrada debajo del título
+    -- Versión un poco más arriba (antes y+0.02, ahora y+0.015)
     SetTextFont(0)
     SetTextScale(0.28, 0.28)
     SetTextColour(200, 200, 200, 255)
     SetTextCentre(true)
     SetTextEntry("STRING")
     AddTextComponentString(VERSION)
-    DrawText(x, y + 0.02)
+    DrawText(x, y + 0.015)
 end
 
 -- ==================== ESTRUCTURA DEL MENÚ ====================
@@ -279,17 +273,17 @@ function DibujarMenu()
         end
     end
 
-    if currentMenu ~= "main" then
-        local pageText = currentSubmenuIndex .. "/" .. #submenus
-        SetTextFont(0)
-        SetTextScale(0.28, 0.28)
-        SetTextColour(150, 150, 150, 255)
-        SetTextCentre(false)
-        SetTextEntry("STRING")
-        AddTextComponentString(pageText)
-        DrawText(x + ancho/2 - 0.02, startY + totalAlto - 0.022)
-    end
+    -- CONTADOR DE OPCIÓN ACTUAL / TOTAL DE OPCIONES (siempre visible)
+    local counterText = currentOption .. "/" .. numOpt
+    SetTextFont(0)
+    SetTextScale(0.28, 0.28)
+    SetTextColour(150, 150, 150, 255)
+    SetTextCentre(false)
+    SetTextEntry("STRING")
+    AddTextComponentString(counterText)
+    DrawText(x + ancho/2 - 0.02, startY + totalAlto - 0.022)
 
+    -- Discord más a la izquierda
     SetTextFont(0)
     SetTextScale(0.28, 0.28)
     SetTextColour(150, 150, 150, 255)
@@ -316,7 +310,6 @@ local function StartMenu()
                 if menuAbierto then
                     currentOption = 1
                     currentMenu = "main"
-                    currentSubmenuIndex = 0
                     PlaySoundFrontend(-1, "SELECT", "HUD_FRONTEND_DEFAULT_SOUNDSET", true)
                     MostrarNotificacion("~b~SENTEX MENU~s~ | Abierto")
                 else
@@ -344,12 +337,6 @@ local function StartMenu()
                         PlaySoundFrontend(-1, "SELECT", "HUD_FRONTEND_DEFAULT_SOUNDSET", true)
                         if sel.submenu then
                             currentMenu = sel.submenu
-                            for i, name in ipairs(submenus) do
-                                if name == currentMenu then
-                                    currentSubmenuIndex = i
-                                    break
-                                end
-                            end
                             currentOption = 1
                         elseif sel.accion then
                             sel.accion()
@@ -358,7 +345,6 @@ local function StartMenu()
                 elseif IsDisabledControlJustReleased(0, 177) then
                     if currentMenu ~= "main" then
                         currentMenu = "main"
-                        currentSubmenuIndex = 0
                         currentOption = 1
                         PlaySoundFrontend(-1, "BACK", "HUD_FRONTEND_DEFAULT_SOUNDSET", true)
                     else
