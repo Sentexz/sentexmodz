@@ -33,38 +33,44 @@ function RevivirQB()
     MostrarNotificacion("~g~Reviviendo (QB)")
 end
 
--- ==================== NOCLIP PERFECTO (WASD + SHIFT/CTRL) ====================
+-- ==================== NOCLIP CORREGIDO (SIN DISPARO, SIN T-POSE, CONTROLES BIEN) ====================
 local noclipActive = false
-local noclipSpeed = 5.0          -- Velocidad base
-local boostMultiplier = 3.0      -- Al pulsar Shift (velocidad = base * boost)
-local currentSpeed = noclipSpeed
+local noclipSpeed = 5.0
+local boostMultiplier = 3.0
 
--- Controles estándar FiveM
 local controls = {
     forward = 32,   -- W
     backward = 33,  -- S
     left = 34,      -- A
     right = 35,     -- D
     boost = 21,     -- LEFT SHIFT
-    descend = 36    -- LEFT CTRL (bajar)
+    descend = 36    -- LEFT CTRL
 }
 
--- Obtener vectores dirección según la cámara
-local function getDirectionVectors()
-    local camRot = GetGameplayCamRot(2)  -- 2 = relative to world
+-- Obtener vectores de movimiento relativos a la cámara
+local function getCamVectors()
+    local camRot = GetGameplayCamRot(2)
     local pitch = math.rad(camRot.x)
     local yaw = math.rad(camRot.z)
     
+    local cosPitch = math.cos(pitch)
+    local sinPitch = math.sin(pitch)
+    local cosYaw = math.cos(yaw)
+    local sinYaw = math.sin(yaw)
+    
+    -- Vector hacia adelante (donde mira la cámara)
     local forward = vector3(
-        -math.sin(yaw) * math.cos(pitch),
-        math.cos(yaw) * math.cos(pitch),
-        math.sin(pitch)
+        -sinYaw * cosPitch,
+        cosYaw * cosPitch,
+        sinPitch
     )
+    -- Vector hacia la derecha
     local right = vector3(
-        -math.cos(yaw),
-        -math.sin(yaw),
+        -cosYaw,
+        -sinYaw,
         0.0
     )
+    -- Vector hacia arriba (global)
     local up = vector3(0.0, 0.0, 1.0)
     
     return forward, right, up
@@ -76,51 +82,48 @@ Citizen.CreateThread(function()
         if noclipActive then
             local ped = PlayerPedId()
             local vehicle = GetVehiclePedIsIn(ped, false)
-            local entity = vehicle ~= 0 and vehicle or ped
+            local entity = (vehicle ~= 0 and vehicle) or ped
             
-            -- Desactivar colisiones y gravedad
+            -- Desactivar colisiones y gravedad (sin afectar animaciones)
             SetEntityCollision(entity, false, false)
             SetEntityInvincible(ped, true)
             FreezeEntityPosition(entity, false)
-            SetEntityVelocity(entity, 0.0, 0.0, 0.0)
+            SetEntityVelocity(entity, 0.0, 0.0, 0.0)  -- Elimina velocidad residual
             
-            -- Leer entrada
-            local moveVec = vector3(0.0, 0.0, 0.0)
-            local boost = IsControlPressed(0, controls.boost)
-            currentSpeed = boost and (noclipSpeed * boostMultiplier) or noclipSpeed
+            -- Leer teclas
+            local moveX = 0.0
+            local moveY = 0.0
+            local moveZ = 0.0
             
-            if IsControlPressed(0, controls.forward) then
-                moveVec = moveVec + vector3(0.0, 1.0, 0.0)
-            end
-            if IsControlPressed(0, controls.backward) then
-                moveVec = moveVec + vector3(0.0, -1.0, 0.0)
-            end
-            if IsControlPressed(0, controls.right) then
-                moveVec = moveVec + vector3(1.0, 0.0, 0.0)
-            end
-            if IsControlPressed(0, controls.left) then
-                moveVec = moveVec + vector3(-1.0, 0.0, 0.0)
-            end
+            if IsControlPressed(0, controls.forward) then moveY = moveY + 1.0 end
+            if IsControlPressed(0, controls.backward) then moveY = moveY - 1.0 end
+            if IsControlPressed(0, controls.right) then moveX = moveX + 1.0 end
+            if IsControlPressed(0, controls.left) then moveX = moveX - 1.0 end
+            if IsControlPressed(0, controls.descend) then moveZ = moveZ - 1.0 end
             
-            -- Movimiento vertical (CTRL)
-            if IsControlPressed(0, controls.descend) then
-                moveVec = moveVec - vector3(0.0, 0.0, 1.0)
+            -- Velocidad con boost
+            local speed = noclipSpeed
+            if IsControlPressed(0, controls.boost) then
+                speed = speed * boostMultiplier
             end
             
-            -- Normalizar si se mueve en diagonal
-            if moveVec.x ~= 0 or moveVec.y ~= 0 or moveVec.z ~= 0 then
-                moveVec = moveVec / math.sqrt(moveVec.x^2 + moveVec.y^2 + moveVec.z^2)
+            -- Solo mover si hay alguna tecla pulsada (evita el disparo al activar)
+            if moveX ~= 0 or moveY ~= 0 or moveZ ~= 0 then
+                -- Normalizar diagonal
+                local len = math.sqrt(moveX*moveX + moveY*moveY + moveZ*moveZ)
+                if len > 0 then
+                    moveX = moveX / len
+                    moveY = moveY / len
+                    moveZ = moveZ / len
+                end
+                
+                local forward, right, up = getCamVectors()
+                local delta = (forward * moveY) + (right * moveX) + (up * moveZ)
+                delta = delta * speed
+                
+                local newCoords = GetEntityCoords(entity) + delta
+                SetEntityCoords(entity, newCoords.x, newCoords.y, newCoords.z, false, false, false, false)
             end
-            
-            -- Obtener vectores de cámara
-            local forward, right, up = getDirectionVectors()
-            
-            -- Calcular desplazamiento final
-            local delta = (forward * moveVec.y + right * moveVec.x + up * moveVec.z) * currentSpeed
-            local newCoords = GetEntityCoords(entity) + delta
-            
-            -- Aplicar nueva posición (instantáneo)
-            SetEntityCoords(entity, newCoords.x, newCoords.y, newCoords.z, false, false, false, false)
             
             Citizen.Wait(0)
         else
@@ -154,12 +157,11 @@ opcionesMenu["self"] = {
       accion = function()
           noclipActive = not noclipActive
           if noclipActive then
-              local ped = PlayerPedId()
               MostrarNotificacion("~b~Noclip ACTIVADO~s~\nWASD | Shift = Boost | Ctrl = Bajar")
           else
               local ped = PlayerPedId()
               local vehicle = GetVehiclePedIsIn(ped, false)
-              local entity = vehicle ~= 0 and vehicle or ped
+              local entity = (vehicle ~= 0 and vehicle) or ped
               SetEntityCollision(entity, true, true)
               SetEntityInvincible(ped, false)
               MostrarNotificacion("~r~Noclip DESACTIVADO")
