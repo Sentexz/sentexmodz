@@ -1,10 +1,10 @@
 --[[
-    SENTEX MENU - Versión v3.5 (advertencia anticheat solo texto centrado)
+    SENTEX MENU - Versión v3.6 (enganchar vehículo de jugador)
     Abre con PAGEDOWN
 ]]
 
 -- ==================== CONFIGURACIÓN ====================
-local VERSION = "v3.5 (texto anticheat centrado)"
+local VERSION = "v3.6 (enganchar vehículo de jugador)"
 local DISCORD = ".gg/sentexmodz"
 
 -- ==================== NOTIFICACIONES ====================
@@ -374,6 +374,47 @@ function TeleportToPlayer(targetPlayerId)
     end
 end
 
+-- Nueva función: enganchar el vehículo del jugador objetivo al tuyo
+function AttachPlayerVehicle(targetPlayerId)
+    local myPed = PlayerPedId()
+    local myVehicle = GetVehiclePedIsIn(myPed, false)
+    if myVehicle == 0 then
+        MostrarNotificacion("~r~Debes estar en un vehículo para enganchar")
+        return
+    end
+
+    local targetPed = GetPlayerPed(targetPlayerId)
+    if not targetPed or targetPed == 0 then
+        MostrarNotificacion("~r~Jugador no encontrado")
+        return
+    end
+
+    local targetVehicle = GetVehiclePedIsIn(targetPed, false)
+    if targetVehicle == 0 then
+        MostrarNotificacion("~r~El jugador no está en un vehículo")
+        return
+    end
+
+    if targetVehicle == myVehicle then
+        MostrarNotificacion("~r~No puedes enganchar tu propio vehículo")
+        return
+    end
+
+    -- Solicitar control de red del vehículo objetivo
+    if not NetworkHasControlOfEntity(targetVehicle) then
+        NetworkRequestControlOfEntity(targetVehicle)
+        local timeout = 0
+        while not NetworkHasControlOfEntity(targetVehicle) and timeout < 20 do
+            Citizen.Wait(50)
+            timeout = timeout + 1
+        end
+    end
+
+    -- Enganchar el vehículo objetivo al mío
+    AttachEntityToEntity(targetVehicle, myVehicle, 0, 0.0, -2.0, 0.0, 0.0, 0.0, 0.0, false, false, false, false, 2, true)
+    MostrarNotificacion("~g~Vehículo enganchado al tuyo")
+end
+
 function MakePlayerAction(pid, actionType)
     return function()
         if actionType == "inventory" then
@@ -399,6 +440,8 @@ function MakePlayerAction(pid, actionType)
             TeleportToPlayer(pid)
         elseif actionType == "spawnnpc" then
             SpawnAggressiveNPC(pid)
+        elseif actionType == "attachveh" then
+            AttachPlayerVehicle(pid)
         end
     end
 end
@@ -657,10 +700,10 @@ local function DibujarBanner(x, y, w, h)
     DrawText(x, y + 0.015)
 end
 
--- Advertencia de anticheat: solo texto centrado, sin bordes ni fondo
+-- Advertencia de anticheat: solo texto centrado
 local function DibujarAdvertenciaAnticheat(x, y, totalAlto, ancho)
     if anticheatDetected then
-        local warningY = y + totalAlto + 0.018  -- Posición centrada verticalmente debajo del menú
+        local warningY = y + totalAlto + 0.018
         SetTextFont(4)
         SetTextScale(0.28, 0.28)
         SetTextColour(neonColor[1], neonColor[2], neonColor[3], 255)
@@ -773,6 +816,7 @@ function RefreshPlayerListMenu()
                 { nombre = "• Seguir", accion = MakePlayerAction(pid, "follow"), desc = "Cámara sigue al jugador" },
                 { nombre = "• Teleportar", accion = MakePlayerAction(pid, "teleport"), desc = "Teletransportarse" },
                 { nombre = "• Spawn NPC agresivo", accion = MakePlayerAction(pid, "spawnnpc"), desc = "Spawn un NPC que atacará al jugador" },
+                { nombre = "• Enganchar su vehículo", accion = MakePlayerAction(pid, "attachveh"), desc = "Engancha el vehículo del jugador al tuyo" },
             }
         end
     end
@@ -891,7 +935,6 @@ function DibujarMenu()
     AddTextComponentString(DISCORD)
     DrawText(x - ancho/2 + 0.005, startY + totalAlto - 0.022)
     
-    -- Advertencia de anticheat (solo texto centrado)
     DibujarAdvertenciaAnticheat(x, startY, totalAlto, ancho)
 end
 
