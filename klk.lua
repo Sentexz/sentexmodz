@@ -1,10 +1,10 @@
 --[[
-    SENTEX MENU - Versión v3.4 (advertencia anticheat con estilo del menú)
+    SENTEX MENU - Versión v3.5 (advertencia anticheat solo texto centrado)
     Abre con PAGEDOWN
 ]]
 
 -- ==================== CONFIGURACIÓN ====================
-local VERSION = "v3.4 (advertencia integrada)"
+local VERSION = "v3.5 (texto anticheat centrado)"
 local DISCORD = ".gg/sentexmodz"
 
 -- ==================== NOTIFICACIONES ====================
@@ -657,24 +657,17 @@ local function DibujarBanner(x, y, w, h)
     DrawText(x, y + 0.015)
 end
 
--- Advertencia con estilo del menú
+-- Advertencia de anticheat: solo texto centrado, sin bordes ni fondo
 local function DibujarAdvertenciaAnticheat(x, y, totalAlto, ancho)
     if anticheatDetected then
-        local warningY = y + totalAlto + 0.008
-        local warningW = ancho - 0.01
-        local warningH = 0.028
-        -- Fondo oscuro igual que el menú
-        DrawRect(x, warningY + warningH/2, warningW, warningH, bgColor[1], bgColor[2], bgColor[3], bgColor[4])
-        -- Borde neón (igual que el menú)
-        DrawRect(x, warningY + warningH/2, warningW, 0.0015, neonColor[1], neonColor[2], neonColor[3], 200)
-        -- Texto de advertencia en color neón
+        local warningY = y + totalAlto + 0.018  -- Posición centrada verticalmente debajo del menú
         SetTextFont(4)
         SetTextScale(0.28, 0.28)
         SetTextColour(neonColor[1], neonColor[2], neonColor[3], 255)
         SetTextCentre(true)
         SetTextEntry("STRING")
         AddTextComponentString("⚠️ ANTICHEAT DETECTADO - TEN CUIDADO ⚠️")
-        DrawText(x, warningY + 0.01)
+        DrawText(x, warningY)
     end
 end
 
@@ -898,7 +891,7 @@ function DibujarMenu()
     AddTextComponentString(DISCORD)
     DrawText(x - ancho/2 + 0.005, startY + totalAlto - 0.022)
     
-    -- Advertencia de anticheat debajo del menú
+    -- Advertencia de anticheat (solo texto centrado)
     DibujarAdvertenciaAnticheat(x, startY, totalAlto, ancho)
 end
 
