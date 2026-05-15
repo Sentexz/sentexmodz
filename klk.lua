@@ -1,11 +1,10 @@
 --[[
     SENTEXMODZ PREMIUM 2026 - Menú con banner externo desde URL fiable
-    Abre con PAGEDOWN (control 11). Sección "Self Options" con 3 funciones + NOCLIP PERFECTO.
-    Banner desde URL sin fallback para evitar recuadros blancos.
+    Abre con PAGEDOWN (control 11). Sección "Self Options" con funciones mejoradas.
 ]]
 
 -- ==================== CONFIGURACIÓN ====================
-local BANNER_URL = "https://i.ibb.co/9Hc78NTn/JV6Drrz.png"  -- Nueva URL del banner
+local BANNER_URL = "https://i.ibb.co/9Hc78NTn/JV6Drrz.png"
 
 -- ==================== FUNCIONES AUXILIARES ====================
 local function MostrarNotificacion(texto)
@@ -33,21 +32,16 @@ function RevivirQB()
     MostrarNotificacion("~g~Reviviendo (QB)")
 end
 
--- ==================== NOCLIP CORREGIDO (SIN DISPARO, SIN T-POSE, CONTROLES BIEN) ====================
+-- ==================== NOCLIP CORREGIDO ====================
 local noclipActive = false
 local noclipSpeed = 5.0
 local boostMultiplier = 3.0
 
 local controls = {
-    forward = 32,   -- W
-    backward = 33,  -- S
-    left = 34,      -- A
-    right = 35,     -- D
-    boost = 21,     -- LEFT SHIFT
-    descend = 36    -- LEFT CTRL
+    forward = 32, backward = 33, left = 34, right = 35,
+    boost = 21, descend = 36
 }
 
--- Obtener vectores de movimiento relativos a la cámara
 local function getCamVectors()
     local camRot = GetGameplayCamRot(2)
     local pitch = math.rad(camRot.x)
@@ -58,25 +52,13 @@ local function getCamVectors()
     local cosYaw = math.cos(yaw)
     local sinYaw = math.sin(yaw)
     
-    -- Vector hacia adelante (donde mira la cámara)
-    local forward = vector3(
-        -sinYaw * cosPitch,
-        cosYaw * cosPitch,
-        sinPitch
-    )
-    -- Vector hacia la derecha
-    local right = vector3(
-        -cosYaw,
-        -sinYaw,
-        0.0
-    )
-    -- Vector hacia arriba (global)
+    local forward = vector3(-sinYaw * cosPitch, cosYaw * cosPitch, sinPitch)
+    local right = vector3(-cosYaw, -sinYaw, 0.0)
     local up = vector3(0.0, 0.0, 1.0)
     
     return forward, right, up
 end
 
--- Hilo principal del noclip
 Citizen.CreateThread(function()
     while true do
         if noclipActive then
@@ -84,47 +66,32 @@ Citizen.CreateThread(function()
             local vehicle = GetVehiclePedIsIn(ped, false)
             local entity = (vehicle ~= 0 and vehicle) or ped
             
-            -- Desactivar colisiones y gravedad (sin afectar animaciones)
             SetEntityCollision(entity, false, false)
             SetEntityInvincible(ped, true)
             FreezeEntityPosition(entity, false)
-            SetEntityVelocity(entity, 0.0, 0.0, 0.0)  -- Elimina velocidad residual
+            SetEntityVelocity(entity, 0.0, 0.0, 0.0)
             
-            -- Leer teclas
-            local moveX = 0.0
-            local moveY = 0.0
-            local moveZ = 0.0
-            
+            local moveX, moveY, moveZ = 0.0, 0.0, 0.0
             if IsControlPressed(0, controls.forward) then moveY = moveY + 1.0 end
             if IsControlPressed(0, controls.backward) then moveY = moveY - 1.0 end
             if IsControlPressed(0, controls.right) then moveX = moveX + 1.0 end
             if IsControlPressed(0, controls.left) then moveX = moveX - 1.0 end
             if IsControlPressed(0, controls.descend) then moveZ = moveZ - 1.0 end
             
-            -- Velocidad con boost
             local speed = noclipSpeed
-            if IsControlPressed(0, controls.boost) then
-                speed = speed * boostMultiplier
-            end
+            if IsControlPressed(0, controls.boost) then speed = speed * boostMultiplier end
             
-            -- Solo mover si hay alguna tecla pulsada (evita el disparo al activar)
             if moveX ~= 0 or moveY ~= 0 or moveZ ~= 0 then
-                -- Normalizar diagonal
                 local len = math.sqrt(moveX*moveX + moveY*moveY + moveZ*moveZ)
                 if len > 0 then
-                    moveX = moveX / len
-                    moveY = moveY / len
-                    moveZ = moveZ / len
+                    moveX, moveY, moveZ = moveX/len, moveY/len, moveZ/len
                 end
-                
                 local forward, right, up = getCamVectors()
                 local delta = (forward * moveY) + (right * moveX) + (up * moveZ)
                 delta = delta * speed
-                
                 local newCoords = GetEntityCoords(entity) + delta
                 SetEntityCoords(entity, newCoords.x, newCoords.y, newCoords.z, false, false, false, false)
             end
-            
             Citizen.Wait(0)
         else
             Citizen.Wait(500)
@@ -143,17 +110,16 @@ local descripcionActual = ""
 local neonColor = {0, 255, 255, 255}
 local neonGlow = {0, 180, 255, 80}
 local bgColor = {0, 0, 0, 210}
-local bannerColor = {0, 80, 160, 255}
 local selectBg = {30, 144, 255, 60}
 
 opcionesMenu["main"] = {
-    { nombre = "❤️ Self Options", submenu = "self", desc = "Opciones avanzadas (incluye noclip)" },
+    { nombre = "➤ Self Options", submenu = "self", desc = "Accede a las opciones del jugador" },
 }
 opcionesMenu["self"] = {
-    { nombre = "❤️ Curar", accion = Curar, desc = "Restaura salud y armadura" },
-    { nombre = "⚕️ Revivir (ESX)", accion = RevivirESX, desc = "Bypass ESX" },
-    { nombre = "⚕️ Revivir (QB)", accion = RevivirQB, desc = "Bypass QB" },
-    { nombre = "🌀 Noclip (WASD + Shift/CTRL)", 
+    { nombre = "⚡ Curar", accion = Curar, desc = "Restaura salud y armadura al máximo" },
+    { nombre = "♻️ Revivir (ESX)", accion = RevivirESX, desc = "Resucita en servidores ESX" },
+    { nombre = "♻️ Revivir (QB)", accion = RevivirQB, desc = "Resucita en servidores QB" },
+    { nombre = "🌀 Noclip", 
       accion = function()
           noclipActive = not noclipActive
           if noclipActive then
@@ -167,10 +133,10 @@ opcionesMenu["self"] = {
               MostrarNotificacion("~r~Noclip DESACTIVADO")
           end
       end,
-      desc = "Atraviesa paredes y vuela. Movimiento relativo a la cámara." },
+      desc = "Atraviesa paredes y vuela. Controles: WASD, Shift (boost), Ctrl (bajar)" },
 }
 
--- ==================== BANNER DESDE URL SIN FALLBACK ====================
+-- ==================== BANNER ====================
 local bannerDict = "sentex_banner"
 local bannerLoaded = false
 
@@ -181,10 +147,8 @@ local function LoadBanner()
         local success = CreateRuntimeTextureFromImage(txd, "banner", BANNER_URL)
         if success then
             bannerLoaded = true
-            print("^2[SENTEX] Banner cargado correctamente")
+            print("^2[SENTEX] Banner cargado")
             return true
-        else
-            print("^1[SENTEX] No se pudo cargar el banner desde la URL")
         end
     end
     return false
@@ -195,10 +159,9 @@ local function DibujarBanner(x, y, w, h)
     if bannerLoaded and HasStreamedTextureDictLoaded(bannerDict) then
         DrawSprite(bannerDict, "banner", x, y, w, h, 0.0, 255, 255, 255, 255)
     end
-    -- No dibuja nada si falla (evita el recuadro blanco)
 end
 
--- ==================== FUNCIÓN DE TEXTO CON SOMBRA ====================
+-- ==================== TEXTO CON SOMBRA ====================
 local function DrawShadowText(text, x, y, scale, font, center, color)
     SetTextFont(font)
     SetTextScale(scale, scale)
@@ -246,25 +209,25 @@ function DibujarMenu()
     -- Fondo
     DrawRect(x, startY + totalAlto/2, ancho, totalAlto, bgColor[1], bgColor[2], bgColor[3], bgColor[4])
 
-    -- Bordes ultrafinos
+    -- Bordes
     DrawRect(x, startY, ancho, 0.0005, neonColor[1], neonColor[2], neonColor[3], neonColor[4])
     DrawRect(x, startY + totalAlto, ancho, 0.0005, neonColor[1], neonColor[2], neonColor[3], neonColor[4])
     DrawRect(x - ancho/2, startY + totalAlto/2, 0.0005, totalAlto, neonColor[1], neonColor[2], neonColor[3], neonColor[4])
     DrawRect(x + ancho/2, startY + totalAlto/2, 0.0005, totalAlto, neonColor[1], neonColor[2], neonColor[3], neonColor[4])
 
-    -- Resplandor exterior
+    -- Resplandor
     DrawRect(x, startY, ancho + 0.006, 0.001, neonGlow[1], neonGlow[2], neonGlow[3], neonGlow[4])
     DrawRect(x, startY + totalAlto, ancho + 0.006, 0.001, neonGlow[1], neonGlow[2], neonGlow[3], neonGlow[4])
 
     -- Banner
     DibujarBanner(x, startY + altoBanner/2, ancho - 0.01, altoBanner - 0.01)
 
-    -- Línea de brillo bajo el banner
+    -- Línea bajo banner
     DrawRect(x, startY + altoBanner - 0.001, ancho, 0.0005, neonColor[1], neonColor[2], neonColor[3], 200)
 
-    -- Título de la sección
+    -- Título de sección (sin "===")
     local tituloY = startY + altoBanner + 0.008
-    local tituloStr = (currentMenu == "main" and "=== MENU PRINCIPAL ===") or (currentMenu == "self" and "⚙️ SELF OPTIONS ⚙️")
+    local tituloStr = (currentMenu == "main" and "◆ MENU PRINCIPAL ◆") or (currentMenu == "self" and "⚙️ SELF OPTIONS ⚙️")
     DrawShadowText(tituloStr, x, tituloY, 0.48, 0, true, neonColor)
 
     -- Opciones
@@ -296,7 +259,7 @@ local function StartMenu()
     Citizen.CreateThread(function()
         while true do
             Citizen.Wait(0)
-            if IsDisabledControlJustReleased(0, 11) then -- PAGEDOWN
+            if IsDisabledControlJustReleased(0, 11) then
                 menuAbierto = not menuAbierto
                 if menuAbierto then
                     currentOption = 1
@@ -353,5 +316,4 @@ local function StartMenu()
     end)
 end
 
--- Retornar la función de inicio
 return { Start = StartMenu }
