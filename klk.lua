@@ -1,7 +1,17 @@
 --[[
-    SENTEXMODZ PREMIUM 2026 - Menú definitivo (sin banner externo)
+    SENTEX MENU - Versión v1.0.1 (beta)
     Abre con PAGEDOWN
 ]]
+
+-- ==================== CONFIGURACIÓN ====================
+local BANNER_URL = "https://i.ibb.co/9Hc78NTn/JV6Drrz.png"
+local MENU_READY = false
+local VERSION = "v1.0.1 (beta)"
+local DISCORD = ".gg/sentexmodz"
+
+-- Lista de secciones (en orden de navegación)
+local sections = { "main", "self" }
+local currentSectionIndex = 1  -- 1 = main, 2 = self
 
 -- ==================== NOTIFICACIONES ====================
 local function MostrarNotificacion(texto)
@@ -29,7 +39,7 @@ function RevivirQB()
     MostrarNotificacion("~g~Reviviendo (QB)")
 end
 
--- ==================== NOCLIP ====================
+-- ==================== NOCLIP (WASD + Shift/Ctrl) ====================
 local noclipActive = false
 local noclipSpeed = 5.0
 local boostMultiplier = 3.0
@@ -93,7 +103,72 @@ Citizen.CreateThread(function()
     end
 end)
 
--- ==================== MENÚ ====================
+-- ==================== BANNER CON CARGA ASÍNCRONA ====================
+local bannerDict = "sentex_banner"
+local bannerLoaded = false
+local bannerLoading = false
+
+local function LoadBannerAsync()
+    if bannerLoaded or bannerLoading then return end
+    bannerLoading = true
+    print("[SENTEX] Cargando banner...")
+    Citizen.CreateThread(function()
+        local txd = CreateRuntimeTxd(bannerDict)
+        if txd then
+            local success = CreateRuntimeTextureFromImage(txd, "banner", BANNER_URL)
+            if success then
+                bannerLoaded = true
+                print("[SENTEX] Banner cargado correctamente")
+            else
+                print("[SENTEX] ERROR: No se pudo crear la textura desde la URL")
+            end
+        else
+            print("[SENTEX] ERROR: No se pudo crear el TXD")
+        end
+        bannerLoading = false
+    end)
+end
+
+-- Dibuja el banner (o fallback azul oscuro con título y versión)
+local function DibujarBanner(x, y, w, h)
+    if not bannerLoaded then
+        LoadBannerAsync()
+        -- Fallback: rectángulo azul oscuro
+        DrawRect(x, y, w, h, 0, 30, 60, 200)
+        -- Título "SENTEX MENU" centrado (fuente más estilizada)
+        SetTextFont(7)  -- fuente elegante tipo 'ligada'
+        SetTextScale(0.55, 0.55)
+        SetTextColour(255, 255, 255, 255)
+        SetTextCentre(true)
+        SetTextEntry("STRING")
+        AddTextComponentString("SENTEX MENU")
+        DrawText(x, y - 0.02)
+        -- Versión abajo a la derecha del rectángulo (dentro)
+        SetTextFont(0)
+        SetTextScale(0.28, 0.28)
+        SetTextColour(200, 200, 200, 255)
+        SetTextCentre(false)
+        SetTextEntry("STRING")
+        AddTextComponentString(VERSION)
+        DrawText(x + w/2 - 0.04, y + h/2 - 0.035)
+        return
+    end
+    if HasStreamedTextureDictLoaded(bannerDict) then
+        DrawSprite(bannerDict, "banner", x, y, w, h, 0.0, 255, 255, 255, 255)
+        -- Aunque el banner real se muestre, también superponemos la versión (opcional)
+        SetTextFont(0)
+        SetTextScale(0.28, 0.28)
+        SetTextColour(255, 255, 255, 255)
+        SetTextCentre(false)
+        SetTextEntry("STRING")
+        AddTextComponentString(VERSION)
+        DrawText(x + w/2 - 0.04, y + h/2 - 0.035)
+    else
+        DrawRect(x, y, w, h, 0, 0, 0, 180)
+    end
+end
+
+-- ==================== MENÚ (sin emojis) ====================
 local menuAbierto = false
 local currentMenu = "main"
 local currentOption = 1
@@ -129,26 +204,14 @@ opcionesMenu["self"] = {
       desc = "Atraviesa paredes. Controles: WASD, Shift (boost), Ctrl (bajar)" },
 }
 
--- ==================== BANNER PROPIO (sin URL, siempre funciona) ====================
-local function DibujarBanner(x, y, w, h)
-    -- Fondo del banner (azul oscuro con gradiente simulado)
-    DrawRect(x, y, w, h, 0, 80, 160, 255)
-    -- Línea superior brillante
-    DrawRect(x, y - h/2 + 0.005, w, 0.01, 0, 200, 255, 255)
-    -- Texto del banner
-    SetTextFont(4)
-    SetTextScale(0.55, 0.55)
-    SetTextColour(255, 255, 255, 255)
-    SetTextCentre(true)
-    SetTextEntry("STRING")
-    AddTextComponentString("SENTEXMODZ PREMIUM 2026")
-    DrawText(x, y - 0.02)
-    -- Subtítulo
-    SetTextScale(0.35, 0.35)
-    SetTextColour(200, 200, 255, 255)
-    SetTextEntry("STRING")
-    AddTextComponentString("by Sentex")
-    DrawText(x, y + 0.02)
+-- Función para actualizar el índice de sección según currentMenu
+local function updateSectionIndex()
+    for i, sec in ipairs(sections) do
+        if sec == currentMenu then
+            currentSectionIndex = i
+            break
+        end
+    end
 end
 
 -- ==================== TEXTO SEGURO ====================
@@ -163,7 +226,7 @@ local function DrawShadowText(text, x, y, scale, font, center, color)
     DrawText(x, y)
 end
 
--- ==================== DIBUJO ====================
+-- ==================== DIBUJO COMPLETO ====================
 function DibujarMenu()
     local ancho = 0.26
     local x = 0.7
@@ -177,6 +240,7 @@ function DibujarMenu()
     local opciones = opcionesMenu[currentMenu]
     local numOpt = #opciones
 
+    -- Preparar descripción
     local lineasDesc = {}
     if descripcionActual and descripcionActual ~= "" then
         local temp = descripcionActual
@@ -195,7 +259,10 @@ function DibujarMenu()
     local totalAlto = altoBanner + altoTitulo + (numOpt * altoOpcion) + descH + 0.015
     local startY = y
 
+    -- Fondo principal
     DrawRect(x, startY + totalAlto/2, ancho, totalAlto, bgColor[1], bgColor[2], bgColor[3], bgColor[4])
+
+    -- Bordes y resplandor
     DrawRect(x, startY, ancho, 0.0005, neonColor[1], neonColor[2], neonColor[3], neonColor[4])
     DrawRect(x, startY + totalAlto, ancho, 0.0005, neonColor[1], neonColor[2], neonColor[3], neonColor[4])
     DrawRect(x - ancho/2, startY + totalAlto/2, 0.0005, totalAlto, neonColor[1], neonColor[2], neonColor[3], neonColor[4])
@@ -203,13 +270,16 @@ function DibujarMenu()
     DrawRect(x, startY, ancho + 0.006, 0.001, neonGlow[1], neonGlow[2], neonGlow[3], neonGlow[4])
     DrawRect(x, startY + totalAlto, ancho + 0.006, 0.001, neonGlow[1], neonGlow[2], neonGlow[3], neonGlow[4])
 
+    -- Banner (con versión incluida)
     DibujarBanner(x, startY + altoBanner/2, ancho - 0.01, altoBanner - 0.01)
     DrawRect(x, startY + altoBanner - 0.001, ancho, 0.0005, neonColor[1], neonColor[2], neonColor[3], 200)
 
+    -- Título de sección (sin símbolos raros)
     local tituloY = startY + altoBanner + 0.008
     local tituloStr = (currentMenu == "main" and "[ MENU PRINCIPAL ]") or (currentMenu == "self" and "[ SELF OPTIONS ]")
     DrawShadowText(tituloStr, x, tituloY, 0.48, 0, true, neonColor)
 
+    -- Opciones
     local optsY = startY + altoBanner + altoTitulo + 0.008
     for i, opt in ipairs(opciones) do
         local yOff = optsY + (i-1) * altoOpcion
@@ -223,6 +293,7 @@ function DibujarMenu()
         end
     end
 
+    -- Descripción
     local descY = startY + altoBanner + altoTitulo + (numOpt * altoOpcion) + 0.008
     if #lineasDesc > 0 then
         for i, linea in ipairs(lineasDesc) do
@@ -230,32 +301,55 @@ function DibujarMenu()
             DrawShadowText(linea, x, lineY, 0.32, 0, true, {210,210,255,255})
         end
     end
+
+    -- ========== ELEMENTOS EXTRA EN LOS BORDES ==========
+    -- Indicador de página abajo a la derecha (ej: "1/2")
+    local pageText = currentSectionIndex .. "/" .. #sections
+    SetTextFont(0)
+    SetTextScale(0.28, 0.28)
+    SetTextColour(150, 150, 150, 255)
+    SetTextCentre(false)
+    SetTextEntry("STRING")
+    AddTextComponentString(pageText)
+    DrawText(x + ancho/2 - 0.02, startY + totalAlto - 0.022)
+
+    -- Texto del discord abajo a la izquierda
+    SetTextFont(0)
+    SetTextScale(0.28, 0.28)
+    SetTextColour(150, 150, 150, 255)
+    SetTextCentre(false)
+    SetTextEntry("STRING")
+    AddTextComponentString(DISCORD)
+    DrawText(x - ancho/2 + 0.02, startY + totalAlto - 0.022)
 end
 
--- ==================== CONTROL PRINCIPAL ====================
+-- ==================== ESPERA INICIAL Y CONTROL PRINCIPAL ====================
+Citizen.CreateThread(function()
+    Citizen.Wait(3000)
+    MENU_READY = true
+    MostrarNotificacion("~g~SENTEX MENU " .. VERSION .. "~s~ | Listo. Presiona ~y~PAGEDOWN~s~")
+end)
+
 local function StartMenu()
     Citizen.CreateThread(function()
-        -- Pequeña espera para que el jugador esté listo
-        Citizen.Wait(1000)
-        MostrarNotificacion("~g~SENTEXMODZ PREMIUM 2026~s~ | Presiona ~y~PAGEDOWN~s~")
-        
         while true do
             Citizen.Wait(0)
-            if IsDisabledControlJustReleased(0, 11) then
+            if MENU_READY and IsDisabledControlJustReleased(0, 11) then
                 menuAbierto = not menuAbierto
                 if menuAbierto then
                     currentOption = 1
                     currentMenu = "main"
+                    updateSectionIndex()
                     PlaySoundFrontend(-1, "SELECT", "HUD_FRONTEND_DEFAULT_SOUNDSET", true)
-                    MostrarNotificacion("~b~SENTEXMODZ PREMIUM 2026~s~ | Menu abierto")
+                    MostrarNotificacion("~b~SENTEX MENU~s~ | Abierto")
                 else
                     PlaySoundFrontend(-1, "BACK", "HUD_FRONTEND_DEFAULT_SOUNDSET", true)
-                    MostrarNotificacion("~b~SENTEXMODZ PREMIUM 2026~s~ | Menu cerrado")
+                    MostrarNotificacion("~b~SENTEX MENU~s~ | Cerrado")
                 end
                 Citizen.Wait(200)
             end
 
-            if menuAbierto then
+            if menuAbierto and MENU_READY then
                 DibujarMenu()
                 local maxOpt = #opcionesMenu[currentMenu]
 
@@ -273,6 +367,7 @@ local function StartMenu()
                         PlaySoundFrontend(-1, "SELECT", "HUD_FRONTEND_DEFAULT_SOUNDSET", true)
                         if sel.submenu then
                             currentMenu = sel.submenu
+                            updateSectionIndex()
                             currentOption = 1
                         elseif sel.accion then
                             sel.accion()
@@ -281,6 +376,7 @@ local function StartMenu()
                 elseif IsDisabledControlJustReleased(0, 177) then
                     if currentMenu ~= "main" then
                         currentMenu = "main"
+                        updateSectionIndex()
                         currentOption = 1
                         PlaySoundFrontend(-1, "BACK", "HUD_FRONTEND_DEFAULT_SOUNDSET", true)
                     else
