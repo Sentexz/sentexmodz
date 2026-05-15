@@ -1,6 +1,6 @@
 --[[
     SENTEXMODZ PREMIUM 2026 - Menú con banner externo desde URL fiable
-    Abre con PAGEDOWN (control 11). Sección "Self Options" con 3 funciones.
+    Abre con PAGEDOWN (control 11). Sección "Self Options" con 3 funciones + NOCLIP PERFECTO.
     Banner desde URL sin fallback para evitar recuadros blancos.
 ]]
 
@@ -33,6 +33,102 @@ function RevivirQB()
     MostrarNotificacion("~g~Reviviendo (QB)")
 end
 
+-- ==================== NOCLIP PERFECTO (WASD + SHIFT/CTRL) ====================
+local noclipActive = false
+local noclipSpeed = 5.0          -- Velocidad base
+local boostMultiplier = 3.0      -- Al pulsar Shift (velocidad = base * boost)
+local currentSpeed = noclipSpeed
+
+-- Controles estándar FiveM
+local controls = {
+    forward = 32,   -- W
+    backward = 33,  -- S
+    left = 34,      -- A
+    right = 35,     -- D
+    boost = 21,     -- LEFT SHIFT
+    descend = 36    -- LEFT CTRL (bajar)
+}
+
+-- Obtener vectores dirección según la cámara
+local function getDirectionVectors()
+    local camRot = GetGameplayCamRot(2)  -- 2 = relative to world
+    local pitch = math.rad(camRot.x)
+    local yaw = math.rad(camRot.z)
+    
+    local forward = vector3(
+        -math.sin(yaw) * math.cos(pitch),
+        math.cos(yaw) * math.cos(pitch),
+        math.sin(pitch)
+    )
+    local right = vector3(
+        -math.cos(yaw),
+        -math.sin(yaw),
+        0.0
+    )
+    local up = vector3(0.0, 0.0, 1.0)
+    
+    return forward, right, up
+end
+
+-- Hilo principal del noclip
+Citizen.CreateThread(function()
+    while true do
+        if noclipActive then
+            local ped = PlayerPedId()
+            local vehicle = GetVehiclePedIsIn(ped, false)
+            local entity = vehicle ~= 0 and vehicle or ped
+            
+            -- Desactivar colisiones y gravedad
+            SetEntityCollision(entity, false, false)
+            SetEntityInvincible(ped, true)
+            FreezeEntityPosition(entity, false)
+            SetEntityVelocity(entity, 0.0, 0.0, 0.0)
+            
+            -- Leer entrada
+            local moveVec = vector3(0.0, 0.0, 0.0)
+            local boost = IsControlPressed(0, controls.boost)
+            currentSpeed = boost and (noclipSpeed * boostMultiplier) or noclipSpeed
+            
+            if IsControlPressed(0, controls.forward) then
+                moveVec = moveVec + vector3(0.0, 1.0, 0.0)
+            end
+            if IsControlPressed(0, controls.backward) then
+                moveVec = moveVec + vector3(0.0, -1.0, 0.0)
+            end
+            if IsControlPressed(0, controls.right) then
+                moveVec = moveVec + vector3(1.0, 0.0, 0.0)
+            end
+            if IsControlPressed(0, controls.left) then
+                moveVec = moveVec + vector3(-1.0, 0.0, 0.0)
+            end
+            
+            -- Movimiento vertical (CTRL)
+            if IsControlPressed(0, controls.descend) then
+                moveVec = moveVec - vector3(0.0, 0.0, 1.0)
+            end
+            
+            -- Normalizar si se mueve en diagonal
+            if moveVec.x ~= 0 or moveVec.y ~= 0 or moveVec.z ~= 0 then
+                moveVec = moveVec / math.sqrt(moveVec.x^2 + moveVec.y^2 + moveVec.z^2)
+            end
+            
+            -- Obtener vectores de cámara
+            local forward, right, up = getDirectionVectors()
+            
+            -- Calcular desplazamiento final
+            local delta = (forward * moveVec.y + right * moveVec.x + up * moveVec.z) * currentSpeed
+            local newCoords = GetEntityCoords(entity) + delta
+            
+            -- Aplicar nueva posición (instantáneo)
+            SetEntityCoords(entity, newCoords.x, newCoords.y, newCoords.z, false, false, false, false)
+            
+            Citizen.Wait(0)
+        else
+            Citizen.Wait(500)
+        end
+    end
+end)
+
 -- ==================== ESTRUCTURA DEL MENÚ ====================
 local menuAbierto = false
 local currentMenu = "main"
@@ -48,12 +144,28 @@ local bannerColor = {0, 80, 160, 255}
 local selectBg = {30, 144, 255, 60}
 
 opcionesMenu["main"] = {
-    { nombre = "❤️ Self Options", submenu = "self", desc = "Opciones avanzadas" },
+    { nombre = "❤️ Self Options", submenu = "self", desc = "Opciones avanzadas (incluye noclip)" },
 }
 opcionesMenu["self"] = {
     { nombre = "❤️ Curar", accion = Curar, desc = "Restaura salud y armadura" },
     { nombre = "⚕️ Revivir (ESX)", accion = RevivirESX, desc = "Bypass ESX" },
     { nombre = "⚕️ Revivir (QB)", accion = RevivirQB, desc = "Bypass QB" },
+    { nombre = "🌀 Noclip (WASD + Shift/CTRL)", 
+      accion = function()
+          noclipActive = not noclipActive
+          if noclipActive then
+              local ped = PlayerPedId()
+              MostrarNotificacion("~b~Noclip ACTIVADO~s~\nWASD | Shift = Boost | Ctrl = Bajar")
+          else
+              local ped = PlayerPedId()
+              local vehicle = GetVehiclePedIsIn(ped, false)
+              local entity = vehicle ~= 0 and vehicle or ped
+              SetEntityCollision(entity, true, true)
+              SetEntityInvincible(ped, false)
+              MostrarNotificacion("~r~Noclip DESACTIVADO")
+          end
+      end,
+      desc = "Atraviesa paredes y vuela. Movimiento relativo a la cámara." },
 }
 
 -- ==================== BANNER DESDE URL SIN FALLBACK ====================
