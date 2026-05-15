@@ -1,10 +1,10 @@
 --[[
-    SENTEX MENU - Versión v1.0.5 (definitiva)
+    SENTEX MENU - Versión v1.0.6 (definitiva)
     Abre con PAGEDOWN
 ]]
 
 -- ==================== CONFIGURACIÓN ====================
-local VERSION = "v1.0.5 (definitiva)"
+local VERSION = "v1.0.6 (definitiva)"
 local DISCORD = ".gg/sentexmodz"
 
 -- ==================== NOTIFICACIONES ====================
@@ -94,8 +94,22 @@ function RevivirQB()
         MostrarNotificacion("~r~Anticheat activo: esta opción no se ejecutará")
         return
     end
-    TriggerEvent("hospital:client:Revive")
-    MostrarNotificacion("~g~Reviviendo (QB)")
+    -- Intento múltiple para QB/QC
+    local ped = PlayerPedId()
+    if IsPedDeadOrDying(ped, true) then
+        TriggerEvent('hospital:client:Revive')
+        Citizen.Wait(100)
+        if IsPedDeadOrDying(ped, true) then
+            TriggerServerEvent('hospital:server:RevivePlayer', GetPlayerServerId(PlayerId()))
+        end
+        Citizen.Wait(100)
+        if IsPedDeadOrDying(ped, true) and exports['qbx_medical'] then
+            pcall(function() exports['qbx_medical']:RevivePlayer() end)
+        end
+        MostrarNotificacion("~g~Intentando revivir (QB/QC)")
+    else
+        MostrarNotificacion("~r~No estás muerto")
+    end
 end
 
 -- ==================== ACCIONES VEHÍCULO ====================
@@ -140,7 +154,6 @@ function LimpiarVehiculo(vehicle)
     end
 end
 
--- Conducir vehículo con simulación de lag si está lejos
 function ConducirVehiculo(vehicle)
     if not vehicle or vehicle == 0 then
         MostrarNotificacion("~r~El vehículo ya no existe")
@@ -222,7 +235,7 @@ function GetVehicleDisplayName(vehicle)
     return name
 end
 
--- ==================== ACCIONES JUGADORES (SEGURAS) ====================
+-- ==================== ACCIONES JUGADORES ====================
 function GetPlayerList()
     local players = {}
     for i = 0, 255 do
@@ -304,42 +317,48 @@ end
 
 local followingPlayer = nil
 
--- ==================== ACCIONES MAPA ====================
-local timeFrozen = false
-local frozenHour = 12
+-- ==================== MAP FUCKER (NUEVA OPCIÓN) ====================
+local attachActive = false
+local attachedVehicles = {}
 
-function SetWeather(type)
-    SetWeatherTypeNowPersist(type)
-    SetWeatherTypeNow(type)
-    MostrarNotificacion("~b~Clima cambiado: " .. type)
-end
-
-function SetTime(hour)
-    frozenHour = hour
-    if timeFrozen then
-        SetClockTime(hour, 0, 0)
-    else
-        SetClockTime(hour, 0, 0)
-        timeFrozen = true
+function ToggleAttachCars()
+    local ped = PlayerPedId()
+    local vehicle = GetVehiclePedIsIn(ped, false)
+    if vehicle == 0 then
+        MostrarNotificacion("~r~Debes estar en un vehículo")
+        return
     end
-    MostrarNotificacion("~b~Hora fijada: " .. hour .. ":00")
-end
 
-function ToggleFreezeTime()
-    timeFrozen = not timeFrozen
-    if timeFrozen then
-        SetClockTime(frozenHour, 0, 0)
-        MostrarNotificacion("~y~Tiempo congelado")
+    if not attachActive then
+        local coords = GetEntityCoords(vehicle)
+        local handle = GetGamePool("CVehicle")
+        local count = 0
+        for _, v in ipairs(handle) do
+            if v ~= vehicle then
+                local dist = #(coords - GetEntityCoords(v))
+                if dist < 30.0 then
+                    AttachEntityToEntity(v, vehicle, 0, 0.0, -2.0, 0.0, 0.0, 0.0, 0.0, false, false, false, false, 2, true)
+                    table.insert(attachedVehicles, v)
+                    count = count + 1
+                end
+            end
+        end
+        if count > 0 then
+            attachActive = true
+            MostrarNotificacion("~g~Enganchados " .. count .. " vehículos cercanos")
+        else
+            MostrarNotificacion("~r~No hay vehículos cerca")
+        end
     else
-        MostrarNotificacion("~y~Tiempo normal")
+        for _, v in ipairs(attachedVehicles) do
+            if DoesEntityExist(v) then
+                DetachEntity(v, true, false)
+            end
+        end
+        attachedVehicles = {}
+        attachActive = false
+        MostrarNotificacion("~r~Vehículos desenganchados")
     end
-end
-
-function ResetWeatherAndTime()
-    SetWeatherTypeNowPersist("CLEAR")
-    SetWeatherTypeNow("CLEAR")
-    timeFrozen = false
-    MostrarNotificacion("~g~Clima y hora restaurados")
 end
 
 -- ==================== AC CHECKER MANUAL ====================
@@ -396,7 +415,7 @@ function CheckAntiCheatManual()
     end)
 end
 
--- ==================== NOCLIP (NO TOCAR) ====================
+-- ==================== NOCLIP ====================
 local noclipActive = false
 local noclipSpeed = 5.0
 local boostMultiplier = 3.0
@@ -426,7 +445,6 @@ Citizen.CreateThread(function()
             local ped = PlayerPedId()
             local vehicle = GetVehiclePedIsIn(ped, false)
             local entity = (vehicle ~= 0 and vehicle) or ped
-
             SetEntityCollision(entity, false, false)
             SetEntityInvincible(ped, true)
             FreezeEntityPosition(entity, false)
@@ -498,14 +516,14 @@ opcionesMenu["main"] = {
     { nombre = "[»] Self options", submenu = "self", desc = "Opciones del jugador" },
     { nombre = "[»] Vehicle options", submenu = "vehicle", desc = "Opciones para vehículos" },
     { nombre = "[»] Player list", submenu = "player_list", desc = "Interactuar con otros jugadores" },
-    { nombre = "[»] Map fucker", submenu = "map_fucker", desc = "Modificar clima y hora" },
+    { nombre = "[»] Map fucker", submenu = "map_fucker", desc = "Opciones locas del mapa" },
     { nombre = "[»] Protection options", submenu = "protection", desc = "Herramientas de seguridad" },
 }
 
 opcionesMenu["self"] = {
     { nombre = "• Curar", accion = Curar, desc = "Restaura salud y armadura" },
     { nombre = "• Revivir ESX", accion = RevivirESX, desc = "Resucita en servidores ESX" },
-    { nombre = "• Revivir QB", accion = RevivirQB, desc = "Resucita en servidores QB" },
+    { nombre = "• Revivir QB", accion = RevivirQB, desc = "Resucita en servidores QB/QC" },
     { nombre = "• Noclip",
       accion = function()
           noclipActive = not noclipActive
@@ -528,13 +546,9 @@ opcionesMenu["vehicle"] = {
     { nombre = "• Vehicle list", submenu = "vehicle_list", desc = "Lista de vehículos cercanos" },
 }
 
+-- NUEVA DEFINICIÓN: solo una opción
 opcionesMenu["map_fucker"] = {
-    { nombre = "• Lluvia intensa", accion = function() SetWeather("RAIN") end, desc = "Cambia el clima a lluvia" },
-    { nombre = "• Tormenta", accion = function() SetWeather("THUNDER") end, desc = "Tormenta eléctrica" },
-    { nombre = "• Noche cerrada", accion = function() SetTime(0) end, desc = "Fija la hora a 0:00" },
-    { nombre = "• Mediodía", accion = function() SetTime(12) end, desc = "Fija la hora a 12:00" },
-    { nombre = "• Congelar hora", accion = ToggleFreezeTime, desc = "Detiene el paso del tiempo" },
-    { nombre = "• Volver tiempo normal", accion = ResetWeatherAndTime, desc = "Restaura clima y hora original" },
+    { nombre = "• Attach car to nearby cars", accion = ToggleAttachCars, desc = "Engancha todos los vehículos cercanos al tuyo (toggle)" },
 }
 
 opcionesMenu["protection"] = {
@@ -542,7 +556,7 @@ opcionesMenu["protection"] = {
 }
 
 -- ==================== FUNCIONES DINÁMICAS ====================
-local function RefreshVehicleListMenu()
+function RefreshVehicleListMenu()
     local vehicles = GetNearbyVehicles()
     local opts = {}
     for i, v in ipairs(vehicles) do
@@ -569,7 +583,7 @@ local function RefreshVehicleListMenu()
     opcionesMenu["vehicle_list"] = opts
 end
 
-local function RefreshPlayerListMenu()
+function RefreshPlayerListMenu()
     local players = GetPlayerList()
     local opts = {}
     for i, pid in ipairs(players) do
