@@ -1,10 +1,10 @@
 --[[
-    SENTEXMODZ PREMIUM 2026 - Menú con banner externo desde URL fiable
-    Abre con PAGEDOWN (control 11). Sección "Self Options" con funciones mejoradas.
+    SENTEXMODZ PREMIUM 2026 - Menú estable sin emojis
+    Abre con PAGEDOWN (control 11)
 ]]
 
 -- ==================== CONFIGURACIÓN ====================
-local BANNER_URL = "https://i.ibb.co/9Hc78NTn/JV6Drrz.png"
+local BANNER_URL = "https://i.ibb.co/9Hc78NTn/JV6Drrz.png"  -- Cámbiala si no funciona
 
 -- ==================== FUNCIONES AUXILIARES ====================
 local function MostrarNotificacion(texto)
@@ -32,7 +32,7 @@ function RevivirQB()
     MostrarNotificacion("~g~Reviviendo (QB)")
 end
 
--- ==================== NOCLIP CORREGIDO ====================
+-- ==================== NOCLIP (WASD + Shift/Ctrl) ====================
 local noclipActive = false
 local noclipSpeed = 5.0
 local boostMultiplier = 3.0
@@ -46,16 +46,13 @@ local function getCamVectors()
     local camRot = GetGameplayCamRot(2)
     local pitch = math.rad(camRot.x)
     local yaw = math.rad(camRot.z)
-    
     local cosPitch = math.cos(pitch)
     local sinPitch = math.sin(pitch)
     local cosYaw = math.cos(yaw)
     local sinYaw = math.sin(yaw)
-    
     local forward = vector3(-sinYaw * cosPitch, cosYaw * cosPitch, sinPitch)
     local right = vector3(-cosYaw, -sinYaw, 0.0)
     local up = vector3(0.0, 0.0, 1.0)
-    
     return forward, right, up
 end
 
@@ -65,7 +62,6 @@ Citizen.CreateThread(function()
             local ped = PlayerPedId()
             local vehicle = GetVehiclePedIsIn(ped, false)
             local entity = (vehicle ~= 0 and vehicle) or ped
-            
             SetEntityCollision(entity, false, false)
             SetEntityInvincible(ped, true)
             FreezeEntityPosition(entity, false)
@@ -106,24 +102,23 @@ local currentOption = 1
 local opcionesMenu = {}
 local descripcionActual = ""
 
--- Colores y estilos
 local neonColor = {0, 255, 255, 255}
 local neonGlow = {0, 180, 255, 80}
 local bgColor = {0, 0, 0, 210}
 local selectBg = {30, 144, 255, 60}
 
 opcionesMenu["main"] = {
-    { nombre = "➤ Self Options", submenu = "self", desc = "Accede a las opciones del jugador" },
+    { nombre = "> Self Options", submenu = "self", desc = "Opciones del jugador" },
 }
 opcionesMenu["self"] = {
-    { nombre = "⚡ Curar", accion = Curar, desc = "Restaura salud y armadura al máximo" },
-    { nombre = "♻️ Revivir (ESX)", accion = RevivirESX, desc = "Resucita en servidores ESX" },
-    { nombre = "♻️ Revivir (QB)", accion = RevivirQB, desc = "Resucita en servidores QB" },
-    { nombre = "🌀 Noclip", 
+    { nombre = "[+] Curar", accion = Curar, desc = "Restaura salud y armadura" },
+    { nombre = "[R] Revivir ESX", accion = RevivirESX, desc = "Resucita en servidores ESX" },
+    { nombre = "[R] Revivir QB", accion = RevivirQB, desc = "Resucita en servidores QB" },
+    { nombre = "[N] Noclip", 
       accion = function()
           noclipActive = not noclipActive
           if noclipActive then
-              MostrarNotificacion("~b~Noclip ACTIVADO~s~\nWASD | Shift = Boost | Ctrl = Bajar")
+              MostrarNotificacion("~b~Noclip ACTIVADO~s~  |  WASD | Shift (boost) | Ctrl (bajar)")
           else
               local ped = PlayerPedId()
               local vehicle = GetVehiclePedIsIn(ped, false)
@@ -133,31 +128,41 @@ opcionesMenu["self"] = {
               MostrarNotificacion("~r~Noclip DESACTIVADO")
           end
       end,
-      desc = "Atraviesa paredes y vuela. Controles: WASD, Shift (boost), Ctrl (bajar)" },
+      desc = "Atraviesa paredes. Controles: WASD, Shift (boost), Ctrl (bajar)" },
 }
 
--- ==================== BANNER ====================
+-- ==================== BANNER (con más logs) ====================
 local bannerDict = "sentex_banner"
 local bannerLoaded = false
 
 local function LoadBanner()
     if bannerLoaded then return true end
+    print("^3[SENTEX] Intentando cargar banner desde: " .. BANNER_URL)
     local txd = CreateRuntimeTxd(bannerDict)
     if txd then
         local success = CreateRuntimeTextureFromImage(txd, "banner", BANNER_URL)
         if success then
             bannerLoaded = true
-            print("^2[SENTEX] Banner cargado")
+            print("^2[SENTEX] Banner cargado correctamente")
             return true
+        else
+            print("^1[SENTEX] ERROR: No se pudo crear la textura. ¿URL válida? ¿imagen accesible?")
         end
+    else
+        print("^1[SENTEX] ERROR: No se pudo crear el TXD")
     end
     return false
 end
 
 local function DibujarBanner(x, y, w, h)
-    if not bannerLoaded then LoadBanner() end
+    if not bannerLoaded then
+        LoadBanner()  -- intenta de nuevo cada vez que se dibuja
+    end
     if bannerLoaded and HasStreamedTextureDictLoaded(bannerDict) then
         DrawSprite(bannerDict, "banner", x, y, w, h, 0.0, 255, 255, 255, 255)
+    else
+        -- Si no hay banner, dibuja un rectángulo semitransparente para que no quede vacío
+        DrawRect(x, y, w, h, 0, 0, 0, 180)
     end
 end
 
@@ -187,7 +192,6 @@ function DibujarMenu()
     local opciones = opcionesMenu[currentMenu]
     local numOpt = #opciones
 
-    -- Preparar descripción
     local lineasDesc = {}
     if descripcionActual and descripcionActual ~= "" then
         local temp = descripcionActual
@@ -206,31 +210,21 @@ function DibujarMenu()
     local totalAlto = altoBanner + altoTitulo + (numOpt * altoOpcion) + descH + 0.015
     local startY = y
 
-    -- Fondo
     DrawRect(x, startY + totalAlto/2, ancho, totalAlto, bgColor[1], bgColor[2], bgColor[3], bgColor[4])
-
-    -- Bordes
     DrawRect(x, startY, ancho, 0.0005, neonColor[1], neonColor[2], neonColor[3], neonColor[4])
     DrawRect(x, startY + totalAlto, ancho, 0.0005, neonColor[1], neonColor[2], neonColor[3], neonColor[4])
     DrawRect(x - ancho/2, startY + totalAlto/2, 0.0005, totalAlto, neonColor[1], neonColor[2], neonColor[3], neonColor[4])
     DrawRect(x + ancho/2, startY + totalAlto/2, 0.0005, totalAlto, neonColor[1], neonColor[2], neonColor[3], neonColor[4])
-
-    -- Resplandor
     DrawRect(x, startY, ancho + 0.006, 0.001, neonGlow[1], neonGlow[2], neonGlow[3], neonGlow[4])
     DrawRect(x, startY + totalAlto, ancho + 0.006, 0.001, neonGlow[1], neonGlow[2], neonGlow[3], neonGlow[4])
 
-    -- Banner
     DibujarBanner(x, startY + altoBanner/2, ancho - 0.01, altoBanner - 0.01)
-
-    -- Línea bajo banner
     DrawRect(x, startY + altoBanner - 0.001, ancho, 0.0005, neonColor[1], neonColor[2], neonColor[3], 200)
 
-    -- Título de sección (sin "===")
     local tituloY = startY + altoBanner + 0.008
-    local tituloStr = (currentMenu == "main" and "◆ MENU PRINCIPAL ◆") or (currentMenu == "self" and "⚙️ SELF OPTIONS ⚙️")
+    local tituloStr = (currentMenu == "main" and "◆ MENU PRINCIPAL ◆") or (currentMenu == "self" and "• SELF OPTIONS •")
     DrawShadowText(tituloStr, x, tituloY, 0.48, 0, true, neonColor)
 
-    -- Opciones
     local optsY = startY + altoBanner + altoTitulo + 0.008
     for i, opt in ipairs(opciones) do
         local yOff = optsY + (i-1) * altoOpcion
@@ -244,7 +238,6 @@ function DibujarMenu()
         end
     end
 
-    -- Descripción
     local descY = startY + altoBanner + altoTitulo + (numOpt * altoOpcion) + 0.008
     if #lineasDesc > 0 then
         for i, linea in ipairs(lineasDesc) do
@@ -265,10 +258,10 @@ local function StartMenu()
                     currentOption = 1
                     currentMenu = "main"
                     PlaySoundFrontend(-1, "SELECT", "HUD_FRONTEND_DEFAULT_SOUNDSET", true)
-                    MostrarNotificacion("~b~★ SENTEXMODZ PREMIUM 2026 ★~s~ | Menú abierto")
+                    MostrarNotificacion("~b~SENTEXMODZ PREMIUM 2026~s~ | Menu abierto")
                 else
                     PlaySoundFrontend(-1, "BACK", "HUD_FRONTEND_DEFAULT_SOUNDSET", true)
-                    MostrarNotificacion("~b~★ SENTEXMODZ PREMIUM 2026 ★~s~ | Menú cerrado")
+                    MostrarNotificacion("~b~SENTEXMODZ PREMIUM 2026~s~ | Menu cerrado")
                 end
                 Citizen.Wait(200)
             end
@@ -312,7 +305,7 @@ local function StartMenu()
 
     Citizen.CreateThread(function()
         Citizen.Wait(500)
-        MostrarNotificacion("~b~★ SENTEXMODZ PREMIUM 2026 ★~s~ | Presiona ~y~PAGEDOWN~s~")
+        MostrarNotificacion("~b~SENTEXMODZ PREMIUM 2026~s~ | Presiona ~y~PAGEDOWN~s~")
     end)
 end
 
