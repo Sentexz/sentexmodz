@@ -1,10 +1,10 @@
 --[[
-    SENTEX MENU - Versión v3.3 (advertencia visual, sin bloqueos)
+    SENTEX MENU - Versión v3.4 (advertencia anticheat con estilo del menú)
     Abre con PAGEDOWN
 ]]
 
 -- ==================== CONFIGURACIÓN ====================
-local VERSION = "v3.3 (advertencia visual)"
+local VERSION = "v3.4 (advertencia integrada)"
 local DISCORD = ".gg/sentexmodz"
 
 -- ==================== NOTIFICACIONES ====================
@@ -14,7 +14,7 @@ local function MostrarNotificacion(texto)
     DrawNotification(false, false)
 end
 
--- ==================== DETECCIÓN DE ANTICHEAT (GLOBAL, SOLO PARA MOSTRAR ADVERTENCIA) ====================
+-- ==================== DETECCIÓN DE ANTICHEAT (SOLO ADVERTENCIA) ====================
 local anticheatDetected = false
 local anticheatList = {}
 
@@ -31,7 +31,6 @@ local anticheats = {
     { name = "NexusAC", patterns = { "nexusac", "nexus_anticheat" } },
 }
 
--- Escaneo silencioso al inicio (solo para mostrar advertencia)
 local function ScanAntiCheatSilent()
     local found = {}
     local success, num = pcall(GetNumResources)
@@ -59,11 +58,13 @@ local function ScanAntiCheatSilent()
         end
         MostrarNotificacion("~r~⚠️ Anticheat detectado: ~y~" .. table.concat(anticheatList, ", ") .. "~s~")
     else
+        anticheatDetected = false
+        anticheatList = {}
         MostrarNotificacion("~g~No se detectaron anticheats conocidos")
     end
 end
 
--- ==================== ACCIONES (SIN BLOQUEOS, SOLO EJECUTAN) ====================
+-- ==================== ACCIONES (SIN BLOQUEOS) ====================
 function Curar()
     local ped = PlayerPedId()
     SetEntityHealth(ped, GetEntityMaxHealth(ped))
@@ -283,7 +284,7 @@ function RotationToDirection(rotation)
     return direction
 end
 
--- ==================== ACCIONES JUGADORES (SIN BLOQUEOS) ====================
+-- ==================== ACCIONES JUGADORES ====================
 function GetPlayerList()
     local players = {}
     for i = 0, 255 do
@@ -404,7 +405,7 @@ end
 
 local followingPlayer = nil
 
--- ==================== MAP FUCKER (ATTACH CORREGIDO + FREECAM) ====================
+-- ==================== MAP FUCKER (ATTACH + FREECAM) ====================
 local attachActive = false
 local attachedVehicles = {}
 
@@ -440,7 +441,7 @@ function ToggleAttachCars()
         end
         if count > 0 then
             attachActive = true
-            MostrarNotificacion("~g~Enganchados " .. count .. " vehículos (cualquier tipo)")
+            MostrarNotificacion("~g~Enganchados " .. count .. " vehículos")
         else
             MostrarNotificacion("~r~No hay vehículos en 150 metros")
         end
@@ -510,7 +511,7 @@ Citizen.CreateThread(function()
     end
 end)
 
--- ==================== AC CHECKER (ACTUALIZA anticheatDetected, SOLO ADVERTENCIA) ====================
+-- ==================== AC CHECKER ====================
 local isChecking = false
 function CheckAntiCheatManual()
     if isChecking then
@@ -551,7 +552,7 @@ function CheckAntiCheatManual()
                 table.insert(anticheatList, name)
             end
             local ac_text = table.concat(anticheatList, ", ")
-            MostrarNotificacion("~r~⚠️ ANTICHEAT DETECTADO: ~y~" .. ac_text .. "~s~\nTen cuidado al usar opciones riesgosas")
+            MostrarNotificacion("~r~⚠️ ANTICHEAT DETECTADO: ~y~" .. ac_text .. "~s~")
         else
             anticheatDetected = false
             anticheatList = {}
@@ -632,7 +633,12 @@ Citizen.CreateThread(function()
     end
 end)
 
--- ==================== BANNER Y ADVERTENCIA VISUAL ====================
+-- ==================== BANNER Y ESTILOS ====================
+local neonColor = {0, 255, 255, 255}
+local neonGlow = {0, 180, 255, 80}
+local bgColor = {0, 0, 0, 210}
+local selectBg = {30, 144, 255, 60}
+
 local function DibujarBanner(x, y, w, h)
     DrawRect(x, y, w, h, 0, 30, 60, 200)
     SetTextFont(7)
@@ -651,24 +657,24 @@ local function DibujarBanner(x, y, w, h)
     DrawText(x, y + 0.015)
 end
 
--- Dibujar advertencia de anticheat debajo del menú (si está detectado)
+-- Advertencia con estilo del menú
 local function DibujarAdvertenciaAnticheat(x, y, totalAlto, ancho)
     if anticheatDetected then
         local warningY = y + totalAlto + 0.008
         local warningW = ancho - 0.01
-        local warningH = 0.025
-        -- Fondo rojo oscuro
-        DrawRect(x, warningY + warningH/2, warningW, warningH, 180, 0, 0, 220)
-        -- Borde rojo claro
-        DrawRect(x, warningY + warningH/2, warningW, 0.002, 255, 80, 80, 255)
-        -- Texto de advertencia
+        local warningH = 0.028
+        -- Fondo oscuro igual que el menú
+        DrawRect(x, warningY + warningH/2, warningW, warningH, bgColor[1], bgColor[2], bgColor[3], bgColor[4])
+        -- Borde neón (igual que el menú)
+        DrawRect(x, warningY + warningH/2, warningW, 0.0015, neonColor[1], neonColor[2], neonColor[3], 200)
+        -- Texto de advertencia en color neón
         SetTextFont(4)
         SetTextScale(0.28, 0.28)
-        SetTextColour(255, 200, 200, 255)
+        SetTextColour(neonColor[1], neonColor[2], neonColor[3], 255)
         SetTextCentre(true)
         SetTextEntry("STRING")
         AddTextComponentString("⚠️ ANTICHEAT DETECTADO - TEN CUIDADO ⚠️")
-        DrawText(x, warningY + 0.008)
+        DrawText(x, warningY + 0.01)
     end
 end
 
@@ -680,11 +686,6 @@ local opcionesMenu = {}
 local descripcionActual = ""
 
 local dynamicMenus = {}
-
-local neonColor = {0, 255, 255, 255}
-local neonGlow = {0, 180, 255, 80}
-local bgColor = {0, 0, 0, 210}
-local selectBg = {30, 144, 255, 60}
 
 opcionesMenu["main"] = {
     { nombre = "[»] Self options", submenu = "self", desc = "Opciones del jugador" },
@@ -778,7 +779,7 @@ function RefreshPlayerListMenu()
                 { nombre = "• Matar", accion = MakePlayerAction(pid, "kill"), desc = "Mata al jugador" },
                 { nombre = "• Seguir", accion = MakePlayerAction(pid, "follow"), desc = "Cámara sigue al jugador" },
                 { nombre = "• Teleportar", accion = MakePlayerAction(pid, "teleport"), desc = "Teletransportarse" },
-                { nombre = "• Spawn NPC agresivo", accion = MakePlayerAction(pid, "spawnnpc"), desc = "Spawn un NPC que atacará al jugador (modo seguro)" },
+                { nombre = "• Spawn NPC agresivo", accion = MakePlayerAction(pid, "spawnnpc"), desc = "Spawn un NPC que atacará al jugador" },
             }
         end
     end
@@ -788,7 +789,7 @@ function RefreshPlayerListMenu()
     opcionesMenu["player_list"] = opts
 end
 
--- ==================== DIBUJO COMPLETO CON ADVERTENCIA ====================
+-- ==================== DIBUJO PRINCIPAL ====================
 local function DrawShadowText(text, x, y, scale, font, center, color)
     SetTextFont(font)
     SetTextScale(scale, scale)
@@ -897,10 +898,8 @@ function DibujarMenu()
     AddTextComponentString(DISCORD)
     DrawText(x - ancho/2 + 0.005, startY + totalAlto - 0.022)
     
-    -- Advertencia de anticheat debajo del menú (si está detectado)
-    if anticheatDetected then
-        DibujarAdvertenciaAnticheat(x, startY, totalAlto, ancho)
-    end
+    -- Advertencia de anticheat debajo del menú
+    DibujarAdvertenciaAnticheat(x, startY, totalAlto, ancho)
 end
 
 -- ==================== HILO PRINCIPAL ====================
