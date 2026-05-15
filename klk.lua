@@ -4,11 +4,12 @@
 ]]
 
 -- ==================== CONFIGURACIÓN ====================
+local BANNER_URL = "https://i.imgur.com/JV6Drrz.png"  -- <--- URL corregida
 local MENU_READY = false
 local VERSION = "v1.0.1 (beta)"
 local DISCORD = ".gg/sentexmodz"
 
--- Lista de secciones
+-- Lista de secciones para el contador (AHORA SÓLO LAS QUE EXISTEN)
 local sections = { "main", "self", "vehicle" }
 local currentSectionIndex = 1
 
@@ -19,7 +20,7 @@ local function MostrarNotificacion(texto)
     DrawNotification(false, false)
 end
 
--- ==================== ACCIONES SELF ====================
+-- ==================== ACCIONES ====================
 function Curar()
     local ped = PlayerPedId()
     SetEntityHealth(ped, GetEntityMaxHealth(ped))
@@ -127,26 +128,64 @@ Citizen.CreateThread(function()
     end
 end)
 
--- ==================== BANNER (solo diseño interno, sin URL) ====================
+-- ==================== BANNER CON CARGA ASÍNCRONA ====================
+local bannerDict = "sentex_banner"
+local bannerLoaded = false
+local bannerLoading = false
+
+local function LoadBannerAsync()
+    if bannerLoaded or bannerLoading then return end
+    bannerLoading = true
+    print("[SENTEX] Cargando banner...")
+    Citizen.CreateThread(function()
+        local txd = CreateRuntimeTxd(bannerDict)
+        if txd then
+            local success = CreateRuntimeTextureFromImage(txd, "banner", BANNER_URL)
+            if success then
+                bannerLoaded = true
+                print("[SENTEX] Banner cargado correctamente")
+            else
+                print("[SENTEX] ERROR: No se pudo crear la textura desde la URL")
+            end
+        else
+            print("[SENTEX] ERROR: No se pudo crear el TXD")
+        end
+        bannerLoading = false
+    end)
+end
+
 local function DibujarBanner(x, y, w, h)
-    -- Rectángulo azul oscuro
-    DrawRect(x, y, w, h, 0, 30, 60, 200)
-    -- Título "SENTEX MENU" centrado (fuente elegante)
-    SetTextFont(7)
-    SetTextScale(0.55, 0.55)
-    SetTextColour(255, 255, 255, 255)
-    SetTextCentre(true)
-    SetTextEntry("STRING")
-    AddTextComponentString("SENTEX MENU")
-    DrawText(x, y - 0.02)
-    -- Versión abajo a la derecha del rectángulo
-    SetTextFont(0)
-    SetTextScale(0.28, 0.28)
-    SetTextColour(200, 200, 200, 255)
-    SetTextCentre(false)
-    SetTextEntry("STRING")
-    AddTextComponentString(VERSION)
-    DrawText(x + w/2 - 0.04, y + h/2 - 0.035)
+    if not bannerLoaded then
+        LoadBannerAsync()
+        DrawRect(x, y, w, h, 0, 30, 60, 200)
+        SetTextFont(7)
+        SetTextScale(0.55, 0.55)
+        SetTextColour(255, 255, 255, 255)
+        SetTextCentre(true)
+        SetTextEntry("STRING")
+        AddTextComponentString("SENTEX MENU")
+        DrawText(x, y - 0.02)
+        SetTextFont(0)
+        SetTextScale(0.28, 0.28)
+        SetTextColour(200, 200, 200, 255)
+        SetTextCentre(false)
+        SetTextEntry("STRING")
+        AddTextComponentString(VERSION)
+        DrawText(x + w/2 - 0.04, y + h/2 - 0.035)
+        return
+    end
+    if HasStreamedTextureDictLoaded(bannerDict) then
+        DrawSprite(bannerDict, "banner", x, y, w, h, 0.0, 255, 255, 255, 255)
+        SetTextFont(0)
+        SetTextScale(0.28, 0.28)
+        SetTextColour(255, 255, 255, 255)
+        SetTextCentre(false)
+        SetTextEntry("STRING")
+        AddTextComponentString(VERSION)
+        DrawText(x + w/2 - 0.04, y + h/2 - 0.035)
+    else
+        DrawRect(x, y, w, h, 0, 0, 0, 180)
+    end
 end
 
 -- ==================== ESTRUCTURA DEL MENÚ ====================
@@ -303,14 +342,14 @@ function DibujarMenu()
     AddTextComponentString(pageText)
     DrawText(x + ancho/2 - 0.02, startY + totalAlto - 0.022)
 
-    -- Discord más a la izquierda (pegado al borde)
+    -- Discord (abajo izquierda) - MÁS A LA IZQUIERDA
     SetTextFont(0)
     SetTextScale(0.28, 0.28)
     SetTextColour(150, 150, 150, 255)
     SetTextCentre(false)
     SetTextEntry("STRING")
     AddTextComponentString(DISCORD)
-    DrawText(x - ancho/2 + 0.003, startY + totalAlto - 0.022)  -- Valor reducido
+    DrawText(x - ancho/2 + 0.005, startY + totalAlto - 0.022)  -- <--- VALOR MODIFICADO
 end
 
 -- ==================== HILO PRINCIPAL ====================
