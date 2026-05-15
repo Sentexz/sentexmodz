@@ -1,10 +1,10 @@
 --[[
-    SENTEX MENU - Versión v1.0.3 (SEGURO)
+    SENTEX MENU - Versión v1.0.4 (ultra seguro)
     Abre con PAGEDOWN
 ]]
 
 -- ==================== CONFIGURACIÓN ====================
-local VERSION = "v1.0.3 (seguro)"
+local VERSION = "v1.0.4 (ultra seguro)"
 local DISCORD = ".gg/sentexmodz"
 
 -- ==================== NOTIFICACIONES ====================
@@ -14,7 +14,7 @@ local function MostrarNotificacion(texto)
     DrawNotification(false, false)
 end
 
--- ==================== DETECCIÓN DE ANTICHEAT AL INICIO ====================
+-- ==================== DETECCIÓN DE ANTICHEAT ====================
 local anticheatDetected = false
 local anticheatList = {}
 
@@ -47,23 +47,28 @@ local function CheckAntiCheatSilent()
                     end
                 end
             end
+            Citizen.Wait(0)  -- Pequeña pausa para no saturar
         end
         if next(found) then
             anticheatDetected = true
+            anticheatList = {}
             for name, _ in pairs(found) do
                 table.insert(anticheatList, name)
             end
         end
     end)
+    if not success then
+        print("[SENTEX] Error en detección silenciosa: " .. tostring(err))
+    end
 end
 
--- Ejecutar al cargar el menú
+-- Ejecutar al cargar
 CheckAntiCheatSilent()
 
 local function MostrarAdvertenciaAnticheat()
     if anticheatDetected then
         local ac_text = table.concat(anticheatList, ", ")
-        MostrarNotificacion("~r~[SEGURIDAD] Anticheat detectado: ~y~" .. ac_text .. "~s~\nLas opciones riesgosas están desactivadas/limitadas")
+        MostrarNotificacion("~r~[SEGURIDAD] Anticheat detectado: ~y~" .. ac_text .. "~s~\nOpciones riesgosas desactivadas")
     end
 end
 
@@ -78,7 +83,7 @@ end
 
 function RevivirESX()
     if anticheatDetected then
-        MostrarNotificacion("~r~Anticheat activo: esta opción puede ser riesgosa, no se ejecutará")
+        MostrarNotificacion("~r~Anticheat activo: esta opción no se ejecutará")
         return
     end
     TriggerEvent('esx_ambulancejob:revive')
@@ -87,14 +92,14 @@ end
 
 function RevivirQB()
     if anticheatDetected then
-        MostrarNotificacion("~r~Anticheat activo: esta opción puede ser riesgosa, no se ejecutará")
+        MostrarNotificacion("~r~Anticheat activo: esta opción no se ejecutará")
         return
     end
     TriggerEvent("hospital:client:Revive")
     MostrarNotificacion("~g~Reviviendo (QB)")
 end
 
--- ==================== ACCIONES VEHÍCULO SEGURAS ====================
+-- ==================== ACCIONES VEHÍCULO ====================
 function RepararVehiculo(vehicle)
     if not vehicle then
         local ped = PlayerPedId()
@@ -136,7 +141,7 @@ function LimpiarVehiculo(vehicle)
     end
 end
 
--- SUBIRSE AL VEHÍCULO (SEGURO: solo si estás cerca y sin teletransporte)
+-- Conducir vehículo: método más fiable
 function ConducirVehiculo(vehicle)
     if not vehicle or vehicle == 0 then
         MostrarNotificacion("~r~El vehículo ya no existe")
@@ -145,22 +150,22 @@ function ConducirVehiculo(vehicle)
     local ped = PlayerPedId()
     local vehCoords = GetEntityCoords(vehicle)
     local dist = #(GetEntityCoords(ped) - vehCoords)
-    if dist > 5.0 then
-        MostrarNotificacion("~r~Estás demasiado lejos del vehículo (~g~" .. math.floor(dist) .. "m~s~). Acércate")
+    if dist > 10.0 then
+        MostrarNotificacion("~r~Estás demasiado lejos (~g~" .. math.floor(dist) .. "m~s~). Acércate")
         return
     end
-    -- Usar TaskWarpPedIntoVehicle es seguro (acción legítima)
-    TaskWarpPedIntoVehicle(ped, vehicle, -1)
+    -- Método robusto: SetPedIntoVehicle
+    SetPedIntoVehicle(ped, vehicle, -1)
     MostrarNotificacion("~g~Te has subido al vehículo")
 end
 
--- SPAWN DE VEHÍCULO (SEGURO: con modelo válido y en el suelo)
+-- Spawn de vehículo
 function SpawnVehicle()
     if anticheatDetected then
-        MostrarNotificacion("~r~Anticheat activo: Spawn de vehículos puede ser detectado, no se ejecutará")
+        MostrarNotificacion("~r~Anticheat activo: Spawn de vehículos bloqueado")
         return
     end
-    DisplayOnscreenKeyboard(1, "FMMC_KEY_TIP8", "", "Escribe el nombre del modelo", "", "", "", 30)
+    DisplayOnscreenKeyboard(1, "FMMC_KEY_TIP8", "", "Modelo (ej: adder)", "", "", "", 30)
     while UpdateOnscreenKeyboard() == 0 do
         Citizen.Wait(0)
     end
@@ -209,7 +214,7 @@ function GetVehicleDisplayName(vehicle)
     return name
 end
 
--- ==================== ACCIONES JUGADORES SEGURAS ====================
+-- ==================== ACCIONES JUGADORES ====================
 function GetPlayerList()
     local players = {}
     for i = 0, 255 do
@@ -229,7 +234,7 @@ end
 
 function GiveMoneyToPlayer(target)
     if anticheatDetected then
-        MostrarNotificacion("~r~Anticheat activo: dar dinero puede ser detectado")
+        MostrarNotificacion("~r~Anticheat activo: no se dará dinero")
         return
     end
     TriggerServerEvent('esx:giveMoney', target, 10000)
@@ -238,7 +243,7 @@ end
 
 function RevivePlayer(target)
     if anticheatDetected then
-        MostrarNotificacion("~r~Anticheat activo: revivir a otro puede ser detectado")
+        MostrarNotificacion("~r~Anticheat activo: no se revivirá")
         return
     end
     TriggerEvent('esx_ambulancejob:revive', target)
@@ -248,7 +253,7 @@ end
 
 function KillPlayer(target)
     if anticheatDetected then
-        MostrarNotificacion("~r~Anticheat activo: matar a otro puede ser detectado")
+        MostrarNotificacion("~r~Anticheat activo: no se matará")
         return
     end
     local targetPed = GetPlayerPed(target)
@@ -263,41 +268,39 @@ function FollowPlayer(target)
     if followingPlayer == target then
         followingPlayer = nil
         SetPlayerFollowing(PlayerId(), 0)
-        MostrarNotificacion("~y~Dejaste de seguir al jugador")
+        MostrarNotificacion("~y~Dejaste de seguir")
     else
         followingPlayer = target
-        MostrarNotificacion("~y~Ahora sigues al jugador")
+        MostrarNotificacion("~y~Siguiendo jugador")
     end
 end
 
--- TELEPORTE SEGURO: con suavizado y pequeña animación
 function TeleportToPlayer(target)
     if anticheatDetected then
-        MostrarNotificacion("~r~Anticheat activo: teletransporte bloqueado por seguridad")
+        MostrarNotificacion("~r~Anticheat activo: teletransporte bloqueado")
         return
     end
     local targetPed = GetPlayerPed(target)
     if targetPed and targetPed ~= 0 then
         local coords = GetEntityCoords(targetPed)
         local ped = PlayerPedId()
-        -- Pequeño retraso y efecto visual para simular lag
         DoScreenFadeOut(500)
         Citizen.Wait(500)
         SetEntityCoords(ped, coords.x, coords.y, coords.z + 0.5, false, false, false, false)
         Citizen.Wait(100)
         DoScreenFadeIn(500)
-        MostrarNotificacion("~g~Teletransportado al jugador")
+        MostrarNotificacion("~g~Teletransportado")
     end
 end
 
--- ==================== ACCIONES MAPA (seguras) ====================
+-- ==================== ACCIONES MAPA ====================
 local timeFrozen = false
 local frozenHour = 12
 
 function SetWeather(type)
     SetWeatherTypeNowPersist(type)
     SetWeatherTypeNow(type)
-    MostrarNotificacion("~b~Clima cambiado a: " .. type)
+    MostrarNotificacion("~b~Clima cambiado: " .. type)
 end
 
 function SetTime(hour)
@@ -317,7 +320,7 @@ function ToggleFreezeTime()
         SetClockTime(frozenHour, 0, 0)
         MostrarNotificacion("~y~Tiempo congelado")
     else
-        MostrarNotificacion("~y~Tiempo normal (dinámico)")
+        MostrarNotificacion("~y~Tiempo normal")
     end
 end
 
@@ -328,18 +331,63 @@ function ResetWeatherAndTime()
     MostrarNotificacion("~g~Clima y hora restaurados")
 end
 
--- ==================== AC CHECKER MANUAL ====================
+-- ==================== AC CHECKER MANUAL (sin bloquear el menú) ====================
+local isChecking = false
 function CheckAntiCheatManual()
-    CheckAntiCheatSilent()
-    if anticheatDetected then
-        local ac_text = table.concat(anticheatList, ", ")
-        MostrarNotificacion("~r~[ALERTA] Anticheat detectado: ~y~" .. ac_text .. "~s~\nTen cuidado con opciones riesgosas")
-    else
-        MostrarNotificacion("~g~No se detectó ningún anticheat conocido.\nPuedes usar opciones con más libertad")
+    if isChecking then
+        MostrarNotificacion("~y~Ya se está ejecutando un análisis...")
+        return
     end
+    isChecking = true
+    -- Cambiar el texto de la opción dinámicamente
+    for i, opt in ipairs(opcionesMenu["protection"]) do
+        if opt.nombre == "• AC Checker" then
+            opt.nombre = "~b~• Checking..."
+            break
+        end
+    end
+    Citizen.CreateThread(function()
+        local found = {}
+        local numResources = GetNumResources()
+        for i = 0, numResources - 1 do
+            local resource = GetResourceByFindIndex(i)
+            if resource then
+                local name = string.lower(resource)
+                for _, ac in ipairs(anticheats) do
+                    for _, pattern in ipairs(ac.patterns) do
+                        if name:find(pattern) then
+                            found[ac.name] = true
+                        end
+                    end
+                end
+            end
+            Citizen.Wait(0)
+        end
+        if next(found) then
+            anticheatDetected = true
+            anticheatList = {}
+            for name, _ in pairs(found) do
+                table.insert(anticheatList, name)
+            end
+            local ac_text = table.concat(anticheatList, ", ")
+            MostrarNotificacion("~r~[ALERTA] Anticheat: ~y~" .. ac_text .. "~s~\nTen cuidado")
+        else
+            anticheatDetected = false
+            anticheatList = {}
+            MostrarNotificacion("~g~No se detectó ningún anticheat conocido")
+        end
+        -- Restaurar texto
+        for i, opt in ipairs(opcionesMenu["protection"]) do
+            if opt.nombre == "~b~• Checking..." then
+                opt.nombre = "• AC Checker"
+                break
+            end
+        end
+        isChecking = false
+    end)
 end
 
--- ==================== NOCLIP (NO TOCAR, FUNCIONA PERFECTO) ====================
+-- ==================== NOCLIP (NO TOCAR) ====================
 local noclipActive = false
 local noclipSpeed = 5.0
 local boostMultiplier = 3.0
@@ -481,10 +529,10 @@ opcionesMenu["map_fucker"] = {
 }
 
 opcionesMenu["protection"] = {
-    { nombre = "• AC Checker", accion = CheckAntiCheatManual, desc = "Detecta el anticheat del servidor" },
+    { nombre = "• AC Checker", accion = CheckAntiCheatManual, desc = "Detecta anticheats (no bloquea el menú)" },
 }
 
--- ==================== FUNCIONES PARA MENÚS DINÁMICOS CON NAVEGACIÓN CORREGIDA ====================
+-- ==================== FUNCIONES DINÁMICAS ====================
 local function RefreshVehicleListMenu()
     local vehicles = GetNearbyVehicles()
     local opts = {}
@@ -502,7 +550,7 @@ local function RefreshVehicleListMenu()
                 { nombre = "• Reparar", accion = function() RepararVehiculo(vehicleHandle) end, desc = "Repara este vehículo" },
                 { nombre = "• Voltear", accion = function() FlipVehiculo(vehicleHandle) end, desc = "Voltea este vehículo" },
                 { nombre = "• Limpiar", accion = function() LimpiarVehiculo(vehicleHandle) end, desc = "Limpia este vehículo" },
-                { nombre = "• Conducir", accion = function() ConducirVehiculo(vehicleHandle) end, desc = "Subirte al vehículo" },
+                { nombre = "• Conducir", accion = function() ConducirVehiculo(vehicleHandle) end, desc = "Subirte al vehículo (SetPedIntoVehicle)" },
             }
         end
     end
@@ -529,7 +577,7 @@ local function RefreshPlayerListMenu()
                 { nombre = "• Revivir", accion = function() RevivePlayer(pid) end, desc = "Intenta revivir al jugador" },
                 { nombre = "• Matar", accion = function() KillPlayer(pid) end, desc = "Mata al jugador" },
                 { nombre = "• Seguir", accion = function() FollowPlayer(pid) end, desc = "La cámara sigue al jugador" },
-                { nombre = "• Teleportar", accion = function() TeleportToPlayer(pid) end, desc = "Teletransportarse a su posición (con suavizado)" },
+                { nombre = "• Teleportar", accion = function() TeleportToPlayer(pid) end, desc = "Teletransportarse a su posición (suavizado)" },
             }
         end
     end
@@ -539,7 +587,7 @@ local function RefreshPlayerListMenu()
     opcionesMenu["player_list"] = opts
 end
 
--- ==================== FUNCIONES AUXILIARES DE DIBUJO ====================
+-- ==================== DIBUJO ====================
 local function DrawShadowText(text, x, y, scale, font, center, color)
     SetTextFont(font)
     SetTextScale(scale, scale)
@@ -551,7 +599,6 @@ local function DrawShadowText(text, x, y, scale, font, center, color)
     DrawText(x, y)
 end
 
--- ==================== DIBUJO DEL MENÚ ====================
 function DibujarMenu()
     local ancho = 0.26
     local x = 0.7
@@ -617,7 +664,9 @@ function DibujarMenu()
         if i == currentOption then
             DrawRect(x, yOff + altoOpcion/2 - 0.005, ancho - 0.01, altoOpcion - 0.005, selectBg[1], selectBg[2], selectBg[3], selectBg[4])
         end
-        DrawShadowText(opt.nombre, x - ancho/2 + 0.02, yOff, 0.4, 0, false, color)
+        -- Limpiar códigos de color del nombre para mostrar bien
+        local displayName = opt.nombre:gsub("~b~", ""):gsub("~r~", ""):gsub("~g~", ""):gsub("~y~", "")
+        DrawShadowText(displayName, x - ancho/2 + 0.02, yOff, 0.4, 0, false, color)
         if i == currentOption then
             descripcionActual = (opt.desc or "Selecciona una opción") .. " "
         end
@@ -649,13 +698,13 @@ function DibujarMenu()
     DrawText(x - ancho/2 + 0.005, startY + totalAlto - 0.022)
 end
 
--- ==================== HILO PRINCIPAL CON NAVEGACIÓN CORREGIDA ====================
+-- ==================== HILO PRINCIPAL ====================
 local MENU_READY = false
 Citizen.CreateThread(function()
     Citizen.Wait(3000)
     MENU_READY = true
     MostrarAdvertenciaAnticheat()
-    MostrarNotificacion("~g~SENTEX MENU " .. VERSION .. "~s~ | Listo. Presiona ~y~PAGEDOWN~s~")
+    MostrarNotificacion("~g~SENTEX MENU " .. VERSION .. "~s~ | Presiona ~y~PAGEDOWN~s~")
 end)
 
 local function StartMenu()
@@ -677,14 +726,14 @@ local function StartMenu()
             end
 
             if menuAbierto and MENU_READY then
-                -- Refrescar listas dinámicas
+                -- Refrescar listas dinámicas solo cuando es necesario
                 if currentMenu == "vehicle_list" then
                     RefreshVehicleListMenu()
                 elseif currentMenu == "player_list" then
                     RefreshPlayerListMenu()
                 end
 
-                -- Asegurar que los submenús dinámicos existan en opcionesMenu
+                -- Asegurar submenús dinámicos
                 if currentMenu:match("^vehicle_") and not opcionesMenu[currentMenu] then
                     if dynamicMenus[currentMenu] then
                         opcionesMenu[currentMenu] = dynamicMenus[currentMenu]
@@ -726,7 +775,7 @@ local function StartMenu()
                     end
                 elseif IsDisabledControlJustReleased(0, 177) then
                     if currentMenu ~= "main" then
-                        -- Navegación corregida: desde vehicle_XXX a vehicle_list, desde vehicle_list a vehicle, etc.
+                        -- Navegación corregida
                         if currentMenu:match("^vehicle_") then
                             currentMenu = "vehicle_list"
                         elseif currentMenu == "vehicle_list" then
