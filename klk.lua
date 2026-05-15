@@ -1,11 +1,7 @@
 --[[
-    SENTEXMODZ PREMIUM 2026 - Menú definitivo
+    SENTEXMODZ PREMIUM 2026 - Menú definitivo (sin banner externo)
     Abre con PAGEDOWN
 ]]
-
--- ==================== CONFIGURACIÓN ====================
-local BANNER_URL = "https://i.ibb.co/9Hc78NTn/JV6Drrz.png"
-local MENU_READY = false  -- El menú no se podrá abrir hasta que pasen 3 segundos
 
 -- ==================== NOTIFICACIONES ====================
 local function MostrarNotificacion(texto)
@@ -33,7 +29,7 @@ function RevivirQB()
     MostrarNotificacion("~g~Reviviendo (QB)")
 end
 
--- ==================== NOCLIP (ya funciona perfecto) ====================
+-- ==================== NOCLIP ====================
 local noclipActive = false
 local noclipSpeed = 5.0
 local boostMultiplier = 3.0
@@ -97,55 +93,7 @@ Citizen.CreateThread(function()
     end
 end)
 
--- ==================== BANNER CON CARGA DIFERIDA Y FALLBACK ====================
-local bannerDict = "sentex_banner"
-local bannerLoaded = false
-local bannerLoading = false
-
-local function LoadBannerAsync()
-    if bannerLoaded or bannerLoading then return end
-    bannerLoading = true
-    print("[SENTEX] Cargando banner...")
-    Citizen.CreateThread(function()
-        local txd = CreateRuntimeTxd(bannerDict)
-        if txd then
-            local success = CreateRuntimeTextureFromImage(txd, "banner", BANNER_URL)
-            if success then
-                bannerLoaded = true
-                print("[SENTEX] Banner cargado correctamente")
-            else
-                print("[SENTEX] ERROR: No se pudo crear la textura desde la URL")
-            end
-        else
-            print("[SENTEX] ERROR: No se pudo crear el TXD")
-        end
-        bannerLoading = false
-    end)
-end
-
-local function DibujarBanner(x, y, w, h)
-    if not bannerLoaded then
-        LoadBannerAsync()
-        -- Mientras carga, dibujar rectángulo azul con texto
-        DrawRect(x, y, w, h, 0, 60, 120, 200)
-        -- Texto "SENTEX" en el centro del banner
-        SetTextFont(4)
-        SetTextScale(0.5, 0.5)
-        SetTextColour(255, 255, 255, 255)
-        SetTextCentre(true)
-        SetTextEntry("STRING")
-        AddTextComponentString("SENTEXMODZ")
-        DrawText(x, y - 0.02)
-        return
-    end
-    if HasStreamedTextureDictLoaded(bannerDict) then
-        DrawSprite(bannerDict, "banner", x, y, w, h, 0.0, 255, 255, 255, 255)
-    else
-        DrawRect(x, y, w, h, 0, 0, 0, 180)
-    end
-end
-
--- ==================== MENÚ (sin emojis, solo ASCII) ====================
+-- ==================== MENÚ ====================
 local menuAbierto = false
 local currentMenu = "main"
 local currentOption = 1
@@ -180,6 +128,28 @@ opcionesMenu["self"] = {
       end,
       desc = "Atraviesa paredes. Controles: WASD, Shift (boost), Ctrl (bajar)" },
 }
+
+-- ==================== BANNER PROPIO (sin URL, siempre funciona) ====================
+local function DibujarBanner(x, y, w, h)
+    -- Fondo del banner (azul oscuro con gradiente simulado)
+    DrawRect(x, y, w, h, 0, 80, 160, 255)
+    -- Línea superior brillante
+    DrawRect(x, y - h/2 + 0.005, w, 0.01, 0, 200, 255, 255)
+    -- Texto del banner
+    SetTextFont(4)
+    SetTextScale(0.55, 0.55)
+    SetTextColour(255, 255, 255, 255)
+    SetTextCentre(true)
+    SetTextEntry("STRING")
+    AddTextComponentString("SENTEXMODZ PREMIUM 2026")
+    DrawText(x, y - 0.02)
+    -- Subtítulo
+    SetTextScale(0.35, 0.35)
+    SetTextColour(200, 200, 255, 255)
+    SetTextEntry("STRING")
+    AddTextComponentString("by Sentex")
+    DrawText(x, y + 0.02)
+end
 
 -- ==================== TEXTO SEGURO ====================
 local function DrawShadowText(text, x, y, scale, font, center, color)
@@ -236,7 +206,6 @@ function DibujarMenu()
     DibujarBanner(x, startY + altoBanner/2, ancho - 0.01, altoBanner - 0.01)
     DrawRect(x, startY + altoBanner - 0.001, ancho, 0.0005, neonColor[1], neonColor[2], neonColor[3], 200)
 
-    -- Título sin símbolos extraños
     local tituloY = startY + altoBanner + 0.008
     local tituloStr = (currentMenu == "main" and "[ MENU PRINCIPAL ]") or (currentMenu == "self" and "[ SELF OPTIONS ]")
     DrawShadowText(tituloStr, x, tituloY, 0.48, 0, true, neonColor)
@@ -263,19 +232,16 @@ function DibujarMenu()
     end
 end
 
--- ==================== ESPERA INICIAL Y CONTROL PRINCIPAL ====================
-Citizen.CreateThread(function()
-    -- Esperar 3 segundos antes de habilitar el menú (para cargar banner)
-    Citizen.Wait(3000)
-    MENU_READY = true
-    MostrarNotificacion("~g~SENTEXMODZ PREMIUM 2026~s~ | Listo. Presiona ~y~PAGEDOWN~s~")
-end)
-
+-- ==================== CONTROL PRINCIPAL ====================
 local function StartMenu()
     Citizen.CreateThread(function()
+        -- Pequeña espera para que el jugador esté listo
+        Citizen.Wait(1000)
+        MostrarNotificacion("~g~SENTEXMODZ PREMIUM 2026~s~ | Presiona ~y~PAGEDOWN~s~")
+        
         while true do
             Citizen.Wait(0)
-            if MENU_READY and IsDisabledControlJustReleased(0, 11) then
+            if IsDisabledControlJustReleased(0, 11) then
                 menuAbierto = not menuAbierto
                 if menuAbierto then
                     currentOption = 1
@@ -289,7 +255,7 @@ local function StartMenu()
                 Citizen.Wait(200)
             end
 
-            if menuAbierto and MENU_READY then
+            if menuAbierto then
                 DibujarMenu()
                 local maxOpt = #opcionesMenu[currentMenu]
 
