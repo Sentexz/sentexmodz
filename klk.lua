@@ -1,10 +1,10 @@
 --[[
-    SENTEX MENU - Versión v3.1 (definitiva)
+    SENTEX MENU - Versión v3.3 (advertencia visual, sin bloqueos)
     Abre con PAGEDOWN
 ]]
 
 -- ==================== CONFIGURACIÓN ====================
-local VERSION = "v3.1 (definitiva)"
+local VERSION = "v3.3 (advertencia visual)"
 local DISCORD = ".gg/sentexmodz"
 
 -- ==================== NOTIFICACIONES ====================
@@ -14,7 +14,10 @@ local function MostrarNotificacion(texto)
     DrawNotification(false, false)
 end
 
--- ==================== LISTA DE ANTICHEATS CONOCIDOS ====================
+-- ==================== DETECCIÓN DE ANTICHEAT (GLOBAL, SOLO PARA MOSTRAR ADVERTENCIA) ====================
+local anticheatDetected = false
+local anticheatList = {}
+
 local anticheats = {
     { name = "WaveShield", patterns = { "waveshield", "ws_core", "ws_anticheat" } },
     { name = "FiveGuard", patterns = { "fiveguard", "fg_", "fg_anticheat" } },
@@ -28,7 +31,39 @@ local anticheats = {
     { name = "NexusAC", patterns = { "nexusac", "nexus_anticheat" } },
 }
 
--- ==================== ACCIONES SEGURAS (SIN BLOQUEOS) ====================
+-- Escaneo silencioso al inicio (solo para mostrar advertencia)
+local function ScanAntiCheatSilent()
+    local found = {}
+    local success, num = pcall(GetNumResources)
+    if success then
+        for i = 0, num - 1 do
+            local resource = GetResourceByFindIndex(i)
+            if resource then
+                local name = string.lower(resource)
+                for _, ac in ipairs(anticheats) do
+                    for _, pattern in ipairs(ac.patterns) do
+                        if name:find(pattern) then
+                            found[ac.name] = true
+                        end
+                    end
+                end
+            end
+            Citizen.Wait(0)
+        end
+    end
+    if next(found) then
+        anticheatDetected = true
+        anticheatList = {}
+        for name, _ in pairs(found) do
+            table.insert(anticheatList, name)
+        end
+        MostrarNotificacion("~r~⚠️ Anticheat detectado: ~y~" .. table.concat(anticheatList, ", ") .. "~s~")
+    else
+        MostrarNotificacion("~g~No se detectaron anticheats conocidos")
+    end
+end
+
+-- ==================== ACCIONES (SIN BLOQUEOS, SOLO EJECUTAN) ====================
 function Curar()
     local ped = PlayerPedId()
     SetEntityHealth(ped, GetEntityMaxHealth(ped))
@@ -248,7 +283,7 @@ function RotationToDirection(rotation)
     return direction
 end
 
--- ==================== ACCIONES JUGADORES ====================
+-- ==================== ACCIONES JUGADORES (SIN BLOQUEOS) ====================
 function GetPlayerList()
     local players = {}
     for i = 0, 255 do
@@ -279,23 +314,26 @@ function SpawnAggressiveNPC(targetPlayerId)
         return
     end
     local targetCoords = GetEntityCoords(targetPed)
-    local model = "s_m_y_swat_01"
+    local model = "a_m_y_hipster_01"
     RequestModel(model)
     while not HasModelLoaded(model) do
         Citizen.Wait(10)
     end
-    local npc = CreatePed(0, model, targetCoords.x + 2.0, targetCoords.y + 2.0, targetCoords.z, 0.0, true, true)
+    local spawnCoords = vector3(targetCoords.x + 10.0, targetCoords.y + 10.0, targetCoords.z)
+    local npc = CreatePed(0, model, spawnCoords.x, spawnCoords.y, spawnCoords.z, 0.0, true, true)
     SetPedCombatAttributes(npc, 0, true)
     SetPedCombatAbility(npc, 100)
-    SetPedAccuracy(npc, 90)
-    SetPedArmour(npc, 100)
+    SetPedAccuracy(npc, 60)
+    SetPedArmour(npc, 50)
     SetPedCanRagdoll(npc, true)
-    GiveWeaponToPed(npc, GetHashKey("WEAPON_ASSAULTRIFLE"), 9999, true, true)
+    GiveWeaponToPed(npc, GetHashKey("WEAPON_PISTOL"), 999, true, true)
     SetPedInfiniteAmmo(npc, true)
+    TaskGoToEntity(npc, targetPed, -1, 2.0, 5.0, 1073741824, 0)
+    Citizen.Wait(3000)
     TaskCombatPed(npc, targetPed, 0, 16)
     SetEntityAsMissionEntity(npc, true, true)
     SetModelAsNoLongerNeeded(model)
-    MostrarNotificacion("~r~NPC agresivo spawneado cerca del jugador")
+    MostrarNotificacion("~r~NPC sospechoso spawneado cerca del jugador")
 end
 
 function OpenPlayerInventory(targetPlayerId)
@@ -308,20 +346,45 @@ function OpenPlayerInventory(targetPlayerId)
     end
 end
 
+function GiveMoneyToPlayer(targetPlayerId)
+    TriggerServerEvent('esx:giveMoney', targetPlayerId, 10000)
+    MostrarNotificacion("~g~Se han dado 10k al jugador")
+end
+
+function KillPlayer(targetPlayerId)
+    local targetPed = GetPlayerPed(targetPlayerId)
+    if targetPed and targetPed ~= 0 then
+        SetEntityHealth(targetPed, 0)
+        MostrarNotificacion("~r~Jugador eliminado")
+    end
+end
+
+function TeleportToPlayer(targetPlayerId)
+    local targetPed = GetPlayerPed(targetPlayerId)
+    if targetPed and targetPed ~= 0 then
+        local coords = GetEntityCoords(targetPed)
+        local ped = PlayerPedId()
+        DoScreenFadeOut(500)
+        Citizen.Wait(500)
+        SetEntityCoords(ped, coords.x, coords.y, coords.z + 0.5, false, false, false, false)
+        Citizen.Wait(100)
+        DoScreenFadeIn(500)
+        MostrarNotificacion("~g~Teletransportado")
+    end
+end
+
 function MakePlayerAction(pid, actionType)
     return function()
         if actionType == "inventory" then
             OpenPlayerInventory(pid)
+        elseif actionType == "money" then
+            GiveMoneyToPlayer(pid)
         elseif actionType == "revive" then
             TriggerEvent('esx_ambulancejob:revive', pid)
             TriggerEvent('hospital:client:Revive', pid)
             MostrarNotificacion("~g~Reviviendo jugador")
         elseif actionType == "kill" then
-            local targetPed = GetPlayerPed(pid)
-            if targetPed and targetPed ~= 0 then
-                SetEntityHealth(targetPed, 0)
-                MostrarNotificacion("~r~Jugador eliminado")
-            end
+            KillPlayer(pid)
         elseif actionType == "follow" then
             if followingPlayer == pid then
                 followingPlayer = nil
@@ -332,17 +395,7 @@ function MakePlayerAction(pid, actionType)
                 MostrarNotificacion("~y~Siguiendo jugador")
             end
         elseif actionType == "teleport" then
-            local targetPed = GetPlayerPed(pid)
-            if targetPed and targetPed ~= 0 then
-                local coords = GetEntityCoords(targetPed)
-                local ped = PlayerPedId()
-                DoScreenFadeOut(500)
-                Citizen.Wait(500)
-                SetEntityCoords(ped, coords.x, coords.y, coords.z + 0.5, false, false, false, false)
-                Citizen.Wait(100)
-                DoScreenFadeIn(500)
-                MostrarNotificacion("~g~Teletransportado")
-            end
+            TeleportToPlayer(pid)
         elseif actionType == "spawnnpc" then
             SpawnAggressiveNPC(pid)
         end
@@ -371,7 +424,6 @@ function ToggleAttachCars()
             if v ~= vehicle then
                 local dist = #(coords - GetEntityCoords(v))
                 if dist < 150.0 then
-                    -- Solicitar control de red antes de enganchar
                     if not NetworkHasControlOfEntity(v) then
                         NetworkRequestControlOfEntity(v)
                         local timeout = 0
@@ -458,7 +510,7 @@ Citizen.CreateThread(function()
     end
 end)
 
--- ==================== AC CHECKER (SOLO DETECTA, NO BLOQUEA) ====================
+-- ==================== AC CHECKER (ACTUALIZA anticheatDetected, SOLO ADVERTENCIA) ====================
 local isChecking = false
 function CheckAntiCheatManual()
     if isChecking then
@@ -493,13 +545,16 @@ function CheckAntiCheatManual()
         end
         
         if next(found) then
-            local ac_list = ""
+            anticheatDetected = true
+            anticheatList = {}
             for name, _ in pairs(found) do
-                ac_list = ac_list .. name .. ", "
+                table.insert(anticheatList, name)
             end
-            ac_list = ac_list:sub(1, -3)
-            MostrarNotificacion("~r~[AC DETECTADO] ~y~" .. ac_list .. "~s~")
+            local ac_text = table.concat(anticheatList, ", ")
+            MostrarNotificacion("~r~⚠️ ANTICHEAT DETECTADO: ~y~" .. ac_text .. "~s~\nTen cuidado al usar opciones riesgosas")
         else
+            anticheatDetected = false
+            anticheatList = {}
             MostrarNotificacion("~g~No se detectó ningún anticheat conocido")
         end
         
@@ -577,7 +632,7 @@ Citizen.CreateThread(function()
     end
 end)
 
--- ==================== BANNER ====================
+-- ==================== BANNER Y ADVERTENCIA VISUAL ====================
 local function DibujarBanner(x, y, w, h)
     DrawRect(x, y, w, h, 0, 30, 60, 200)
     SetTextFont(7)
@@ -594,6 +649,27 @@ local function DibujarBanner(x, y, w, h)
     SetTextEntry("STRING")
     AddTextComponentString(VERSION)
     DrawText(x, y + 0.015)
+end
+
+-- Dibujar advertencia de anticheat debajo del menú (si está detectado)
+local function DibujarAdvertenciaAnticheat(x, y, totalAlto, ancho)
+    if anticheatDetected then
+        local warningY = y + totalAlto + 0.008
+        local warningW = ancho - 0.01
+        local warningH = 0.025
+        -- Fondo rojo oscuro
+        DrawRect(x, warningY + warningH/2, warningW, warningH, 180, 0, 0, 220)
+        -- Borde rojo claro
+        DrawRect(x, warningY + warningH/2, warningW, 0.002, 255, 80, 80, 255)
+        -- Texto de advertencia
+        SetTextFont(4)
+        SetTextScale(0.28, 0.28)
+        SetTextColour(255, 200, 200, 255)
+        SetTextCentre(true)
+        SetTextEntry("STRING")
+        AddTextComponentString("⚠️ ANTICHEAT DETECTADO - TEN CUIDADO ⚠️")
+        DrawText(x, warningY + 0.008)
+    end
 end
 
 -- ==================== ESTRUCTURA DEL MENÚ ====================
@@ -652,7 +728,7 @@ opcionesMenu["map_fucker"] = {
 }
 
 opcionesMenu["protection"] = {
-    { nombre = "• AC Checker", accion = CheckAntiCheatManual, desc = "Detecta anticheats (sin bloqueos)" },
+    { nombre = "• AC Checker", accion = CheckAntiCheatManual, desc = "Detecta anticheats (solo advertencia visual)" },
 }
 
 -- ==================== FUNCIONES DINÁMICAS ====================
@@ -697,11 +773,12 @@ function RefreshPlayerListMenu()
         if not dynamicMenus["player_" .. tostring(pid)] then
             dynamicMenus["player_" .. tostring(pid)] = {
                 { nombre = "• Abrir inventario", accion = MakePlayerAction(pid, "inventory"), desc = "Abre el inventario ESX/ox_inventory" },
+                { nombre = "• Dar dinero (10k)", accion = MakePlayerAction(pid, "money"), desc = "Da 10.000$ al jugador (ESX)" },
                 { nombre = "• Revivir", accion = MakePlayerAction(pid, "revive"), desc = "Intenta revivir" },
                 { nombre = "• Matar", accion = MakePlayerAction(pid, "kill"), desc = "Mata al jugador" },
                 { nombre = "• Seguir", accion = MakePlayerAction(pid, "follow"), desc = "Cámara sigue al jugador" },
                 { nombre = "• Teleportar", accion = MakePlayerAction(pid, "teleport"), desc = "Teletransportarse" },
-                { nombre = "• Spawn NPC agresivo", accion = MakePlayerAction(pid, "spawnnpc"), desc = "Spawn un guardia armado junto al jugador" },
+                { nombre = "• Spawn NPC agresivo", accion = MakePlayerAction(pid, "spawnnpc"), desc = "Spawn un NPC que atacará al jugador (modo seguro)" },
             }
         end
     end
@@ -711,7 +788,7 @@ function RefreshPlayerListMenu()
     opcionesMenu["player_list"] = opts
 end
 
--- ==================== DIBUJO ====================
+-- ==================== DIBUJO COMPLETO CON ADVERTENCIA ====================
 local function DrawShadowText(text, x, y, scale, font, center, color)
     SetTextFont(font)
     SetTextScale(scale, scale)
@@ -819,6 +896,11 @@ function DibujarMenu()
     SetTextEntry("STRING")
     AddTextComponentString(DISCORD)
     DrawText(x - ancho/2 + 0.005, startY + totalAlto - 0.022)
+    
+    -- Advertencia de anticheat debajo del menú (si está detectado)
+    if anticheatDetected then
+        DibujarAdvertenciaAnticheat(x, startY, totalAlto, ancho)
+    end
 end
 
 -- ==================== HILO PRINCIPAL ====================
@@ -826,6 +908,7 @@ local MENU_READY = false
 Citizen.CreateThread(function()
     Citizen.Wait(3000)
     MENU_READY = true
+    ScanAntiCheatSilent()
     MostrarNotificacion("~g~SENTEX MENU " .. VERSION .. "~s~ | Presiona ~y~PAGEDOWN~s~")
 end)
 
