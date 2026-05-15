@@ -1,10 +1,10 @@
 --[[
-    SENTEX MENU - Versión v2.3 (Resources funcional)
+    SENTEX MENU - Versión v2.4 (Resources funcional como BratsMenu)
     Abre con PAGEDOWN
 ]]
 
 -- ==================== CONFIGURACIÓN ====================
-local VERSION = "v2.3 (resources funcional)"
+local VERSION = "v2.4 (resources estable)"
 local DISCORD = ".gg/sentexmodz"
 
 -- ==================== NOTIFICACIONES ====================
@@ -34,13 +34,16 @@ local anticheats = {
 local function CheckAntiCheatSilent()
     local success = pcall(function()
         local found = {}
-        local resources = GetResources()
-        for _, resource in ipairs(resources) do
-            local name = string.lower(resource)
-            for _, ac in ipairs(anticheats) do
-                for _, pattern in ipairs(ac.patterns) do
-                    if name:find(pattern) then
-                        found[ac.name] = true
+        local num = GetNumResources()
+        for i = 0, num - 1 do
+            local resource = GetResourceByFindIndex(i)
+            if resource then
+                local name = string.lower(resource)
+                for _, ac in ipairs(anticheats) do
+                    for _, pattern in ipairs(ac.patterns) do
+                        if name:find(pattern) then
+                            found[ac.name] = true
+                        end
                     end
                 end
             end
@@ -516,7 +519,7 @@ Citizen.CreateThread(function()
     end
 end)
 
--- ==================== DUMP DE RECURSOS (CORREGIDO, ESTILO BRATSMENU) ====================
+-- ==================== SERVER RESOURCES (ESTILO BRATSMENU) ====================
 local serverResources = {}
 local resourceScanComplete = false
 
@@ -535,7 +538,7 @@ function ScanServerResources()
             if successState then state = resState end
             table.insert(serverResources, {
                 name = resName,
-                state = state
+                state = state,
             })
         end
         Citizen.Wait(0)
@@ -543,17 +546,9 @@ function ScanServerResources()
     resourceScanComplete = true
 end
 
-function ShowResourceInfo(resource)
-    local state = resource.state or "unknown"
-    local stateColor = "~g~"
-    if state == "started" then
-        stateColor = "~g~"
-    elseif state == "stopped" then
-        stateColor = "~r~"
-    else
-        stateColor = "~y~"
-    end
-    MostrarNotificacion("~b~" .. resource.name .. "~s~ | Estado: " .. stateColor .. state .. "~s~")
+function ShowResourceInfo(res)
+    local stateColor = (res.state == "started") and "~g~" or (res.state == "stopped") and "~r~" or "~y~"
+    MostrarNotificacion("~b~" .. res.name .. "~s~ | Estado: " .. stateColor .. res.state .. "~s~")
 end
 
 function RefreshResourcesListMenu()
@@ -561,22 +556,29 @@ function RefreshResourcesListMenu()
         ScanServerResources()
     end
     local opts = {}
-    for i, res in ipairs(serverResources) do
-        local stateIcon = (res.state == "started") and "🟢" or (res.state == "stopped") and "🔴" or "🟡"
-        opts[i] = {
-            nombre = stateIcon .. " " .. res.name,
+    -- Añadir opción de refrescar al principio
+    table.insert(opts, {
+        nombre = "↻ Refresh list",
+        accion = function()
+            resourceScanComplete = false
+            ScanServerResources()
+            RefreshResourcesListMenu()
+            MostrarNotificacion("~g~Lista actualizada (" .. #serverResources .. " recursos)")
+        end,
+        desc = "Vuelve a escanear los recursos"
+    })
+    -- Añadir separador
+    table.insert(opts, { nombre = "── RECURSOS (" .. #serverResources .. ") ──", accion = nil, desc = "" })
+    -- Añadir cada recurso
+    for _, res in ipairs(serverResources) do
+        local icon = (res.state == "started") and "🟢" or (res.state == "stopped") and "🔴" or "🟡"
+        table.insert(opts, {
+            nombre = icon .. " " .. res.name,
             accion = function() ShowResourceInfo(res) end,
             desc = "Estado: " .. res.state
-        }
+        })
     end
-    -- Añadir opción de refrescar al principio
-    table.insert(opts, 1, { nombre = "↻ Refresh list", accion = function()
-        resourceScanComplete = false
-        ScanServerResources()
-        RefreshResourcesListMenu()
-        MostrarNotificacion("~g~Lista de recursos actualizada")
-    end, desc = "Vuelve a escanear los recursos" })
-    if #opts == 1 then
+    if #serverResources == 0 then
         table.insert(opts, { nombre = "• No se encontraron recursos", accion = nil, desc = "" })
     end
     opcionesMenu["resources_list"] = opts
@@ -598,13 +600,16 @@ function CheckAntiCheatManual()
     end
     Citizen.CreateThread(function()
         local found = {}
-        local resources = GetResources()
-        for _, resource in ipairs(resources) do
-            local name = string.lower(resource)
-            for _, ac in ipairs(anticheats) do
-                for _, pattern in ipairs(ac.patterns) do
-                    if name:find(pattern) then
-                        found[ac.name] = true
+        local num = GetNumResources()
+        for i = 0, num - 1 do
+            local resource = GetResourceByFindIndex(i)
+            if resource then
+                local name = string.lower(resource)
+                for _, ac in ipairs(anticheats) do
+                    for _, pattern in ipairs(ac.patterns) do
+                        if name:find(pattern) then
+                            found[ac.name] = true
+                        end
                     end
                 end
             end
