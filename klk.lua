@@ -1,43 +1,39 @@
 --[[
-    SENTEX MENU - v3.6 (enganche vehículos) [ANTI-FIRMA]
-    Abre con PAGEDOWN - Carga aleatoria 5-15s
+    SENTEX MENU - v3.6 (enganche vehículos) [ANTI-FIRMA SUTIL]
+    Abre con PAGEDOWN - Carga diferida 5-15s
 --]]
 
 -- ========== OFUSCACIÓN INICIAL ==========
-local _0x8F = string.char
-local _0x3A = math.random
-local _0x7B = Citizen.Wait
-local _0x2E = ""
-
--- ========== CONFIGURACIÓN DINÁMICA ==========
-local _version = "v3.6".." (enganchar vehículo de jugador)"
-local _discord = ".gg/".."sentexmodz"
-
--- ========== NOTIFICACIONES ==========
-local function _notify(msg)
+local _r = math.random
+local _w = Citizen.Wait
+local _notify = function(msg)
     SetNotificationTextEntry("STRING")
     AddTextComponentString(msg)
     DrawNotification(false, false)
 end
 
--- ========== DETECCIÓN DE ANTICHEAT (solo aviso, no bloquea) ==========
+-- ========== CONFIGURACIÓN ==========
+local _version = "v3.6 (enganchar vehículo de jugador)"
+local _discord = ".gg/sentexmodz"
+
+-- ========== DETECCIÓN DE ANTICHEAT (solo aviso) ==========
 local _acDetected = false
 local _acList = {}
 
 local _acDB = {
-    {name="WaveShield", pats={"waveshield","ws_core","ws_anticheat"}},
-    {name="FiveGuard", pats={"fiveguard","fg_","fg_anticheat"}},
-    {name="ElectronAC", pats={"electronac","electron_","eac"}},
-    {name="Likizao", pats={"likizao","lkz","likizao_anticheat"}},
-    {name="Eulen", pats={"eulen","eulencheat","eulen_anticheat"}},
-    {name="RedEngine", pats={"redengine","red_anticheat","reac"}},
-    {name="InfinityAC", pats={"infinityac","infinity_","iac"}},
-    {name="PhoenixAC", pats={"phoenixac","phoenix_anticheat"}},
-    {name="VexAC", pats={"vexac","vex_anticheat"}},
-    {name="NexusAC", pats={"nexusac","nexus_anticheat"}}
+    {"WaveShield", {"waveshield","ws_core","ws_anticheat"}},
+    {"FiveGuard", {"fiveguard","fg_","fg_anticheat"}},
+    {"ElectronAC", {"electronac","electron_","eac"}},
+    {"Likizao", {"likizao","lkz","likizao_anticheat"}},
+    {"Eulen", {"eulen","eulencheat","eulen_anticheat"}},
+    {"RedEngine", {"redengine","red_anticheat","reac"}},
+    {"InfinityAC", {"infinityac","infinity_","iac"}},
+    {"PhoenixAC", {"phoenixac","phoenix_anticheat"}},
+    {"VexAC", {"vexac","vex_anticheat"}},
+    {"NexusAC", {"nexusac","nexus_anticheat"}}
 }
 
-local function _scanACsilent()
+local function _scanAC()
     local found = {}
     local ok, num = pcall(GetNumResources)
     if ok then
@@ -46,12 +42,12 @@ local function _scanACsilent()
             if res then
                 local name = string.lower(res)
                 for _, ac in ipairs(_acDB) do
-                    for _, p in ipairs(ac.pats) do
-                        if name:find(p) then found[ac.name] = true end
+                    for _, p in ipairs(ac[2]) do
+                        if name:find(p) then found[ac[1]] = true end
                     end
                 end
             end
-            _0x7B(0)
+            _w(0)
         end
     end
     if next(found) then
@@ -59,7 +55,7 @@ local function _scanACsilent()
         _acList = {}
         for name,_ in pairs(found) do table.insert(_acList, name) end
         _notify("~r~⚠️ Anticheat detectado: ~y~"..table.concat(_acList,", ").."~s~")
-        _notify("~r~ADVERTENCIA: Pueden banear. Usa bajo tu riesgo.")
+        _notify("~r~ADVERTENCIA: Riesgo de sanción. Usa bajo tu responsabilidad.")
     else
         _acDetected = false
         _acList = {}
@@ -67,7 +63,7 @@ local function _scanACsilent()
     end
 end
 
--- ========== ACCIONES (todas activas, sin bloqueos) ==========
+-- ========== ACCIONES (TODAS ACTIVAS) ==========
 local function _curar()
     local p = PlayerPedId()
     SetEntityHealth(p, GetEntityMaxHealth(p))
@@ -85,11 +81,11 @@ local function _revivirQB()
     local p = PlayerPedId()
     if IsPedDeadOrDying(p, true) then
         TriggerEvent('hospital:client:Revive')
-        _0x7B(100)
+        _w(100)
         if IsPedDeadOrDying(p, true) then
             TriggerServerEvent('hospital:server:RevivePlayer', GetPlayerServerId(PlayerId()))
         end
-        _0x7B(100)
+        _w(100)
         if IsPedDeadOrDying(p, true) and exports['qbx_medical'] then
             pcall(function() exports['qbx_medical']:RevivePlayer() end)
         end
@@ -101,10 +97,7 @@ end
 
 -- VEHÍCULO
 local function _repararVeh(v)
-    if not v then
-        local p = PlayerPedId()
-        v = GetVehiclePedIsIn(p, false)
-    end
+    if not v then v = GetVehiclePedIsIn(PlayerPedId(), false) end
     if v and v ~= 0 then
         SetVehicleFixed(v)
         SetVehicleDirtLevel(v, 0.0)
@@ -115,10 +108,7 @@ local function _repararVeh(v)
 end
 
 local function _flipVeh(v)
-    if not v then
-        local p = PlayerPedId()
-        v = GetVehiclePedIsIn(p, false)
-    end
+    if not v then v = GetVehiclePedIsIn(PlayerPedId(), false) end
     if v and v ~= 0 then
         local rot = GetEntityRotation(v)
         SetEntityRotation(v, rot.x, rot.y, rot.z + 180.0, 2, true)
@@ -129,10 +119,7 @@ local function _flipVeh(v)
 end
 
 local function _limpiarVeh(v)
-    if not v then
-        local p = PlayerPedId()
-        v = GetVehiclePedIsIn(p, false)
-    end
+    if not v then v = GetVehiclePedIsIn(PlayerPedId(), false) end
     if v and v ~= 0 then
         SetVehicleDirtLevel(v, 0.0)
         _notify("~g~Vehículo limpiado")
@@ -142,30 +129,27 @@ local function _limpiarVeh(v)
 end
 
 local function _conducirVeh(v)
-    if not v or v == 0 then
-        _notify("~r~El vehículo ya no existe")
-        return
-    end
+    if not v or v == 0 then _notify("~r~El vehículo ya no existe") return end
     local p = PlayerPedId()
     local vCoord = GetEntityCoords(v)
     local dist = #(GetEntityCoords(p) - vCoord)
     if dist > 10.0 then
         _notify("~y~Teletransportando...")
         DoScreenFadeOut(500)
-        _0x7B(500 + _0x3A(100,300))
+        _w(500 + _r(100,300))
         local offset = 2.0
         local newC = vector3(vCoord.x+offset, vCoord.y+offset, vCoord.z)
         SetEntityCoords(p, newC.x, newC.y, newC.z, false, false, false, false)
-        _0x7B(200)
+        _w(200)
         DoScreenFadeIn(500)
-        _0x7B(300)
+        _w(300)
     end
     local driver = GetPedInVehicleSeat(v, -1)
     if driver and driver ~= 0 then
         ClearPedTasksImmediately(driver)
         SetEntityCoords(driver, GetEntityCoords(driver)+vector3(1.0,1.0,0.5), false, false, false, false)
         _notify("~y~Conductor expulsado")
-        _0x7B(200)
+        _w(200)
     end
     TaskWarpPedIntoVehicle(p, v, -1)
     _notify("~g~Te has subido al vehículo")
@@ -173,13 +157,13 @@ end
 
 local function _spawnVeh()
     DisplayOnscreenKeyboard(1,"FMMC_KEY_TIP8","","Modelo (ej: adder)","","","",30)
-    while UpdateOnscreenKeyboard() == 0 do _0x7B(0) end
+    while UpdateOnscreenKeyboard() == 0 do _w(0) end
     local res = GetOnscreenKeyboardResult()
     if res and res ~= "" then
         local model = res:lower()
         if IsModelValid(model) then
             RequestModel(model)
-            while not HasModelLoaded(model) do _0x7B(10) end
+            while not HasModelLoaded(model) do _w(10) end
             local p = PlayerPedId()
             local coords = GetEntityCoords(p)
             local heading = GetEntityHeading(p)
@@ -200,8 +184,7 @@ local function _vehiculosCercanos()
     local pool = GetGamePool("CVehicle")
     for i=1,#pool do
         local v = pool[i]
-        local dist = #(pCoord - GetEntityCoords(v))
-        if dist < 50.0 and v ~= 0 then
+        if v ~= 0 and #(pCoord - GetEntityCoords(v)) < 50.0 then
             table.insert(list, v)
         end
     end
@@ -239,12 +222,12 @@ local function _cargarVeh()
         if not NetworkHasControlOfEntity(_vehCargado) then
             NetworkRequestControlOfEntity(_vehCargado)
             local t = 0
-            while not NetworkHasControlOfEntity(_vehCargado) and t < 20 do _0x7B(50) t=t+1 end
+            while not NetworkHasControlOfEntity(_vehCargado) and t < 20 do _w(50) t=t+1 end
         end
         FreezeEntityPosition(_vehCargado, true)
         AttachEntityToEntity(_vehCargado, p, GetPedBoneIndex(p,60309), 1.0,0.5,0.0,0.0,0.0,0.0, true, true, false, false, 1, true)
         RequestAnimDict('anim@mp_rollarcoaster')
-        while not HasAnimDictLoaded('anim@mp_rollarcoaster') do _0x7B(10) end
+        while not HasAnimDictLoaded('anim@mp_rollarcoaster') do _w(10) end
         TaskPlayAnim(p, 'anim@mp_rollarcoaster', 'hands_up_idle_a_player_one', 8.0, -8.0, -1, 50, 0, false, false, false)
         _notify("~g~Vehículo cargado")
     else
@@ -294,7 +277,7 @@ local function _spawnNPC(tgt)
     local tgtCoord = GetEntityCoords(tgtPed)
     local model = "a_m_y_hipster_01"
     RequestModel(model)
-    while not HasModelLoaded(model) do _0x7B(10) end
+    while not HasModelLoaded(model) do _w(10) end
     local spawn = vector3(tgtCoord.x+10.0, tgtCoord.y+10.0, tgtCoord.z)
     local npc = CreatePed(0, model, spawn.x, spawn.y, spawn.z, 0.0, true, true)
     SetPedCombatAttributes(npc, 0, true)
@@ -305,11 +288,11 @@ local function _spawnNPC(tgt)
     GiveWeaponToPed(npc, GetHashKey("WEAPON_PISTOL"), 999, true, true)
     SetPedInfiniteAmmo(npc, true)
     TaskGoToEntity(npc, tgtPed, -1, 2.0, 5.0, 1073741824, 0)
-    _0x7B(3000)
+    _w(3000)
     TaskCombatPed(npc, tgtPed, 0, 16)
     SetEntityAsMissionEntity(npc, true, true)
     SetModelAsNoLongerNeeded(model)
-    _notify("~r~NPC sospechoso spawneado cerca del jugador")
+    _notify("~r~NPC hostil spawneado cerca del jugador")
 end
 
 local function _abrirInventario(tgt)
@@ -341,9 +324,9 @@ local function _teleportTo(tgt)
         local coord = GetEntityCoords(tgtPed)
         local p = PlayerPedId()
         DoScreenFadeOut(500)
-        _0x7B(500)
+        _w(500)
         SetEntityCoords(p, coord.x, coord.y, coord.z+0.5, false, false, false, false)
-        _0x7B(100)
+        _w(100)
         DoScreenFadeIn(500)
         _notify("~g~Teletransportado")
     end
@@ -352,7 +335,7 @@ end
 local function _engancharVehJugador(tgt)
     local myPed = PlayerPedId()
     local myVeh = GetVehiclePedIsIn(myPed, false)
-    if myVeh == 0 then _notify("~r~Debes estar en un vehículo para enganchar") return end
+    if myVeh == 0 then _notify("~r~Debes estar en un vehículo") return end
     local tgtPed = GetPlayerPed(tgt)
     if not tgtPed or tgtPed==0 then _notify("~r~Jugador no encontrado") return end
     local tgtVeh = GetVehiclePedIsIn(tgtPed, false)
@@ -361,7 +344,7 @@ local function _engancharVehJugador(tgt)
     if not NetworkHasControlOfEntity(tgtVeh) then
         NetworkRequestControlOfEntity(tgtVeh)
         local t=0
-        while not NetworkHasControlOfEntity(tgtVeh) and t<20 do _0x7B(50) t=t+1 end
+        while not NetworkHasControlOfEntity(tgtVeh) and t<20 do _w(50) t=t+1 end
     end
     AttachEntityToEntity(tgtVeh, myVeh, 0, 0.0, -2.0, 0.0, 0.0, 0.0, 0.0, false, false, false, false, 2, true)
     _notify("~g~Vehículo enganchado al tuyo")
@@ -408,12 +391,11 @@ local function _toggleAttach()
         local cnt = 0
         for _,v in ipairs(pool) do
             if v ~= veh then
-                local dist = #(coord - GetEntityCoords(v))
-                if dist < 150.0 then
+                if #(coord - GetEntityCoords(v)) < 150.0 then
                     if not NetworkHasControlOfEntity(v) then
                         NetworkRequestControlOfEntity(v)
                         local t=0
-                        while not NetworkHasControlOfEntity(v) and t<20 do _0x7B(50) t=t+1 end
+                        while not NetworkHasControlOfEntity(v) and t<20 do _w(50) t=t+1 end
                     end
                     AttachEntityToEntity(v, veh, 0, 0.0, -2.0, 0.0, 0.0, 0.0, 0.0, false, false, false, false, 2, true)
                     table.insert(_vehsEnganchados, v)
@@ -452,7 +434,7 @@ local function _toggleFreecam()
         RenderScriptCams(true, true, 1000, true, true)
         SetPlayerControl(PlayerId(), false, 0)
         SetEntityVisible(p, false, false)
-        _notify("~b~Freecam ACTIVADA | WASD + Ratón | BACKSPACE para salir")
+        _notify("~b~Freecam ACTIVADA | Controles: WASD + Ratón | BACKSPACE para salir")
     else
         RenderScriptCams(false, true, 1000, true, true)
         SetPlayerControl(PlayerId(), true, 0)
@@ -482,9 +464,9 @@ Citizen.CreateThread(function()
             local mouseY = GetDisabledControlNormal(0,2)
             local rot = GetCamRot(_freecamCam, 2)
             SetCamRot(_freecamCam, rot.x + mouseY*-50.0, 0.0, rot.z + mouseX*-50.0, 2)
-            _0x7B(0)
+            _w(0)
         else
-            _0x7B(500)
+            _w(500)
         end
     end
 end)
@@ -537,14 +519,14 @@ Citizen.CreateThread(function()
                 local newCoord = GetEntityCoords(ent) + delta
                 SetEntityCoords(ent, newCoord.x, newCoord.y, newCoord.z, false, false, false, false)
             end
-            _0x7B(0)
+            _w(0)
         else
-            _0x7B(500)
+            _w(500)
         end
     end
 end)
 
--- ========== MENÚ CON VARIACIÓN DINÁMICA ==========
+-- ========== MENÚ CON VARIACIÓN SUTIL DE COLORES ==========
 local _menuVisible = false
 local _menuActual = "main"
 local _optActual = 1
@@ -552,30 +534,39 @@ local _menus = {}
 local _descActual = ""
 local _submenusDinamicos = {}
 
--- Variables dinámicas que cambian cada vez que se abre el menú
-local _posX = 0.7
-local _neonColor = {0,255,255,255}
-local _glowColor = {0,180,255,80}
-local _bgColor = {0,0,0,210}
-local _selectBg = {30,144,255,60}
-local _bannerTexto = "SENTEX MENU"
-
-local function _randomizarEstilos()
-    _posX = 0.65 + math.random() * 0.10  -- entre 0.65 y 0.75
-    _neonColor = {math.random(100,255), math.random(100,255), math.random(100,255), 255}
-    _glowColor = {math.random(0,100), math.random(0,100), math.random(0,100), 80}
-    _bgColor = {math.random(0,30), math.random(0,30), math.random(0,30), 210}
-    _selectBg = {math.random(20,80), math.random(100,200), math.random(200,255), 60}
-    local banners = {"SENTEX MENU", "SENTEX", "SX MENU", "SENTEX v3.6", "SENTEX MODZ"}
-    _bannerTexto = banners[math.random(#banners)]
+-- Colores base (azul neón) y sus variantes sutiles
+local _baseR, _baseG, _baseB = 0, 255, 255
+local function _variarSutil(valor)
+    local offset = _r(-2, 2)  -- cambio de -2 a +2
+    local nuevo = valor + offset
+    if nuevo < 0 then nuevo = 0 end
+    if nuevo > 255 then nuevo = 255 end
+    return nuevo
 end
 
--- ========== ESTRUCTURA DEL MENÚ ==========
+local _neonColor = {_baseR, _baseG, _baseB, 255}
+local _glowColor = {0, 180, 255, 80}
+local _bgColor = {0, 0, 0, 210}
+local _selectBg = {30, 144, 255, 60}
+local _bannerTexto = "SENTEX MENU"
+local _posX = 0.7
+
+local function _randomizarEstilos()
+    -- Cambios mínimos en los canales RGB (solo ±2)
+    _neonColor = {_variarSutil(_baseR), _variarSutil(_baseG), _variarSutil(_baseB), 255}
+    _glowColor = {_variarSutil(0), _variarSutil(180), _variarSutil(255), 80}
+    _selectBg = {_variarSutil(30), _variarSutil(144), _variarSutil(255), 60}
+    _posX = 0.7 + (_r(-2,2) / 100)  -- 0.68 a 0.72, muy sutil
+    local banners = {"SENTEX MENU", "SENTEX", "SX MENU", "SENTEX v3.6"}
+    _bannerTexto = banners[_r(#banners)]
+end
+
+-- ESTRUCTURA DEL MENÚ
 _menus["main"] = {
     {nombre="[»] Self options", submenu="self", desc="Opciones del jugador"},
     {nombre="[»] Vehicle options", submenu="vehicle", desc="Opciones para vehículos"},
     {nombre="[»] Player list", submenu="player_list", desc="Interactuar con otros jugadores"},
-    {nombre="[»] Map fucker", submenu="map_fucker", desc="Opciones locas del mapa"},
+    {nombre="[»] Map fucker", submenu="map_fucker", desc="Opciones del mapa"},
     {nombre="[»] Protection options", submenu="protection", desc="Herramientas de seguridad"},
 }
 
@@ -583,7 +574,8 @@ _menus["self"] = {
     {nombre="• Curar", accion=_curar, desc="Restaura salud y armadura"},
     {nombre="• Revivir ESX", accion=_revivirESX, desc="Resucita en servidores ESX"},
     {nombre="• Revivir QB", accion=_revivirQB, desc="Resucita en servidores QB/QC"},
-    {nombre="• Noclip", accion=function() _noclipActivo = not _noclipActivo
+    {nombre="• Noclip", accion=function()
+        _noclipActivo = not _noclipActivo
         if _noclipActivo then _notify("~b~Noclip ACTIVADO")
         else
             local p=PlayerPedId()
@@ -599,18 +591,18 @@ _menus["self"] = {
 _menus["vehicle"] = {
     {nombre="• Spawn vehicle", accion=_spawnVeh, desc="Escribe el modelo y spawnea el coche"},
     {nombre="• Vehicle list", submenu="vehicle_list", desc="Lista de vehículos cercanos"},
-    {nombre="• Cargar vehículo", accion=_cargarVeh, desc="Apunta a un vehículo y presiónalo para cargarlo"},
-    {nombre="• Lanzar vehículo", accion=_lanzarVeh, desc="Lanza el vehículo que tienes cargado"},
+    {nombre="• Cargar vehículo", accion=_cargarVeh, desc="Apunta y carga un vehículo"},
+    {nombre="• Lanzar vehículo", accion=_lanzarVeh, desc="Lanza el vehículo cargado"},
 }
 
 _menus["map_fucker"] = {
-    {nombre="• Attach cars", accion=_toggleAttach, desc="Engancha cualquier vehículo cercano (150m)"},
-    {nombre="• Freecam", accion=_toggleFreecam, desc="Cámara libre (toggle)"},
+    {nombre="• Attach cars", accion=_toggleAttach, desc="Engancha vehículos cercanos (150m)"},
+    {nombre="• Freecam", accion=_toggleFreecam, desc="Cámara libre"},
 }
 
 _menus["protection"] = {
     {nombre="• AC Checker", accion=function()
-        _notify("~y~Escaneando recursos...")
+        _notify("~y~Escaneando recursos del servidor...")
         Citizen.CreateThread(function()
             local found={}
             local ok,num = pcall(GetNumResources)
@@ -620,12 +612,12 @@ _menus["protection"] = {
                     if res then
                         local name=string.lower(res)
                         for _,ac in ipairs(_acDB) do
-                            for _,p in ipairs(ac.pats) do
-                                if name:find(p) then found[ac.name]=true end
+                            for _,p in ipairs(ac[2]) do
+                                if name:find(p) then found[ac[1]]=true end
                             end
                         end
                     end
-                    _0x7B(0)
+                    _w(0)
                 end
             end
             if next(found) then
@@ -633,17 +625,17 @@ _menus["protection"] = {
                 _acList={}
                 for name,_ in pairs(found) do table.insert(_acList,name) end
                 _notify("~r~⚠️ ANTICHEAT DETECTADO: ~y~"..table.concat(_acList,", ").."~s~")
-                _notify("~r~Ten cuidado, pueden banear.")
+                _notify("~r~Extrema precaución. El uso es bajo tu responsabilidad.")
             else
                 _acDetected=false
                 _acList={}
-                _notify("~g~No se detectó ningún anticheat conocido")
+                _notify("~g~No se detectaron anticheats conocidos")
             end
         end)
-    end, desc="Detecta anticheats (solo advertencia)"},
+    end, desc="Detecta anticheats por nombre de recursos"},
 }
 
--- Dinámicos
+-- DINÁMICOS
 local function _refrescarListaVeh()
     local vehs = _vehiculosCercanos()
     local opts = {}
@@ -660,11 +652,11 @@ local function _refrescarListaVeh()
                 {nombre="• Reparar", accion=function() _repararVeh(v) end, desc="Repara este vehículo"},
                 {nombre="• Voltear", accion=function() _flipVeh(v) end, desc="Voltea este vehículo"},
                 {nombre="• Limpiar", accion=function() _limpiarVeh(v) end, desc="Limpia este vehículo"},
-                {nombre="• Conducir", accion=function() _conducirVeh(v) end, desc="Subirte (expulsa conductor actual)"},
+                {nombre="• Conducir", accion=function() _conducirVeh(v) end, desc="Subirte (expulsa conductor)"},
             }
         end
     end
-    if #opts==0 then opts={{nombre="• No hay vehículos cerca", accion=nil, desc="Acércate"}} end
+    if #opts==0 then opts={{nombre="• No hay vehículos cerca", accion=nil, desc="Acércate a algún vehículo"}} end
     _menus["vehicle_list"] = opts
 end
 
@@ -681,22 +673,22 @@ local function _refrescarListaJugadores()
         }
         if not _submenusDinamicos["player_"..tostring(pid)] then
             _submenusDinamicos["player_"..tostring(pid)] = {
-                {nombre="• Abrir inventario", accion=_crearAccion(pid,"inventory"), desc="Abre el inventario ESX/ox_inventory"},
-                {nombre="• Dar dinero (10k)", accion=_crearAccion(pid,"money"), desc="Da 10.000$ al jugador (ESX)"},
+                {nombre="• Abrir inventario", accion=_crearAccion(pid,"inventory"), desc="Abre inventario ESX/ox"},
+                {nombre="• Dar dinero (10k)", accion=_crearAccion(pid,"money"), desc="Da 10.000$ (ESX)"},
                 {nombre="• Revivir", accion=_crearAccion(pid,"revive"), desc="Intenta revivir"},
                 {nombre="• Matar", accion=_crearAccion(pid,"kill"), desc="Mata al jugador"},
-                {nombre="• Seguir", accion=_crearAccion(pid,"follow"), desc="Cámara sigue al jugador"},
-                {nombre="• Teleportar", accion=_crearAccion(pid,"teleport"), desc="Teletransportarse"},
-                {nombre="• Spawn NPC agresivo", accion=_crearAccion(pid,"spawnnpc"), desc="Spawn un NPC que atacará al jugador"},
-                {nombre="• Enganchar su vehículo", accion=_crearAccion(pid,"attachveh"), desc="Engancha el vehículo del jugador al tuyo"},
+                {nombre="• Seguir", accion=_crearAccion(pid,"follow"), desc="Sigue al jugador"},
+                {nombre="• Teleportar", accion=_crearAccion(pid,"teleport"), desc="Teletransportarse a él"},
+                {nombre="• Spawn NPC agresivo", accion=_crearAccion(pid,"spawnnpc"), desc="NPC que atacará al jugador"},
+                {nombre="• Enganchar su vehículo", accion=_crearAccion(pid,"attachveh"), desc="Engancha su vehículo al tuyo"},
             }
         end
     end
-    if #opts==0 then opts={{nombre="• No hay jugadores", accion=nil, desc="Espera"}} end
+    if #opts==0 then opts={{nombre="• No hay jugadores", accion=nil, desc="Espera a que alguien se conecte"}} end
     _menus["player_list"] = opts
 end
 
--- ========== DIBUJO DEL MENÚ (con variables dinámicas) ==========
+-- DIBUJO
 local function _drawShadowText(t,x,y,sc,font,center,col)
     SetTextFont(font)
     SetTextScale(sc,sc)
@@ -734,7 +726,7 @@ local function _drawACWarning(x,y,totalH)
         SetTextColour(_neonColor[1],_neonColor[2],_neonColor[3],255)
         SetTextCentre(true)
         SetTextEntry("STRING")
-        AddTextComponentString("⚠️ ANTICHEAT DETECTADO - RIESGO DE BAN ⚠️")
+        AddTextComponentString("⚠️ ANTICHEAT DETECTADO - RIESGO ELEVADO ⚠️")
         DrawText(x, wy)
     end
 end
@@ -830,35 +822,39 @@ function _drawMenu()
     _drawACWarning(x, startY, totalH)
 end
 
--- ========== INICIO CON RETARDO ALEATORIO ==========
+-- ========== INICIO CON CARGA PROFESIONAL ==========
 local _menuListo = false
-local _retardo = 5000 + math.random(0,10000) -- 5-15 segundos
+local _retardo = 5000 + _r(0,10000)
 
 Citizen.CreateThread(function()
-    _notify("~y~SENTEX MENU cargando... ("..math.floor(_retardo/1000).."s)")
-    _0x7B(_retardo)
+    _notify("^1[SENTEX] ^7Inicializando módulos...")
+    _w(1500)
+    _notify("^1[SENTEX] ^7Cargando recursos gráficos...")
+    _w(1000)
+    _notify("^1[SENTEX] ^7Estableciendo conexión con la API del juego...")
+    _w(_retardo - 2500)  -- ajuste para que el tiempo total sea _retardo
     _menuListo = true
-    _scanACsilent()
-    _notify("~g~SENTEX MENU ".._version.."~s~ | Presiona ~y~PAGEDOWN~s~")
+    _scanAC()
+    _notify("^1[SENTEX] ^2Sistema listo. ^7Presiona ^1PAGEDOWN^7 para abrir el menú.")
 end)
 
 local function StartMenu()
     Citizen.CreateThread(function()
         while true do
-            _0x7B(0)
+            _w(0)
             if _menuListo and IsDisabledControlJustReleased(0, 11) then
                 _menuVisible = not _menuVisible
                 if _menuVisible then
-                    _randomizarEstilos()  -- <-- CAMBIA COLORES Y POSICIÓN CADA VEZ QUE ABRES
+                    _randomizarEstilos()
                     _optActual = 1
                     _menuActual = "main"
                     PlaySoundFrontend(-1, "SELECT", "HUD_FRONTEND_DEFAULT_SOUNDSET", true)
-                    _notify("~b~SENTEX MENU~s~ | Abierto")
+                    _notify("^1[SENTEX] ^2Menú abierto.")
                 else
                     PlaySoundFrontend(-1, "BACK", "HUD_FRONTEND_DEFAULT_SOUNDSET", true)
-                    _notify("~b~SENTEX MENU~s~ | Cerrado")
+                    _notify("^1[SENTEX] ^3Menú cerrado.")
                 end
-                _0x7B(200)
+                _w(200)
             end
 
             if _menuVisible and _menuListo then
@@ -893,7 +889,7 @@ local function StartMenu()
                             _optActual = 1
                         elseif sel.accion then
                             local ok, err = pcall(sel.accion)
-                            if not ok then _notify("~r~Error: "..tostring(err)) end
+                            if not ok then _notify("^1[SENTEX] ^7Error: "..tostring(err)) end
                         end
                     end
                 elseif IsDisabledControlJustReleased(0, 177) then
