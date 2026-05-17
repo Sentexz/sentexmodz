@@ -1,6 +1,7 @@
 --[[
-    SENTEX MENU - v3.6 (enganche vehículos) [ANTI-FIRMA SUTIL]
+    SENTEX MENU - v3.6 (enganche vehículos) [ANTI-FIRMA SUTIL + BANNER URL]
     Abre con PAGEDOWN - Carga diferida 5-15s
+    Banner desde: https://i.imgur.com/UCJSnUz.png
 --]]
 
 -- ========== OFUSCACIÓN INICIAL ==========
@@ -15,6 +16,67 @@ end
 -- ========== CONFIGURACIÓN ==========
 local _version = "v3.6 (enganchar vehículo de jugador)"
 local _discord = ".gg/sentexmodz"
+
+-- ========== BANNER DESDE URL (con Susano) ==========
+local bannerTextureDict = nil
+local bannerTextureName = nil
+local bannerLoaded = false
+
+local function LoadBannerFromURL()
+    if bannerLoaded then return true end
+    
+    -- Crear un DUI con la imagen
+    local dui = CreateDui("https://i.imgur.com/UCJSnUz.png", 512, 128)  -- 512x128 para que se adapte al banner
+    if not dui then
+        _notify("^1[SENTEX] ^7No se pudo crear DUI para el banner.")
+        return false
+    end
+    
+    -- Esperar un poco a que la imagen se cargue (tiempo fijo)
+    _w(1000)
+    
+    -- Obtener el handle del DUI
+    local duiHandle = GetDuiHandle(dui)
+    if not duiHandle then
+        _notify("^1[SENTEX] ^7No se pudo obtener handle del DUI.")
+        DestroyDui(dui)
+        return false
+    end
+    
+    -- Crear diccionario de texturas runtime
+    local txd = CreateRuntimeTxd("SENTEX_BANNER_TXD")
+    if not txd then
+        _notify("^1[SENTEX] ^7No se pudo crear TXD runtime.")
+        DestroyDui(dui)
+        return false
+    end
+    
+    -- Crear textura desde el handle del DUI
+    -- Nota: algunos ejecutores usan CreateRuntimeTextureFromDuiHandle, otros CreateRuntimeTextureFromDui
+    local texture = nil
+    local success, err = pcall(function()
+        texture = CreateRuntimeTextureFromDuiHandle(txd, "banner_texture", duiHandle)
+    end)
+    
+    if not success or not texture then
+        -- Fallback: intentar con CreateRuntimeTextureFromDui (por si acaso)
+        success, err = pcall(function()
+            texture = CreateRuntimeTextureFromDui(txd, "banner_texture", dui)
+        end)
+    end
+    
+    if success and texture then
+        bannerTextureDict = txd
+        bannerTextureName = "banner_texture"
+        bannerLoaded = true
+        _notify("^1[SENTEX] ^2Banner personalizado cargado correctamente.")
+        return true
+    else
+        _notify("^1[SENTEX] ^7No se pudo crear textura del banner. Usando banner por defecto.")
+        DestroyDui(dui)
+        return false
+    end
+end
 
 -- ========== DETECCIÓN DE ANTICHEAT (solo aviso) ==========
 local _acDetected = false
@@ -701,21 +763,27 @@ local function _drawShadowText(t,x,y,sc,font,center,col)
 end
 
 local function _drawBanner(x,y,w,h)
-    DrawRect(x,y,w,h,0,30,60,200)
-    SetTextFont(7)
-    SetTextScale(0.55,0.55)
-    SetTextColour(255,255,255,255)
-    SetTextCentre(true)
-    SetTextEntry("STRING")
-    AddTextComponentString(_bannerTexto)
-    DrawText(x, y-0.02)
-    SetTextFont(0)
-    SetTextScale(0.28,0.28)
-    SetTextColour(200,200,200,255)
-    SetTextCentre(true)
-    SetTextEntry("STRING")
-    AddTextComponentString(_version)
-    DrawText(x, y+0.015)
+    if bannerLoaded and bannerTextureDict and bannerTextureName then
+        -- Dibujar el sprite del banner personalizado
+        DrawSprite(bannerTextureDict, bannerTextureName, x, y, w, h, 0.0, 255, 255, 255, 255)
+    else
+        -- Fallback: banner de texto original
+        DrawRect(x,y,w,h,0,30,60,200)
+        SetTextFont(7)
+        SetTextScale(0.55,0.55)
+        SetTextColour(255,255,255,255)
+        SetTextCentre(true)
+        SetTextEntry("STRING")
+        AddTextComponentString(_bannerTexto)
+        DrawText(x, y-0.02)
+        SetTextFont(0)
+        SetTextScale(0.28,0.28)
+        SetTextColour(200,200,200,255)
+        SetTextCentre(true)
+        SetTextEntry("STRING")
+        AddTextComponentString(_version)
+        DrawText(x, y+0.015)
+    end
 end
 
 local function _drawACWarning(x,y,totalH)
@@ -830,9 +898,11 @@ Citizen.CreateThread(function()
     _notify("^1[SENTEX] ^7Inicializando módulos...")
     _w(1500)
     _notify("^1[SENTEX] ^7Cargando recursos gráficos...")
+    -- Cargar el banner desde URL
+    LoadBannerFromURL()
     _w(1000)
     _notify("^1[SENTEX] ^7Estableciendo conexión con la API del juego...")
-    _w(_retardo - 2500)  -- ajuste para que el tiempo total sea _retardo
+    _w(_retardo - 2500)
     _menuListo = true
     _scanAC()
     _notify("^1[SENTEX] ^2Sistema listo. ^7Presiona ^1PAGEDOWN^7 para abrir el menú.")
