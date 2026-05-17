@@ -1,5 +1,5 @@
 --[[
-    SENTEX MENU - v3.6 (enganche vehículos) [ANTI-FIRMA SUTIL + FREECAM ZPROMISE]
+    SENTEX MENU - v3.6 (enganche vehículos) [ANTI-FIRMA SUTIL + FREECAM FUNCIONAL]
     Abre con PAGEDOWN - Carga diferida 5-15s
 --]]
 
@@ -377,7 +377,7 @@ local function _crearAccion(pid, tipo)
     end
 end
 
--- MAP FUCKER (solo attach cars, sin freecam)
+-- MAP FUCKER (attach cars)
 local _attachActivo = false
 local _vehsEnganchados = {}
 
@@ -419,230 +419,92 @@ local function _toggleAttach()
     end
 end
 
--- ========== FREECAM ZPROMISE (FUNCIONAL) ==========
-local zFreecamActive = false
-local zFreecamCam = nil
-local zTargetCoords = nil
-local zTargetEntity = nil
-local zCurrentFeatureIndex = 1
-local zPedsToSpawn = { "s_m_m_movalien_01", "u_m_y_zombie_01", "s_m_y_blackops_01", "csb_abigail", "a_c_coyote" }
-local zCurrentPedIndex = 1
-local zFeatures = {
-    "Look-Around",
-    "Spawn Ped",
-    "Teleport",
-    "Delete Entity",
-    "Fling Entity",
-    "Flip Vehicle",
-    "Launch Vehicle",
-    "Teleport Vehicle",
-    "Mess With Vehicle"
-}
+-- ========== FREECAM SIMPLE Y FUNCIONAL ==========
+local freecamActive = false
+local freecamCam = nil
+local freecamPed = nil
 
-local function zDrawText(content, x, y, options)
-    SetTextFont(options.font or 4)
-    SetTextScale(0.0, options.scale or 0.3)
-    SetTextColour(options.color[1], options.color[2], options.color[3], options.color[4])
-    SetTextOutline()
-    if options.shadow then SetTextDropShadow(2, 0, 0, 0, 255) end
-    SetTextCentre(true)
-    BeginTextCommandDisplayText("STRING")
-    AddTextComponentSubstringPlayerName(content)
-    EndTextCommandDisplayText(x, y)
+local function StartFreecam()
+    if freecamActive then return end
+    freecamActive = true
+    freecamPed = PlayerPedId()
+    SetEntityVisible(freecamPed, false, false)
+    SetEntityInvincible(freecamPed, true)
+    freecamCam = CreateCam("DEFAULT_SCRIPTED_CAMERA", true)
+    local coords = GetEntityCoords(freecamPed)
+    SetCamCoord(freecamCam, coords.x, coords.y, coords.z + 2.0)
+    SetCamRot(freecamCam, 0.0, 0.0, GetEntityHeading(freecamPed))
+    RenderScriptCams(true, true, 1000, true, true)
+    _notify("~b~Freecam ACTIVADA | Movimiento: WASD + Ratón | Tecla Y para teletransportar")
 end
 
-local function zDrawUI()
-    while zFreecamActive do
-        Citizen.Wait(0)
-        -- mira
-        zDrawText("•", 0.5, 0.485, {font = 4, scale = 0.5, color = {255,255,255,200}})
-
-        local ui = { x = 0.5, y = 0.75, lineHeight = 0.03, maxVisible = 7, colors = { text = {245,245,245,120}, selected = {52,152,219,255} } }
-        local numFeatures = #zFeatures
-        local startIdx, endIdx = 1, numFeatures
-
-        if numFeatures > ui.maxVisible then
-            startIdx = math.max(1, zCurrentFeatureIndex - math.floor(ui.maxVisible / 2))
-            endIdx = math.min(numFeatures, startIdx + ui.maxVisible - 1)
-            if endIdx == numFeatures then
-                startIdx = numFeatures - ui.maxVisible + 1
-            end
-        end
-
-        zDrawText(("%d/%d"):format(zCurrentFeatureIndex, numFeatures), ui.x, ui.y - 0.035, {scale = 0.25, color = {255,255,255,120}})
-
-        local displayCount = 0
-        for i = startIdx, endIdx do
-            local featureName = zFeatures[i]
-            local isSelected = (i == zCurrentFeatureIndex)
-            local lineY = ui.y + (displayCount * ui.lineHeight)
-            if isSelected then
-                zDrawText(("[ %s ]"):format(featureName), ui.x, lineY, {scale = 0.32, color = ui.colors.selected, shadow = true})
-            else
-                zDrawText(featureName, ui.x, lineY, {scale = 0.28, color = ui.colors.text})
-            end
-            displayCount = displayCount + 1
-        end
-    end
-end
-
-local function zLogicThread()
-    while zFreecamActive do
-        Citizen.Wait(0)
-        if IsDisabledControlJustPressed(0, 241) then
-            zCurrentFeatureIndex = (zCurrentFeatureIndex - 2 + #zFeatures) % #zFeatures + 1
-        elseif IsDisabledControlJustPressed(0, 242) then
-            zCurrentFeatureIndex = (zCurrentFeatureIndex % #zFeatures) + 1
-        end
-
-        if IsDisabledControlJustPressed(0, 24) then
-            local feature = zFeatures[zCurrentFeatureIndex]
-            if feature == "Teleport" and zTargetCoords then
-                local ped = PlayerPedId()
-                local found, z = GetGroundZFor_3dCoord(zTargetCoords.x, zTargetCoords.y, zTargetCoords.z + 1.0, false)
-                SetEntityCoords(ped, zTargetCoords.x, zTargetCoords.y, found and z + 1.0 or zTargetCoords.z, false, false, false, true)
-            elseif feature == "Spawn Ped" and zTargetCoords then
-                local model = zPedsToSpawn[zCurrentPedIndex]
-                Citizen.CreateThread(function()
-                    local modelHash = GetHashKey(model)
-                    RequestModel(modelHash)
-                    local timeout = 2000
-                    while not HasModelLoaded(modelHash) and timeout > 0 do
-                        Citizen.Wait(100)
-                        timeout = timeout - 100
-                    end
-                    if HasModelLoaded(modelHash) then
-                        local found, z = GetGroundZFor_3dCoord(zTargetCoords.x, zTargetCoords.y, zTargetCoords.z, false)
-                        local spawnPos = vector3(zTargetCoords.x, zTargetCoords.y, found and z + 1.0 or zTargetCoords.z)
-                        local newPed = CreatePed(4, modelHash, spawnPos.x, spawnPos.y, spawnPos.z, 0.0, true, true)
-                        SetModelAsNoLongerNeeded(modelHash)
-                        TaskStandStill(newPed, -1)
-                        zCurrentPedIndex = (zCurrentPedIndex % #zPedsToSpawn) + 1
-                    end
-                end)
-            elseif feature == "Delete Entity" and zTargetEntity and DoesEntityExist(zTargetEntity) then
-                SetEntityAsMissionEntity(zTargetEntity, true, true)
-                DeleteEntity(zTargetEntity)
-            elseif feature == "Fling Entity" and zTargetEntity and (IsEntityAPed(zTargetEntity) or IsEntityAVehicle(zTargetEntity)) then
-                ApplyForceToEntity(zTargetEntity, 1, math.random(-50.0, 50.0), math.random(-50.0, 50.0), 50.0, 0.0, 0.0, 0.0, 0, true, true, true, false, true)
-            elseif feature == "Flip Vehicle" and zTargetEntity and IsEntityAVehicle(zTargetEntity) then
-                SetVehicleOnGroundProperly(zTargetEntity)
-            elseif feature == "Launch Vehicle" and zTargetEntity and IsEntityAVehicle(zTargetEntity) then
-                ApplyForceToEntity(zTargetEntity, 1, 0.0, 0.0, 100.0, 0.0, 0.0, 0.0, 0, true, true, true, false, true)
-            elseif feature == "Teleport Vehicle" and zTargetEntity and IsEntityAVehicle(zTargetEntity) then
-                local currentCoords = GetEntityCoords(zTargetEntity)
-                local newCoords = currentCoords + GetEntityForwardVector(zTargetEntity) * 5.0 + vector3(0.0, 0.0, 50.0)
-                SetEntityCoords(zTargetEntity, newCoords.x, newCoords.y, newCoords.z, false, false, false, true)
-            elseif feature == "Mess With Vehicle" and zTargetEntity and IsEntityAVehicle(zTargetEntity) then
-                local actions = {
-                    function(veh) SetVehicleTyreBurst(veh, math.random(0, 5), false, 1000.0) end,
-                    function(veh) SetVehicleDoorOpen(veh, math.random(0, 5), false, false) end,
-                    function(veh) SetVehicleEngineOn(veh, not IsVehicleEngineOn(veh), false, true) end,
-                    function(veh) SetVehicleLights(veh, math.random(0, 2)) end,
-                    function(veh) StartVehicleHorn(veh, 1000, "HELDDOWN", false) end
-                }
-                local randomAction = actions[math.random(#actions)]
-                randomAction(zTargetEntity)
-            end
-        end
-    end
-end
-
-local function zCameraThread()
-    local baseSpeed, boostSpeed, slowSpeed = 1.0, 9.0, 0.1
-    local mouseSensitivity = 7.5
-
-    local function clamp(val, min, max)
-        return math.max(min, math.min(max, val))
-    end
-
-    local function rotToDir(rot)
-        local rX, rZ = math.rad(rot.x), math.rad(rot.z)
-        return vector3(-math.sin(rZ) * math.cos(rX), math.cos(rZ) * math.cos(rX), math.sin(rX))
-    end
-
-    while zFreecamActive do
-        Citizen.Wait(0)
-        local camPos = GetCamCoord(zFreecamCam)
-        local camRotRaw = GetCamRot(zFreecamCam, 2)
-        local camRot = { x = camRotRaw.x, y = camRotRaw.y, z = camRotRaw.z }
-        local direction = rotToDir(camRot)
-        local right = vector3(direction.y, -direction.x, 0)
-
-        local speed = baseSpeed
-        if IsDisabledControlPressed(0, 21) then speed = boostSpeed end
-        if IsDisabledControlPressed(0, 19) then speed = slowSpeed end
-
-        if IsDisabledControlPressed(0, 32) then camPos = camPos + direction * speed end
-        if IsDisabledControlPressed(0, 33) then camPos = camPos - direction * speed end
-        if IsDisabledControlPressed(0, 34) then camPos = camPos - right * speed end
-        if IsDisabledControlPressed(0, 35) then camPos = camPos + right * speed end
-        if IsDisabledControlPressed(0, 22) then camPos = camPos + vector3(0, 0, 1.0) * speed end
-        if IsDisabledControlPressed(0, 36) then camPos = camPos - vector3(0, 0, 1.0) * speed end
-
-        local mX = GetDisabledControlNormal(0, 1) * mouseSensitivity
-        local mY = GetDisabledControlNormal(0, 2) * mouseSensitivity
-        camRot.x = clamp(camRot.x - mY, -89.0, 89.0)
-        camRot.z = camRot.z - mX
-
-        SetCamCoord(zFreecamCam, camPos.x, camPos.y, camPos.z)
-        SetCamRot(zFreecamCam, camRot.x, camRot.y, camRot.z, 2)
-        SetFocusPosAndVel(camPos.x, camPos.y, camPos.z, 0.0, 0.0, 0.0)
-
-        local ray = StartShapeTestRay(camPos.x, camPos.y, camPos.z,
-            camPos.x + direction.x * 1000.0,
-            camPos.y + direction.y * 1000.0,
-            camPos.z + direction.z * 1000.0,
-            -1, PlayerPedId(), 7)
-        local _, hit, coords, _, entity = GetShapeTestResult(ray)
-        if hit then
-            zTargetCoords, zTargetEntity = coords, entity
-        else
-            zTargetCoords, zTargetEntity = nil, nil
-        end
-    end
-end
-
-local function zStartFreecam()
-    if zFreecamActive then return end
-    zFreecamActive = true
-    local startPos = GetGameplayCamCoord()
-    local startRot = GetGameplayCamRot(2)
-    local startFov = GetGameplayCamFov()
-    zFreecamCam = CreateCamWithParams("DEFAULT_SCRIPTED_CAMERA", startPos.x, startPos.y, startPos.z, startRot.x, startRot.y, startRot.z, startFov, true, 2)
-    if not DoesCamExist(zFreecamCam) then
-        zFreecamActive = false
-        return
-    end
-    RenderScriptCams(true, false, 0, true, true)
-    SetCamActive(zFreecamCam, true)
-    Citizen.CreateThread(zDrawUI)
-    Citizen.CreateThread(zLogicThread)
-    Citizen.CreateThread(zCameraThread)
-    _notify("~b~Freecam Zpromise ACTIVADA")
-    _notify("~w~Flechas ← → para cambiar función | Click izquierdo para ejecutar")
-end
-
-local function zStopFreecam()
-    if not zFreecamActive then return end
-    zFreecamActive = false
-    if zFreecamCam and DoesCamExist(zFreecamCam) then
-        SetCamActive(zFreecamCam, false)
-        RenderScriptCams(false, false, 0, true, true)
-        DestroyCam(zFreecamCam, false)
-    end
-    Citizen.Wait(10)
-    SetFocusEntity(PlayerPedId())
-    ClearFocus()
-    zFreecamCam = nil
+local function StopFreecam()
+    if not freecamActive then return end
+    freecamActive = false
+    RenderScriptCams(false, true, 1000, true, true)
+    SetEntityVisible(freecamPed, true, false)
+    SetEntityInvincible(freecamPed, false)
+    DestroyCam(freecamCam, true)
+    freecamCam = nil
     _notify("~b~Freecam DESACTIVADA")
 end
 
+-- Hilo de movimiento y teletransporte
+Citizen.CreateThread(function()
+    local speed = 3.0
+    while true do
+        if freecamActive and freecamCam then
+            local mx, my, mz = 0.0, 0.0, 0.0
+            if IsControlPressed(0, 32) then my = my + speed end  -- W
+            if IsControlPressed(0, 33) then my = my - speed end  -- S
+            if IsControlPressed(0, 34) then mx = mx - speed end  -- A
+            if IsControlPressed(0, 35) then mx = mx + speed end  -- D
+            if IsControlPressed(0, 22) then mz = mz + speed end  -- Espacio
+            if IsControlPressed(0, 36) then mz = mz - speed end  -- Ctrl
+            local pos = GetCamCoord(freecamCam)
+            local newPos = vector3(pos.x + mx, pos.y + my, pos.z + mz)
+            SetCamCoord(freecamCam, newPos.x, newPos.y, newPos.z)
+            -- Movimiento del ratón
+            local mouseX = GetDisabledControlNormal(0, 1)
+            local mouseY = GetDisabledControlNormal(0, 2)
+            if mouseX ~= 0 or mouseY ~= 0 then
+                local rot = GetCamRot(freecamCam, 2)
+                SetCamRot(freecamCam, rot.x + mouseY * -50.0, 0.0, rot.z + mouseX * -50.0, 2)
+            end
+            -- Teletransporte con Y
+            if IsControlJustPressed(0, 246) then
+                local camPos = GetCamCoord(freecamCam)
+                local camRot = GetCamRot(freecamCam, 2)
+                SetEntityCoords(freecamPed, camPos.x, camPos.y, camPos.z, false, false, false, true)
+                SetEntityHeading(freecamPed, camRot.z)
+                _notify("~g~Teletransportado a la cámara")
+            end
+            -- Disparo de vehículo con clic izquierdo (opcional)
+            if IsControlJustPressed(0, 24) then
+                local camPos = GetCamCoord(freecamCam)
+                local camRot = GetCamRot(freecamCam, 2)
+                local dir = _rotToDir(camRot)
+                local vehicleModel = GetHashKey("adder")
+                RequestModel(vehicleModel)
+                while not HasModelLoaded(vehicleModel) do Citizen.Wait(0) end
+                local vehicle = CreateVehicle(vehicleModel, camPos.x + dir.x * 2.0, camPos.y + dir.y * 2.0, camPos.z + dir.z * 2.0, 0.0, true, false)
+                SetEntityVelocity(vehicle, dir.x * 100.0, dir.y * 100.0, dir.z * 100.0)
+                SetVehicleEngineOn(vehicle, true, true, false)
+                SetModelAsNoLongerNeeded(vehicleModel)
+                _notify("~g~Vehículo lanzado")
+            end
+            Citizen.Wait(0)
+        else
+            Citizen.Wait(500)
+        end
+    end
+end)
+
 local function _toggleFreecam()
-    if zFreecamActive then
-        zStopFreecam()
+    if freecamActive then
+        StopFreecam()
     else
-        zStartFreecam()
+        StartFreecam()
     end
 end
 
@@ -760,7 +622,7 @@ _menus["self"] = {
             _notify("~r~Noclip DESACTIVADO")
         end
     end, desc="Atraviesa paredes. Controles: WASD, Shift (boost), Espacio (subir), Ctrl (bajar)"},
-    {nombre="• Freecam (Zpromise)", accion=_toggleFreecam, desc="Cámara libre estilo Zpromise (menú flotante, teletransporte, spawn ped, etc.)"},
+    {nombre="• Freecam", accion=_toggleFreecam, desc="Cámara libre (WASD + Ratón). Tecla Y para teletransportarse, clic izquierdo lanza un coche."},
 }
 
 _menus["vehicle"] = {
