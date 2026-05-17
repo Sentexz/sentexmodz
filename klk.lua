@@ -25,23 +25,15 @@ local bannerLoaded = false
 local function LoadBannerFromURL()
     if bannerLoaded then return true end
     
-    -- Crear un DUI con la imagen
-    local dui = CreateDui("https://i.imgur.com/UCJSnUz.png", 512, 128)  -- 512x128 para que se adapte al banner
+    -- Crear un DUI con la imagen (tamaño 512x128 para que se adapte al banner)
+    local dui = CreateDui("https://i.imgur.com/UCJSnUz.png", 512, 128)
     if not dui then
         _notify("^1[SENTEX] ^7No se pudo crear DUI para el banner.")
         return false
     end
     
-    -- Esperar un poco a que la imagen se cargue (tiempo fijo)
-    _w(1000)
-    
-    -- Obtener el handle del DUI
-    local duiHandle = GetDuiHandle(dui)
-    if not duiHandle then
-        _notify("^1[SENTEX] ^7No se pudo obtener handle del DUI.")
-        DestroyDui(dui)
-        return false
-    end
+    -- Esperar un poco a que la imagen se cargue (aumentamos a 2 segundos para mayor seguridad)
+    _w(2000)
     
     -- Crear diccionario de texturas runtime
     local txd = CreateRuntimeTxd("SENTEX_BANNER_TXD")
@@ -51,18 +43,29 @@ local function LoadBannerFromURL()
         return false
     end
     
-    -- Crear textura desde el handle del DUI
-    -- Nota: algunos ejecutores usan CreateRuntimeTextureFromDuiHandle, otros CreateRuntimeTextureFromDui
     local texture = nil
+    
+    -- Intento 1: Usar CreateRuntimeTextureFromDui (estándar, no necesita handle)
     local success, err = pcall(function()
-        texture = CreateRuntimeTextureFromDuiHandle(txd, "banner_texture", duiHandle)
+        texture = CreateRuntimeTextureFromDui(txd, "banner_texture", dui)
     end)
     
+    -- Intento 2: Si falla, probar con CreateRuntimeTextureFromDuiHandle (solo si existe la función)
     if not success or not texture then
-        -- Fallback: intentar con CreateRuntimeTextureFromDui (por si acaso)
-        success, err = pcall(function()
-            texture = CreateRuntimeTextureFromDui(txd, "banner_texture", dui)
-        end)
+        if type(CreateRuntimeTextureFromDuiHandle) == "function" then
+            local duiHandle = GetDuiHandle(dui)
+            if duiHandle then
+                success, err = pcall(function()
+                    texture = CreateRuntimeTextureFromDuiHandle(txd, "banner_texture", duiHandle)
+                end)
+            else
+                success = false
+                err = "GetDuiHandle devolvió nil"
+            end
+        else
+            success = false
+            err = "CreateRuntimeTextureFromDuiHandle no existe"
+        end
     end
     
     if success and texture then
@@ -72,7 +75,8 @@ local function LoadBannerFromURL()
         _notify("^1[SENTEX] ^2Banner personalizado cargado correctamente.")
         return true
     else
-        _notify("^1[SENTEX] ^7No se pudo crear textura del banner. Usando banner por defecto.")
+        _notify("^1[SENTEX] ^7No se pudo crear textura del banner. Error: " .. tostring(err))
+        _notify("^1[SENTEX] ^7Usando banner por defecto.")
         DestroyDui(dui)
         return false
     end
