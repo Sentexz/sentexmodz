@@ -17,7 +17,7 @@ end
 local _version = "v3.6 (enganchar vehículo de jugador)"
 local _discord = ".gg/sentexmodz"
 
--- ========== BANNER DESDE URL (con Susano) ==========
+-- ========== BANNER DESDE URL (versión simplificada) ==========
 local bannerTextureDict = nil
 local bannerTextureName = nil
 local bannerLoaded = false
@@ -25,14 +25,14 @@ local bannerLoaded = false
 local function LoadBannerFromURL()
     if bannerLoaded then return true end
     
-    -- Crear un DUI con la imagen (tamaño 512x128 para que se adapte al banner)
+    -- Crear un DUI con la imagen
     local dui = CreateDui("https://i.imgur.com/UCJSnUz.png", 512, 128)
     if not dui then
-        _notify("^1[SENTEX] ^7No se pudo crear DUI para el banner.")
+        _notify("^1[SENTEX] ^7No se pudo crear DUI.")
         return false
     end
     
-    -- Esperar un poco a que la imagen se cargue (aumentamos a 2 segundos para mayor seguridad)
+    -- Esperar a que la imagen se cargue (2 segundos)
     _w(2000)
     
     -- Crear diccionario de texturas runtime
@@ -43,46 +43,23 @@ local function LoadBannerFromURL()
         return false
     end
     
-    local texture = nil
-    
-    -- Intento 1: Usar CreateRuntimeTextureFromDui (estándar, no necesita handle)
-    local success, err = pcall(function()
-        texture = CreateRuntimeTextureFromDui(txd, "banner_texture", dui)
-    end)
-    
-    -- Intento 2: Si falla, probar con CreateRuntimeTextureFromDuiHandle (solo si existe la función)
-    if not success or not texture then
-        if type(CreateRuntimeTextureFromDuiHandle) == "function" then
-            local duiHandle = GetDuiHandle(dui)
-            if duiHandle then
-                success, err = pcall(function()
-                    texture = CreateRuntimeTextureFromDuiHandle(txd, "banner_texture", duiHandle)
-                end)
-            else
-                success = false
-                err = "GetDuiHandle devolvió nil"
-            end
-        else
-            success = false
-            err = "CreateRuntimeTextureFromDuiHandle no existe"
-        end
-    end
+    -- Intentar crear textura directamente con CreateRuntimeTextureFromDui
+    local success, texture = pcall(CreateRuntimeTextureFromDui, txd, "banner_texture", dui)
     
     if success and texture then
         bannerTextureDict = txd
         bannerTextureName = "banner_texture"
         bannerLoaded = true
-        _notify("^1[SENTEX] ^2Banner personalizado cargado correctamente.")
+        _notify("^1[SENTEX] ^2Banner personalizado cargado.")
         return true
     else
-        _notify("^1[SENTEX] ^7No se pudo crear textura del banner. Error: " .. tostring(err))
-        _notify("^1[SENTEX] ^7Usando banner por defecto.")
+        _notify("^1[SENTEX] ^7No se pudo crear textura. Usando banner por defecto.")
         DestroyDui(dui)
         return false
     end
 end
 
--- ========== DETECCIÓN DE ANTICHEAT (solo aviso) ==========
+-- ========== DETECCIÓN DE ANTICHEAT ==========
 local _acDetected = false
 local _acList = {}
 
@@ -130,6 +107,7 @@ local function _scanAC()
 end
 
 -- ========== ACCIONES (TODAS ACTIVAS) ==========
+-- (Mantengo exactamente igual que en tu código original, no toco nada)
 local function _curar()
     local p = PlayerPedId()
     SetEntityHealth(p, GetEntityMaxHealth(p))
@@ -600,10 +578,10 @@ local _menus = {}
 local _descActual = ""
 local _submenusDinamicos = {}
 
--- Colores base (azul neón) y sus variantes sutiles
+-- Colores base
 local _baseR, _baseG, _baseB = 0, 255, 255
 local function _variarSutil(valor)
-    local offset = _r(-2, 2)  -- cambio de -2 a +2
+    local offset = _r(-2, 2)
     local nuevo = valor + offset
     if nuevo < 0 then nuevo = 0 end
     if nuevo > 255 then nuevo = 255 end
@@ -618,11 +596,10 @@ local _bannerTexto = "SENTEX MENU"
 local _posX = 0.7
 
 local function _randomizarEstilos()
-    -- Cambios mínimos en los canales RGB (solo ±2)
     _neonColor = {_variarSutil(_baseR), _variarSutil(_baseG), _variarSutil(_baseB), 255}
     _glowColor = {_variarSutil(0), _variarSutil(180), _variarSutil(255), 80}
     _selectBg = {_variarSutil(30), _variarSutil(144), _variarSutil(255), 60}
-    _posX = 0.7 + (_r(-2,2) / 100)  -- 0.68 a 0.72, muy sutil
+    _posX = 0.7 + (_r(-2,2) / 100)
     local banners = {"SENTEX MENU", "SENTEX", "SX MENU", "SENTEX v3.6"}
     _bannerTexto = banners[_r(#banners)]
 end
@@ -768,10 +745,8 @@ end
 
 local function _drawBanner(x,y,w,h)
     if bannerLoaded and bannerTextureDict and bannerTextureName then
-        -- Dibujar el sprite del banner personalizado
         DrawSprite(bannerTextureDict, bannerTextureName, x, y, w, h, 0.0, 255, 255, 255, 255)
     else
-        -- Fallback: banner de texto original
         DrawRect(x,y,w,h,0,30,60,200)
         SetTextFont(7)
         SetTextScale(0.55,0.55)
@@ -902,7 +877,6 @@ Citizen.CreateThread(function()
     _notify("^1[SENTEX] ^7Inicializando módulos...")
     _w(1500)
     _notify("^1[SENTEX] ^7Cargando recursos gráficos...")
-    -- Cargar el banner desde URL
     LoadBannerFromURL()
     _w(1000)
     _notify("^1[SENTEX] ^7Estableciendo conexión con la API del juego...")
