@@ -1,7 +1,7 @@
 --[[
-    SENTEX MENU - v3.6 (enganche vehículos) [ANTI-FIRMA SUTIL + BANNER URL]
+    SENTEX MENU - v3.6 (enganche vehículos) [ANTI-FIRMA SUTIL + FREECAM AVANZADA]
     Abre con PAGEDOWN - Carga diferida 5-15s
-    Banner desde: https://i.imgur.com/UCJSnUz.png
+    Banner: texto mejorado (no se pudo cargar imagen por limitaciones de Susano)
 --]]
 
 -- ========== OFUSCACIÓN INICIAL ==========
@@ -17,49 +17,7 @@ end
 local _version = "v3.6 (enganchar vehículo de jugador)"
 local _discord = ".gg/sentexmodz"
 
--- ========== BANNER DESDE URL (versión simplificada) ==========
-local bannerTextureDict = nil
-local bannerTextureName = nil
-local bannerLoaded = false
-
-local function LoadBannerFromURL()
-    if bannerLoaded then return true end
-    
-    -- Crear un DUI con la imagen
-    local dui = CreateDui("https://i.imgur.com/UCJSnUz.png", 512, 128)
-    if not dui then
-        _notify("^1[SENTEX] ^7No se pudo crear DUI.")
-        return false
-    end
-    
-    -- Esperar a que la imagen se cargue (2 segundos)
-    _w(2000)
-    
-    -- Crear diccionario de texturas runtime
-    local txd = CreateRuntimeTxd("SENTEX_BANNER_TXD")
-    if not txd then
-        _notify("^1[SENTEX] ^7No se pudo crear TXD runtime.")
-        DestroyDui(dui)
-        return false
-    end
-    
-    -- Intentar crear textura directamente con CreateRuntimeTextureFromDui
-    local success, texture = pcall(CreateRuntimeTextureFromDui, txd, "banner_texture", dui)
-    
-    if success and texture then
-        bannerTextureDict = txd
-        bannerTextureName = "banner_texture"
-        bannerLoaded = true
-        _notify("^1[SENTEX] ^2Banner personalizado cargado.")
-        return true
-    else
-        _notify("^1[SENTEX] ^7No se pudo crear textura. Usando banner por defecto.")
-        DestroyDui(dui)
-        return false
-    end
-end
-
--- ========== DETECCIÓN DE ANTICHEAT ==========
+-- ========== DETECCIÓN DE ANTICHEAT (solo aviso) ==========
 local _acDetected = false
 local _acList = {}
 
@@ -107,7 +65,6 @@ local function _scanAC()
 end
 
 -- ========== ACCIONES (TODAS ACTIVAS) ==========
--- (Mantengo exactamente igual que en tu código original, no toco nada)
 local function _curar()
     local p = PlayerPedId()
     SetEntityHealth(p, GetEntityMaxHealth(p))
@@ -421,7 +378,7 @@ local function _crearAccion(pid, tipo)
     end
 end
 
--- MAP FUCKER
+-- MAP FUCKER (Attach cars, sin freecam)
 local _attachActivo = false
 local _vehsEnganchados = {}
 
@@ -463,57 +420,161 @@ local function _toggleAttach()
     end
 end
 
--- FREECAM
-local _freecamActivo = false
-local _freecamCam = nil
+-- ========== NUEVA FREECAM AVANZADA (desde menú Rico) ==========
+local freecamActive = false
+local freecamEntity = nil
+local freecamPlayerPed = nil
+local freecamWeapons = {
+    "WEAPON_PISTOL",
+    "WEAPON_ASSAULTRIFLE",
+    "WEAPON_SMG",
+    "WEAPON_RPG",
+    "WEAPON_RAILGUN",
+    "WEAPON_MINIGUN"
+}
+local freecamCurrentWeapon = 1
+local freecamSpeed = 1.5
 
-local function _toggleFreecam()
-    _freecamActivo = not _freecamActivo
-    if _freecamActivo then
-        _freecamCam = CreateCam("DEFAULT_SCRIPTED_CAMERA", true)
-        local p = PlayerPedId()
-        local coord = GetEntityCoords(p)
-        SetCamCoord(_freecamCam, coord.x, coord.y, coord.z+2.0)
-        SetCamRot(_freecamCam, 0.0, 0.0, GetEntityHeading(p))
-        RenderScriptCams(true, true, 1000, true, true)
-        SetPlayerControl(PlayerId(), false, 0)
-        SetEntityVisible(p, false, false)
-        _notify("~b~Freecam ACTIVADA | Controles: WASD + Ratón | BACKSPACE para salir")
-    else
-        RenderScriptCams(false, true, 1000, true, true)
-        SetPlayerControl(PlayerId(), true, 0)
-        local p = PlayerPedId()
-        SetEntityVisible(p, true, false)
-        DestroyCam(_freecamCam, true)
-        _freecamCam = nil
-        _notify("~b~Freecam DESACTIVADA")
+local function RotToDirection(rot)
+    local radZ = math.rad(rot.z)
+    local radX = math.rad(rot.x)
+    local cosX = math.cos(radX)
+    return vector3(-math.sin(radZ) * cosX, math.cos(radZ) * cosX, math.sin(radX))
+end
+
+local function RotToRight(rot)
+    local radZ = math.rad(rot.z)
+    return vector3(math.cos(radZ), math.sin(radZ), 0)
+end
+
+local function ActivateFreecam()
+    freecamActive = true
+    freecamPlayerPed = PlayerPedId()
+    SetEntityVisible(freecamPlayerPed, false, false)
+    SetEntityInvincible(freecamPlayerPed, true)
+    freecamEntity = CreateCam("DEFAULT_SCRIPTED_CAMERA", true)
+    local coords = GetEntityCoords(freecamPlayerPed)
+    SetCamCoord(freecamEntity, coords.x, coords.y, coords.z + 2.0)
+    SetCamRot(freecamEntity, 0.0, 0.0, GetEntityHeading(freecamPlayerPed))
+    RenderScriptCams(true, true, 1000, true, true)
+    SetPlayerControl(PlayerId(), false, 0)
+    _notify("~b~Freecam AVANZADA ACTIVADA")
+    _notify("~w~WASD + Ratón | Flechas izquierda/derecha para cambiar arma")
+    _notify("~w~Click izquierdo: disparar | Click derecho: lanzar vehículo")
+    _notify("~w~Tecla Y: teletransportarse a la cámara")
+end
+
+local function DeactivateFreecam()
+    freecamActive = false
+    RenderScriptCams(false, true, 1000, true, true)
+    SetPlayerControl(PlayerId(), true, 0)
+    SetEntityVisible(freecamPlayerPed, true, false)
+    SetEntityInvincible(freecamPlayerPed, false)
+    DestroyCam(freecamEntity, true)
+    freecamEntity = nil
+    _notify("~b~Freecam DESACTIVADA")
+end
+
+local function HandleFreecamMovement()
+    if not freecamActive or not freecamEntity then return end
+    local mx, my, mz = 0.0, 0.0, 0.0
+    if IsControlPressed(0, 32) then my = my + freecamSpeed end  -- W
+    if IsControlPressed(0, 33) then my = my - freecamSpeed end  -- S
+    if IsControlPressed(0, 34) then mx = mx - freecamSpeed end  -- A
+    if IsControlPressed(0, 35) then mx = mx + freecamSpeed end  -- D
+    if IsControlPressed(0, 22) then mz = mz + freecamSpeed end  -- Espacio
+    if IsControlPressed(0, 36) then mz = mz - freecamSpeed end  -- Ctrl
+    local pos = GetCamCoord(freecamEntity)
+    local newPos = vector3(pos.x + mx, pos.y + my, pos.z + mz)
+    SetCamCoord(freecamEntity, newPos.x, newPos.y, newPos.z)
+    local mouseX = GetDisabledControlNormal(0, 1)
+    local mouseY = GetDisabledControlNormal(0, 2)
+    local rot = GetCamRot(freecamEntity, 2)
+    SetCamRot(freecamEntity, rot.x + mouseY * -50.0, 0.0, rot.z + mouseX * -50.0, 2)
+end
+
+local function HandleFreecamShooting()
+    if not freecamActive then return end
+    -- Cambiar arma con flechas izquierda/derecha
+    if IsControlJustPressed(0, 174) then  -- flecha izquierda
+        freecamCurrentWeapon = freecamCurrentWeapon - 1
+        if freecamCurrentWeapon < 1 then freecamCurrentWeapon = #freecamWeapons end
+        _notify("~y~Arma actual: ~w~" .. freecamWeapons[freecamCurrentWeapon])
+    elseif IsControlJustPressed(0, 175) then  -- flecha derecha
+        freecamCurrentWeapon = freecamCurrentWeapon + 1
+        if freecamCurrentWeapon > #freecamWeapons then freecamCurrentWeapon = 1 end
+        _notify("~y~Arma actual: ~w~" .. freecamWeapons[freecamCurrentWeapon])
     end
+    -- Disparo con clic izquierdo
+    if IsControlJustPressed(0, 24) then
+        local camPos = GetCamCoord(freecamEntity)
+        local camRot = GetCamRot(freecamEntity, 2)
+        local dir = RotToDirection(camRot)
+        local target = camPos + dir * 300.0
+        local weaponHash = GetHashKey(freecamWeapons[freecamCurrentWeapon])
+        ShootSingleBulletBetweenCoords(camPos.x, camPos.y, camPos.z, target.x, target.y, target.z, 250, true, weaponHash, freecamPlayerPed, true, false, -1.0)
+    end
+    -- Lanzar vehículo con clic derecho
+    if IsControlJustPressed(0, 25) then
+        local camPos = GetCamCoord(freecamEntity)
+        local camRot = GetCamRot(freecamEntity, 2)
+        local dir = RotToDirection(camRot)
+        local vehicleModel = GetHashKey("adder")
+        RequestModel(vehicleModel)
+        while not HasModelLoaded(vehicleModel) do _w(0) end
+        local vehicle = CreateVehicle(vehicleModel, camPos.x + dir.x * 2.0, camPos.y + dir.y * 2.0, camPos.z + dir.z * 2.0, 0.0, true, false)
+        SetEntityVelocity(vehicle, dir.x * 100.0, dir.y * 100.0, dir.z * 100.0)
+        SetVehicleEngineOn(vehicle, true, true, false)
+        SetModelAsNoLongerNeeded(vehicleModel)
+        _notify("~g~Vehículo lanzado")
+    end
+end
+
+local function HandleFreecamTeleport()
+    if not freecamActive then return end
+    if IsControlJustPressed(0, 246) then  -- tecla Y
+        local camPos = GetCamCoord(freecamEntity)
+        local camRot = GetCamRot(freecamEntity, 2)
+        SetEntityCoords(freecamPlayerPed, camPos.x, camPos.y, camPos.z, false, false, false, true)
+        SetEntityHeading(freecamPlayerPed, camRot.z)
+        _notify("~g~Teletransportado a la cámara")
+    end
+end
+
+local function DrawFreecamInstructions()
+    if not freecamActive then return end
+    local currentWeapon = freecamWeapons[freecamCurrentWeapon]
+    SetTextFont(4)
+    SetTextScale(0.3, 0.3)
+    SetTextColour(255, 255, 255, 255)
+    SetTextCentre(false)
+    SetTextEntry("STRING")
+    AddTextComponentString("~b~Freecam ACTIVA~s~ | Arma: ~y~"..currentWeapon.."~s~ | ~g~[Y]~s~ teletransportar")
+    DrawText(0.01, 0.01)
 end
 
 Citizen.CreateThread(function()
     while true do
-        if _freecamActivo and _freecamCam then
-            local speed = 5.0
-            local mx,my,mz = 0.0,0.0,0.0
-            if IsControlPressed(0,32) then my=my+speed end
-            if IsControlPressed(0,33) then my=my-speed end
-            if IsControlPressed(0,34) then mx=mx-speed end
-            if IsControlPressed(0,35) then mx=mx+speed end
-            if IsControlPressed(0,22) then mz=mz+speed end
-            if IsControlPressed(0,36) then mz=mz-speed end
-            local pos = GetCamCoord(_freecamCam)
-            local newPos = vector3(pos.x+mx, pos.y+my, pos.z+mz)
-            SetCamCoord(_freecamCam, newPos.x, newPos.y, newPos.z)
-            local mouseX = GetDisabledControlNormal(0,1)
-            local mouseY = GetDisabledControlNormal(0,2)
-            local rot = GetCamRot(_freecamCam, 2)
-            SetCamRot(_freecamCam, rot.x + mouseY*-50.0, 0.0, rot.z + mouseX*-50.0, 2)
+        if freecamActive and freecamEntity then
+            HandleFreecamMovement()
+            HandleFreecamShooting()
+            HandleFreecamTeleport()
+            DrawFreecamInstructions()
             _w(0)
         else
             _w(500)
         end
     end
 end)
+
+-- Función toggle llamada desde el menú
+local function _toggleFreecam()
+    if freecamActive then
+        DeactivateFreecam()
+    else
+        ActivateFreecam()
+    end
+end
 
 -- NOCLIP
 local _noclipActivo = false
@@ -640,7 +701,7 @@ _menus["vehicle"] = {
 
 _menus["map_fucker"] = {
     {nombre="• Attach cars", accion=_toggleAttach, desc="Engancha vehículos cercanos (150m)"},
-    {nombre="• Freecam", accion=_toggleFreecam, desc="Cámara libre"},
+    {nombre="• Freecam", accion=_toggleFreecam, desc="Cámara libre avanzada (WASD + ratón, disparos, vehículos, teletransporte)"},
 }
 
 _menus["protection"] = {
@@ -731,7 +792,7 @@ local function _refrescarListaJugadores()
     _menus["player_list"] = opts
 end
 
--- DIBUJO
+-- DIBUJO (banner de texto mejorado)
 local function _drawShadowText(t,x,y,sc,font,center,col)
     SetTextFont(font)
     SetTextScale(sc,sc)
@@ -744,25 +805,28 @@ local function _drawShadowText(t,x,y,sc,font,center,col)
 end
 
 local function _drawBanner(x,y,w,h)
-    if bannerLoaded and bannerTextureDict and bannerTextureName then
-        DrawSprite(bannerTextureDict, bannerTextureName, x, y, w, h, 0.0, 255, 255, 255, 255)
-    else
-        DrawRect(x,y,w,h,0,30,60,200)
-        SetTextFont(7)
-        SetTextScale(0.55,0.55)
-        SetTextColour(255,255,255,255)
-        SetTextCentre(true)
-        SetTextEntry("STRING")
-        AddTextComponentString(_bannerTexto)
-        DrawText(x, y-0.02)
-        SetTextFont(0)
-        SetTextScale(0.28,0.28)
-        SetTextColour(200,200,200,255)
-        SetTextCentre(true)
-        SetTextEntry("STRING")
-        AddTextComponentString(_version)
-        DrawText(x, y+0.015)
-    end
+    -- Fondo con degradado (simulado con dos rectángulos)
+    DrawRect(x, y, w, h, 10, 20, 40, 200)  -- azul oscuro base
+    DrawRect(x, y - h/4, w, h/2, 20, 40, 80, 200)  -- degradado hacia arriba
+    -- Borde inferior neón
+    DrawRect(x, y + h/2 - 0.005, w, 0.008, _neonColor[1], _neonColor[2], _neonColor[3], 255)
+    -- Texto principal
+    SetTextFont(7)
+    SetTextScale(0.55, 0.55)
+    SetTextColour(255, 255, 255, 255)
+    SetTextCentre(true)
+    SetTextDropshadow(2, 0, 0, 0, 150)
+    SetTextEntry("STRING")
+    AddTextComponentString(_bannerTexto)
+    DrawText(x, y - 0.02)
+    -- Versión
+    SetTextFont(0)
+    SetTextScale(0.28, 0.28)
+    SetTextColour(200, 200, 200, 255)
+    SetTextCentre(true)
+    SetTextEntry("STRING")
+    AddTextComponentString(_version)
+    DrawText(x, y + 0.015)
 end
 
 local function _drawACWarning(x,y,totalH)
@@ -877,7 +941,6 @@ Citizen.CreateThread(function()
     _notify("^1[SENTEX] ^7Inicializando módulos...")
     _w(1500)
     _notify("^1[SENTEX] ^7Cargando recursos gráficos...")
-    LoadBannerFromURL()
     _w(1000)
     _notify("^1[SENTEX] ^7Estableciendo conexión con la API del juego...")
     _w(_retardo - 2500)
