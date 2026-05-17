@@ -419,7 +419,7 @@ local function _toggleAttach()
     end
 end
 
--- ========== FREECAM SIMPLE Y FUNCIONAL ==========
+-- ========== FREECAM CORREGIDA (FUNCIONAL) ==========
 local freecamActive = false
 local freecamCam = nil
 local freecamPed = nil
@@ -428,13 +428,17 @@ local function StartFreecam()
     if freecamActive then return end
     freecamActive = true
     freecamPed = PlayerPedId()
+    -- Ocultar y deshabilitar controles
     SetEntityVisible(freecamPed, false, false)
     SetEntityInvincible(freecamPed, true)
-    freecamCam = CreateCam("DEFAULT_SCRIPTED_CAMERA", true)
+    SetPlayerControl(PlayerId(), false, 0)
+    -- Crear cámara
     local coords = GetEntityCoords(freecamPed)
+    freecamCam = CreateCam("DEFAULT_SCRIPTED_CAMERA", true)
     SetCamCoord(freecamCam, coords.x, coords.y, coords.z + 2.0)
     SetCamRot(freecamCam, 0.0, 0.0, GetEntityHeading(freecamPed))
     RenderScriptCams(true, true, 1000, true, true)
+    SetCamActive(freecamCam, true)
     _notify("~b~Freecam ACTIVADA | Movimiento: WASD + Ratón | Tecla Y para teletransportar")
 end
 
@@ -442,10 +446,13 @@ local function StopFreecam()
     if not freecamActive then return end
     freecamActive = false
     RenderScriptCams(false, true, 1000, true, true)
+    SetPlayerControl(PlayerId(), true, 0)
     SetEntityVisible(freecamPed, true, false)
     SetEntityInvincible(freecamPed, false)
-    DestroyCam(freecamCam, true)
-    freecamCam = nil
+    if freecamCam and DoesCamExist(freecamCam) then
+        DestroyCam(freecamCam, true)
+        freecamCam = nil
+    end
     _notify("~b~Freecam DESACTIVADA")
 end
 
@@ -455,16 +462,16 @@ Citizen.CreateThread(function()
     while true do
         if freecamActive and freecamCam then
             local mx, my, mz = 0.0, 0.0, 0.0
-            if IsControlPressed(0, 32) then my = my + speed end  -- W
-            if IsControlPressed(0, 33) then my = my - speed end  -- S
-            if IsControlPressed(0, 34) then mx = mx - speed end  -- A
-            if IsControlPressed(0, 35) then mx = mx + speed end  -- D
-            if IsControlPressed(0, 22) then mz = mz + speed end  -- Espacio
-            if IsControlPressed(0, 36) then mz = mz - speed end  -- Ctrl
+            if IsDisabledControlPressed(0, 32) then my = my + speed end  -- W
+            if IsDisabledControlPressed(0, 33) then my = my - speed end  -- S
+            if IsDisabledControlPressed(0, 34) then mx = mx - speed end  -- A
+            if IsDisabledControlPressed(0, 35) then mx = mx + speed end  -- D
+            if IsDisabledControlPressed(0, 22) then mz = mz + speed end  -- Espacio
+            if IsDisabledControlPressed(0, 36) then mz = mz - speed end  -- Ctrl
             local pos = GetCamCoord(freecamCam)
             local newPos = vector3(pos.x + mx, pos.y + my, pos.z + mz)
             SetCamCoord(freecamCam, newPos.x, newPos.y, newPos.z)
-            -- Movimiento del ratón
+            -- Movimiento del ratón (usando controles deshabilitados)
             local mouseX = GetDisabledControlNormal(0, 1)
             local mouseY = GetDisabledControlNormal(0, 2)
             if mouseX ~= 0 or mouseY ~= 0 then
@@ -472,15 +479,15 @@ Citizen.CreateThread(function()
                 SetCamRot(freecamCam, rot.x + mouseY * -50.0, 0.0, rot.z + mouseX * -50.0, 2)
             end
             -- Teletransporte con Y
-            if IsControlJustPressed(0, 246) then
+            if IsDisabledControlJustPressed(0, 246) then
                 local camPos = GetCamCoord(freecamCam)
                 local camRot = GetCamRot(freecamCam, 2)
                 SetEntityCoords(freecamPed, camPos.x, camPos.y, camPos.z, false, false, false, true)
                 SetEntityHeading(freecamPed, camRot.z)
                 _notify("~g~Teletransportado a la cámara")
             end
-            -- Disparo de vehículo con clic izquierdo (opcional)
-            if IsControlJustPressed(0, 24) then
+            -- Disparo de vehículo con clic izquierdo
+            if IsDisabledControlJustPressed(0, 24) then
                 local camPos = GetCamCoord(freecamCam)
                 local camRot = GetCamRot(freecamCam, 2)
                 local dir = _rotToDir(camRot)
