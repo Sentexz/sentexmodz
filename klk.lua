@@ -377,7 +377,7 @@ local function _crearAccion(pid, tipo)
     end
 end
 
--- MAP FUCKER (Attach cars, la freecam se reemplaza)
+-- MAP FUCKER (solo attach cars, sin freecam)
 local _attachActivo = false
 local _vehsEnganchados = {}
 
@@ -419,15 +419,15 @@ local function _toggleAttach()
     end
 end
 
--- ========== NUEVA FREECAM ZPROMISE (extraída y adaptada) ==========
-local freecamActive = false
-local freecamHandle = nil
-local freecamTargetCoords = nil
-local freecamTargetEntity = nil
-local freecamCurrentFeatureIndex = 1
-local freecamPedsToSpawn = { "s_m_m_movalien_01", "u_m_y_zombie_01", "s_m_y_blackops_01", "csb_abigail", "a_c_coyote" }
-local freecamCurrentPedIndex = 1
-local freecamFeatures = {
+-- ========== FREECAM ZPROMISE (FUNCIONAL) ==========
+local zFreecamActive = false
+local zFreecamCam = nil
+local zTargetCoords = nil
+local zTargetEntity = nil
+local zCurrentFeatureIndex = 1
+local zPedsToSpawn = { "s_m_m_movalien_01", "u_m_y_zombie_01", "s_m_y_blackops_01", "csb_abigail", "a_c_coyote" }
+local zCurrentPedIndex = 1
+local zFeatures = {
     "Look-Around",
     "Spawn Ped",
     "Teleport",
@@ -439,8 +439,7 @@ local freecamFeatures = {
     "Mess With Vehicle"
 }
 
--- Helper: dibujar texto en pantalla
-local function freecamDrawText(content, x, y, options)
+local function zDrawText(content, x, y, options)
     SetTextFont(options.font or 4)
     SetTextScale(0.0, options.scale or 0.3)
     SetTextColour(options.color[1], options.color[2], options.color[3], options.color[4])
@@ -452,62 +451,58 @@ local function freecamDrawText(content, x, y, options)
     EndTextCommandDisplayText(x, y)
 end
 
--- Hilo de dibujo de la interfaz de la freecam
-local function freecamDrawThread()
-    while freecamActive do
+local function zDrawUI()
+    while zFreecamActive do
         Citizen.Wait(0)
-        -- Mira
-        freecamDrawText("•", 0.5, 0.485, {font = 4, scale = 0.5, color = {255,255,255,200}})
+        -- mira
+        zDrawText("•", 0.5, 0.485, {font = 4, scale = 0.5, color = {255,255,255,200}})
 
         local ui = { x = 0.5, y = 0.75, lineHeight = 0.03, maxVisible = 7, colors = { text = {245,245,245,120}, selected = {52,152,219,255} } }
-        local numFeatures = #freecamFeatures
+        local numFeatures = #zFeatures
         local startIdx, endIdx = 1, numFeatures
 
         if numFeatures > ui.maxVisible then
-            startIdx = math.max(1, freecamCurrentFeatureIndex - math.floor(ui.maxVisible / 2))
+            startIdx = math.max(1, zCurrentFeatureIndex - math.floor(ui.maxVisible / 2))
             endIdx = math.min(numFeatures, startIdx + ui.maxVisible - 1)
             if endIdx == numFeatures then
                 startIdx = numFeatures - ui.maxVisible + 1
             end
         end
 
-        freecamDrawText(("%d/%d"):format(freecamCurrentFeatureIndex, numFeatures), ui.x, ui.y - 0.035, {scale = 0.25, color = {255,255,255,120}})
+        zDrawText(("%d/%d"):format(zCurrentFeatureIndex, numFeatures), ui.x, ui.y - 0.035, {scale = 0.25, color = {255,255,255,120}})
 
         local displayCount = 0
         for i = startIdx, endIdx do
-            local featureName = freecamFeatures[i]
-            local isSelected = (i == freecamCurrentFeatureIndex)
+            local featureName = zFeatures[i]
+            local isSelected = (i == zCurrentFeatureIndex)
             local lineY = ui.y + (displayCount * ui.lineHeight)
             if isSelected then
-                freecamDrawText(("[ %s ]"):format(featureName), ui.x, lineY, {scale = 0.32, color = ui.colors.selected, shadow = true})
+                zDrawText(("[ %s ]"):format(featureName), ui.x, lineY, {scale = 0.32, color = ui.colors.selected, shadow = true})
             else
-                freecamDrawText(featureName, ui.x, lineY, {scale = 0.28, color = ui.colors.text})
+                zDrawText(featureName, ui.x, lineY, {scale = 0.28, color = ui.colors.text})
             end
             displayCount = displayCount + 1
         end
     end
 end
 
--- Hilo de lógica (cambiar función, acción al hacer clic)
-local function freecamLogicThread()
-    while freecamActive do
+local function zLogicThread()
+    while zFreecamActive do
         Citizen.Wait(0)
-        -- Cambiar función con flechas izquierda/derecha
-        if IsDisabledControlJustPressed(0, 241) then -- flecha izquierda
-            freecamCurrentFeatureIndex = (freecamCurrentFeatureIndex - 2 + #freecamFeatures) % #freecamFeatures + 1
-        elseif IsDisabledControlJustPressed(0, 242) then -- flecha derecha
-            freecamCurrentFeatureIndex = (freecamCurrentFeatureIndex % #freecamFeatures) + 1
+        if IsDisabledControlJustPressed(0, 241) then
+            zCurrentFeatureIndex = (zCurrentFeatureIndex - 2 + #zFeatures) % #zFeatures + 1
+        elseif IsDisabledControlJustPressed(0, 242) then
+            zCurrentFeatureIndex = (zCurrentFeatureIndex % #zFeatures) + 1
         end
 
-        -- Acción al hacer clic izquierdo
         if IsDisabledControlJustPressed(0, 24) then
-            local currentFeature = freecamFeatures[freecamCurrentFeatureIndex]
-            if currentFeature == "Teleport" and freecamTargetCoords then
+            local feature = zFeatures[zCurrentFeatureIndex]
+            if feature == "Teleport" and zTargetCoords then
                 local ped = PlayerPedId()
-                local found, z = GetGroundZFor_3dCoord(freecamTargetCoords.x, freecamTargetCoords.y, freecamTargetCoords.z + 1.0, false)
-                SetEntityCoords(ped, freecamTargetCoords.x, freecamTargetCoords.y, found and z + 1.0 or freecamTargetCoords.z, false, false, false, true)
-            elseif currentFeature == "Spawn Ped" and freecamTargetCoords then
-                local model = freecamPedsToSpawn[freecamCurrentPedIndex]
+                local found, z = GetGroundZFor_3dCoord(zTargetCoords.x, zTargetCoords.y, zTargetCoords.z + 1.0, false)
+                SetEntityCoords(ped, zTargetCoords.x, zTargetCoords.y, found and z + 1.0 or zTargetCoords.z, false, false, false, true)
+            elseif feature == "Spawn Ped" and zTargetCoords then
+                local model = zPedsToSpawn[zCurrentPedIndex]
                 Citizen.CreateThread(function()
                     local modelHash = GetHashKey(model)
                     RequestModel(modelHash)
@@ -517,28 +512,28 @@ local function freecamLogicThread()
                         timeout = timeout - 100
                     end
                     if HasModelLoaded(modelHash) then
-                        local found, z = GetGroundZFor_3dCoord(freecamTargetCoords.x, freecamTargetCoords.y, freecamTargetCoords.z, false)
-                        local spawnPos = vector3(freecamTargetCoords.x, freecamTargetCoords.y, found and z + 1.0 or freecamTargetCoords.z)
+                        local found, z = GetGroundZFor_3dCoord(zTargetCoords.x, zTargetCoords.y, zTargetCoords.z, false)
+                        local spawnPos = vector3(zTargetCoords.x, zTargetCoords.y, found and z + 1.0 or zTargetCoords.z)
                         local newPed = CreatePed(4, modelHash, spawnPos.x, spawnPos.y, spawnPos.z, 0.0, true, true)
                         SetModelAsNoLongerNeeded(modelHash)
                         TaskStandStill(newPed, -1)
-                        freecamCurrentPedIndex = (freecamCurrentPedIndex % #freecamPedsToSpawn) + 1
+                        zCurrentPedIndex = (zCurrentPedIndex % #zPedsToSpawn) + 1
                     end
                 end)
-            elseif currentFeature == "Delete Entity" and freecamTargetEntity and DoesEntityExist(freecamTargetEntity) then
-                SetEntityAsMissionEntity(freecamTargetEntity, true, true)
-                DeleteEntity(freecamTargetEntity)
-            elseif currentFeature == "Fling Entity" and freecamTargetEntity and (IsEntityAPed(freecamTargetEntity) or IsEntityAVehicle(freecamTargetEntity)) then
-                ApplyForceToEntity(freecamTargetEntity, 1, math.random(-50.0, 50.0), math.random(-50.0, 50.0), 50.0, 0.0, 0.0, 0.0, 0, true, true, true, false, true)
-            elseif currentFeature == "Flip Vehicle" and freecamTargetEntity and IsEntityAVehicle(freecamTargetEntity) then
-                SetVehicleOnGroundProperly(freecamTargetEntity)
-            elseif currentFeature == "Launch Vehicle" and freecamTargetEntity and IsEntityAVehicle(freecamTargetEntity) then
-                ApplyForceToEntity(freecamTargetEntity, 1, 0.0, 0.0, 100.0, 0.0, 0.0, 0.0, 0, true, true, true, false, true)
-            elseif currentFeature == "Teleport Vehicle" and freecamTargetEntity and IsEntityAVehicle(freecamTargetEntity) then
-                local currentCoords = GetEntityCoords(freecamTargetEntity)
-                local newCoords = currentCoords + GetEntityForwardVector(freecamTargetEntity) * 5.0 + vector3(0.0, 0.0, 50.0)
-                SetEntityCoords(freecamTargetEntity, newCoords.x, newCoords.y, newCoords.z, false, false, false, true)
-            elseif currentFeature == "Mess With Vehicle" and freecamTargetEntity and IsEntityAVehicle(freecamTargetEntity) then
+            elseif feature == "Delete Entity" and zTargetEntity and DoesEntityExist(zTargetEntity) then
+                SetEntityAsMissionEntity(zTargetEntity, true, true)
+                DeleteEntity(zTargetEntity)
+            elseif feature == "Fling Entity" and zTargetEntity and (IsEntityAPed(zTargetEntity) or IsEntityAVehicle(zTargetEntity)) then
+                ApplyForceToEntity(zTargetEntity, 1, math.random(-50.0, 50.0), math.random(-50.0, 50.0), 50.0, 0.0, 0.0, 0.0, 0, true, true, true, false, true)
+            elseif feature == "Flip Vehicle" and zTargetEntity and IsEntityAVehicle(zTargetEntity) then
+                SetVehicleOnGroundProperly(zTargetEntity)
+            elseif feature == "Launch Vehicle" and zTargetEntity and IsEntityAVehicle(zTargetEntity) then
+                ApplyForceToEntity(zTargetEntity, 1, 0.0, 0.0, 100.0, 0.0, 0.0, 0.0, 0, true, true, true, false, true)
+            elseif feature == "Teleport Vehicle" and zTargetEntity and IsEntityAVehicle(zTargetEntity) then
+                local currentCoords = GetEntityCoords(zTargetEntity)
+                local newCoords = currentCoords + GetEntityForwardVector(zTargetEntity) * 5.0 + vector3(0.0, 0.0, 50.0)
+                SetEntityCoords(zTargetEntity, newCoords.x, newCoords.y, newCoords.z, false, false, false, true)
+            elseif feature == "Mess With Vehicle" and zTargetEntity and IsEntityAVehicle(zTargetEntity) then
                 local actions = {
                     function(veh) SetVehicleTyreBurst(veh, math.random(0, 5), false, 1000.0) end,
                     function(veh) SetVehicleDoorOpen(veh, math.random(0, 5), false, false) end,
@@ -547,14 +542,13 @@ local function freecamLogicThread()
                     function(veh) StartVehicleHorn(veh, 1000, "HELDDOWN", false) end
                 }
                 local randomAction = actions[math.random(#actions)]
-                randomAction(freecamTargetEntity)
+                randomAction(zTargetEntity)
             end
         end
     end
 end
 
--- Hilo de movimiento de cámara
-local function freecamCameraThread()
+local function zCameraThread()
     local baseSpeed, boostSpeed, slowSpeed = 1.0, 9.0, 0.1
     local mouseSensitivity = 7.5
 
@@ -567,10 +561,10 @@ local function freecamCameraThread()
         return vector3(-math.sin(rZ) * math.cos(rX), math.cos(rZ) * math.cos(rX), math.sin(rX))
     end
 
-    while freecamActive do
+    while zFreecamActive do
         Citizen.Wait(0)
-        local camPos = GetCamCoord(freecamHandle)
-        local camRotRaw = GetCamRot(freecamHandle, 2)
+        local camPos = GetCamCoord(zFreecamCam)
+        local camRotRaw = GetCamRot(zFreecamCam, 2)
         local camRot = { x = camRotRaw.x, y = camRotRaw.y, z = camRotRaw.z }
         local direction = rotToDir(camRot)
         local right = vector3(direction.y, -direction.x, 0)
@@ -591,8 +585,8 @@ local function freecamCameraThread()
         camRot.x = clamp(camRot.x - mY, -89.0, 89.0)
         camRot.z = camRot.z - mX
 
-        SetCamCoord(freecamHandle, camPos.x, camPos.y, camPos.z)
-        SetCamRot(freecamHandle, camRot.x, camRot.y, camRot.z, 2)
+        SetCamCoord(zFreecamCam, camPos.x, camPos.y, camPos.z)
+        SetCamRot(zFreecamCam, camRot.x, camRot.y, camRot.z, 2)
         SetFocusPosAndVel(camPos.x, camPos.y, camPos.z, 0.0, 0.0, 0.0)
 
         local ray = StartShapeTestRay(camPos.x, camPos.y, camPos.z,
@@ -602,56 +596,53 @@ local function freecamCameraThread()
             -1, PlayerPedId(), 7)
         local _, hit, coords, _, entity = GetShapeTestResult(ray)
         if hit then
-            freecamTargetCoords, freecamTargetEntity = coords, entity
+            zTargetCoords, zTargetEntity = coords, entity
         else
-            freecamTargetCoords, freecamTargetEntity = nil, nil
+            zTargetCoords, zTargetEntity = nil, nil
         end
     end
 end
 
--- Función para activar freecam
-local function freecamStart()
-    if freecamActive then return end
-    freecamActive = true
+local function zStartFreecam()
+    if zFreecamActive then return end
+    zFreecamActive = true
     local startPos = GetGameplayCamCoord()
     local startRot = GetGameplayCamRot(2)
     local startFov = GetGameplayCamFov()
-    freecamHandle = CreateCamWithParams("DEFAULT_SCRIPTED_CAMERA", startPos.x, startPos.y, startPos.z, startRot.x, startRot.y, startRot.z, startFov, true, 2)
-    if not DoesCamExist(freecamHandle) then
-        freecamActive = false
+    zFreecamCam = CreateCamWithParams("DEFAULT_SCRIPTED_CAMERA", startPos.x, startPos.y, startPos.z, startRot.x, startRot.y, startRot.z, startFov, true, 2)
+    if not DoesCamExist(zFreecamCam) then
+        zFreecamActive = false
         return
     end
     RenderScriptCams(true, false, 0, true, true)
-    SetCamActive(freecamHandle, true)
-    Citizen.CreateThread(freecamDrawThread)
-    Citizen.CreateThread(freecamLogicThread)
-    Citizen.CreateThread(freecamCameraThread)
+    SetCamActive(zFreecamCam, true)
+    Citizen.CreateThread(zDrawUI)
+    Citizen.CreateThread(zLogicThread)
+    Citizen.CreateThread(zCameraThread)
+    _notify("~b~Freecam Zpromise ACTIVADA")
+    _notify("~w~Flechas ← → para cambiar función | Click izquierdo para ejecutar")
 end
 
--- Función para desactivar freecam
-local function freecamStop()
-    if not freecamActive then return end
-    freecamActive = false
-    if freecamHandle and DoesCamExist(freecamHandle) then
-        SetCamActive(freecamHandle, false)
+local function zStopFreecam()
+    if not zFreecamActive then return end
+    zFreecamActive = false
+    if zFreecamCam and DoesCamExist(zFreecamCam) then
+        SetCamActive(zFreecamCam, false)
         RenderScriptCams(false, false, 0, true, true)
-        DestroyCam(freecamHandle, false)
+        DestroyCam(zFreecamCam, false)
     end
     Citizen.Wait(10)
     SetFocusEntity(PlayerPedId())
     ClearFocus()
-    freecamHandle = nil
+    zFreecamCam = nil
+    _notify("~b~Freecam DESACTIVADA")
 end
 
--- Toggle llamada desde el menú
 local function _toggleFreecam()
-    if freecamActive then
-        freecamStop()
-        _notify("~b~Freecam DESACTIVADA")
+    if zFreecamActive then
+        zStopFreecam()
     else
-        freecamStart()
-        _notify("~b~Freecam ACTIVADA (Zpromise style)")
-        _notify("~w~Flechas ← → para cambiar función | Click izquierdo para ejecutar")
+        zStartFreecam()
     end
 end
 
@@ -769,6 +760,7 @@ _menus["self"] = {
             _notify("~r~Noclip DESACTIVADO")
         end
     end, desc="Atraviesa paredes. Controles: WASD, Shift (boost), Espacio (subir), Ctrl (bajar)"},
+    {nombre="• Freecam (Zpromise)", accion=_toggleFreecam, desc="Cámara libre estilo Zpromise (menú flotante, teletransporte, spawn ped, etc.)"},
 }
 
 _menus["vehicle"] = {
@@ -780,7 +772,6 @@ _menus["vehicle"] = {
 
 _menus["map_fucker"] = {
     {nombre="• Attach cars", accion=_toggleAttach, desc="Engancha vehículos cercanos (150m)"},
-    {nombre="• Freecam", accion=_toggleFreecam, desc="Cámara libre estilo Zpromise (menú flotante, teletransporte, spawn ped, etc.)"},
 }
 
 _menus["protection"] = {
