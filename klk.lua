@@ -413,7 +413,7 @@ local function _detachAllVehicles()
     _notify("~r~Todos los vehículos desenganchados")
 end
 
--- ========== PROPS GIGANTES ==========
+-- ========== PROPS GIGANTES (CORREGIDO) ==========
 local _spawnedGiantProps = {}
 
 local function _spawnGiantBoat()
@@ -447,7 +447,8 @@ local function _spawnGiantScreen()
     local _, hit, hitPos = GetShapeTestResult(handle)
     local groundZ = hit and hitPos.z or pos.z
     local spawnZ = groundZ + 2.0
-    local model = "prop_big_cin_screen"
+    -- Modelo correcto de pantalla gigante
+    local model = "prop_cinema_screen_01"
     RequestModel(model)
     while not HasModelLoaded(model) do _w(10) end
     local obj = CreateObject(GetHashKey(model), pos.x, pos.y, spawnZ, true, true, false)
@@ -459,7 +460,7 @@ local function _spawnGiantScreen()
         table.insert(_spawnedGiantProps, obj)
         _notify("~g~Pantalla gigante spawneada")
     else
-        _notify("~r~Error al crear la pantalla")
+        _notify("~r~Error al crear la pantalla (modelo prop_cinema_screen_01)")
     end
     SetModelAsNoLongerNeeded(model)
 end
@@ -524,7 +525,7 @@ local function _removeForest()
     _notify("~r~Bosque eliminado")
 end
 
--- ========== OPCIONES MOLESTAS (SEGURAS) ==========
+-- ========== OPCIONES MOLESTAS (CORREGIDAS) ==========
 local _rainOfChairs = false
 local _chairObjects = {}
 
@@ -564,9 +565,10 @@ local function _startChairRain()
     end)
 end
 
--- SPAWN DE VEHÍCULOS SEGURO (solo 5 coches con delay)
+-- SPAWN DE VEHÍCULOS SEGURO (CORREGIDO: ahora se posicionan en el suelo)
 local function _safeMassVehicleSpawn()
-    local pos = GetEntityCoords(PlayerPedId())
+    local ped = PlayerPedId()
+    local pos = GetEntityCoords(ped)
     local models = {"adder","zentorno","t20","osiris","turismor","nero","reaper","x80"}
     _notify("~y~Generando 5 vehículos alrededor...")
     for i=1,5 do
@@ -577,11 +579,16 @@ local function _safeMassVehicleSpawn()
         local rad = _r(10,25)
         local x = pos.x + math.cos(angle)*rad
         local y = pos.y + math.sin(angle)*rad
-        local veh = CreateVehicle(model, x, y, pos.z, _r(0,360), true, false)
+        -- Obtener altura del suelo
+        local groundHandle = StartShapeTestRay(x, y, pos.z+100.0, x, y, pos.z-100.0, -1, ped, 0)
+        local _, hit, hitPos = GetShapeTestResult(groundHandle)
+        local z = hit and hitPos.z or pos.z
+        local veh = CreateVehicle(model, x, y, z+0.5, _r(0,360), true, false)
         if veh~=0 then
             NetworkRegisterEntityAsNetworked(veh)
             SetEntityAsMissionEntity(veh, true, true)
             SetVehicleOnGroundProperly(veh)
+            SetVehicleEngineOn(veh, true, true, false)
         end
         SetModelAsNoLongerNeeded(model)
         _w(250)
@@ -589,6 +596,7 @@ local function _safeMassVehicleSpawn()
     _notify("~g~5 vehículos spawneados (modo seguro)")
 end
 
+-- HUMO GLOBAL (CORREGIDO: explosiones de humo visibles)
 local function _globalSmoke()
     local players = _listaJugadores()
     _notify("~y~Generando humo en todos los jugadores...")
@@ -596,26 +604,29 @@ local function _globalSmoke()
         local ped = GetPlayerPed(pid)
         if ped and ped~=0 then
             local coords = GetEntityCoords(ped)
-            UseParticleFxAssetNextCall("core")
-            local particle = StartParticleFxLoopedAtCoord("exp_gas_leak", coords.x, coords.y, coords.z+0.5, 0.0, 0.0, 0.0, 1.0, false, false, false, false)
-            Citizen.SetTimeout(8000, function()
-                if particle then StopParticleFxLooped(particle, true) end
-            end)
+            -- Explosión tipo granada de humo (tipo 35) - visible y persistente
+            AddExplosion(coords.x, coords.y, coords.z+1.0, 35, 1.0, true, false, 0.0, false)
         end
     end
     _notify("~g~Humo generado")
 end
 
+-- TODOS A BAILAR (CORREGIDO: animación real)
 local function _everyoneDance()
     local players = _listaJugadores()
     _notify("~y~¡Todos a bailar!")
+    local dict = "anim@amb@nightclub@dancers@crowddance_fwd"
+    local anim = "fwd_dance_loop"
+    RequestAnimDict(dict)
+    while not HasAnimDictLoaded(dict) do _w(10) end
     for _, pid in ipairs(players) do
         local ped = GetPlayerPed(pid)
         if ped and ped~=0 then
             ClearPedTasks(ped)
-            TaskStartScenarioInPlace(ped, "WORLD_HUMAN_DANCE_STYLE", 0, true)
+            TaskPlayAnim(ped, dict, anim, 8.0, -8.0, -1, 1, 0, false, false, false)
         end
     end
+    SetModelAsNoLongerNeeded(dict)
 end
 
 -- ========== NOCLIP CORREGIDO (con reposicionamiento al suelo) ==========
@@ -632,7 +643,6 @@ local function _camVectors()
     return vector3(-sinY*cosP, cosY*cosP, sinP), vector3(-cosY, -sinY, 0), vector3(0,0,1)
 end
 
--- Función para reposicionar al jugador sobre el suelo (evita caídas)
 local function _fixPlayerPosition()
     local ped = PlayerPedId()
     local coords = GetEntityCoords(ped)
@@ -652,7 +662,6 @@ local function _disableNoclip()
     SetEntityCollision(ent, true, true)
     SetEntityInvincible(ped, false)
     FreezeEntityPosition(ent, false)
-    -- Reposicionar al jugador sobre el suelo antes de restaurar la gravedad
     _fixPlayerPosition()
     _noclipActivo = false
     _notify("~r~Noclip DESACTIVADO (posición corregida)")
@@ -690,7 +699,7 @@ Citizen.CreateThread(function()
     end
 end)
 
--- ========== FREECAM (CORREGIDO) ==========
+-- ========== FREECAM TOTALMENTE REESCRITA (FUNCIONAL) ==========
 local freecamActive = false
 local freecamCam = nil
 local freecamStartPos = nil
@@ -707,12 +716,12 @@ local function StartFreecam()
     FreezeEntityPosition(ped, true)
 
     freecamCam = CreateCam("DEFAULT_SCRIPTED_CAMERA", true)
-    SetCamCoord(freecamCam, freecamStartPos.x, freecamStartPos.y, freecamStartPos.z+0.5)
+    SetCamCoord(freecamCam, freecamStartPos.x, freecamStartPos.y, freecamStartPos.z + 0.5)
     SetCamRot(freecamCam, 0.0, 0.0, GetGameplayCamRot(2).z, 2)
     RenderScriptCams(true, true, 1000, true, true)
 
     freecamActive = true
-    _notify("~b~Freecam ACTIVADA | WASD + Ratón | Shift veloz | PAGEDOWN salir")
+    _notify("~b~Freecam ACTIVADA | WASD + Ratón | Shift veloz | Espacio/Ctrl altura | PAGEDOWN salir")
 end
 
 local function StopFreecam()
@@ -732,36 +741,54 @@ local function StopFreecam()
     _notify("~b~Freecam DESACTIVADA")
 end
 
+-- Control de freecam con movimiento fluido
 Citizen.CreateThread(function()
     while true do
         if freecamActive and freecamCam then
-            local speed = IsControlPressed(0, 21) and 15.0 or 5.0
+            -- Velocidad base y boost con Shift
+            local speed = 5.0
+            if IsControlPressed(0, 21) then speed = 15.0 end
+
+            -- Obtener vectores de la cámara actual
             local rot = GetCamRot(freecamCam, 2)
             local pitch = math.rad(rot.x)
             local yaw = math.rad(rot.z)
-            local fwd = vector3(-math.sin(yaw)*math.cos(pitch), math.cos(yaw)*math.cos(pitch), math.sin(pitch))
-            local right = vector3(-math.cos(yaw), -math.sin(yaw), 0)
-            local up = vector3(0,0,1)
+            local cosP = math.cos(pitch)
+            local sinP = math.sin(pitch)
+            local cosY = math.cos(yaw)
+            local sinY = math.sin(yaw)
+
+            -- Direcciones
+            local forward = vector3(-sinY * cosP, cosY * cosP, sinP)
+            local right = vector3(-cosY, -sinY, 0.0)
+            local up = vector3(0.0, 0.0, 1.0)
+
             local move = vector3(0,0,0)
-            if IsControlPressed(0, 32) then move = move + fwd end
-            if IsControlPressed(0, 33) then move = move - fwd end
-            if IsControlPressed(0, 34) then move = move + right end
-            if IsControlPressed(0, 35) then move = move - right end
-            if IsControlPressed(0, 22) then move = move + up end
-            if IsControlPressed(0, 36) then move = move - up end
-            if move.x~=0 or move.y~=0 or move.z~=0 then
-                local len = math.sqrt(move.x^2+move.y^2+move.z^2)
-                if len>0 then move = move/len end
-                SetCamCoord(freecamCam, GetCamCoord(freecamCam) + move*speed)
+            if IsControlPressed(0, 32) then move = move + forward end  -- W
+            if IsControlPressed(0, 33) then move = move - forward end  -- S
+            if IsControlPressed(0, 34) then move = move + right end    -- A
+            if IsControlPressed(0, 35) then move = move - right end    -- D
+            if IsControlPressed(0, 22) then move = move + up end       -- Espacio (subir)
+            if IsControlPressed(0, 36) then move = move - up end       -- Ctrl (bajar)
+
+            if move.x ~= 0 or move.y ~= 0 or move.z ~= 0 then
+                local len = math.sqrt(move.x^2 + move.y^2 + move.z^2)
+                if len > 0 then move = move / len end
+                local newPos = GetCamCoord(freecamCam) + move * speed
+                SetCamCoord(freecamCam, newPos.x, newPos.y, newPos.z)
             end
+
+            -- Rotación con el ratón (sensible)
             local mouseX = GetDisabledControlNormal(0, 1)
             local mouseY = GetDisabledControlNormal(0, 2)
-            if math.abs(mouseX)>0.01 or math.abs(mouseY)>0.01 then
-                local newPitch = rot.x - mouseY*5.0
-                if newPitch>89 then newPitch=89 end
-                if newPitch<-89 then newPitch=-89 end
-                SetCamRot(freecamCam, newPitch, 0.0, rot.z - mouseX*5.0, 2)
+            if math.abs(mouseX) > 0.01 or math.abs(mouseY) > 0.01 then
+                local newPitch = rot.x - mouseY * 5.0
+                if newPitch > 89.0 then newPitch = 89.0 end
+                if newPitch < -89.0 then newPitch = -89.0 end
+                local newYaw = rot.z - mouseX * 5.0
+                SetCamRot(freecamCam, newPitch, 0.0, newYaw, 2)
             end
+
             _w(0)
         else
             _w(100)
@@ -769,6 +796,7 @@ Citizen.CreateThread(function()
     end
 end)
 
+-- Bloquear controles del jugador mientras freecam está activa
 Citizen.CreateThread(function()
     while true do
         if freecamActive then
