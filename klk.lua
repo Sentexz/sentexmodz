@@ -425,22 +425,20 @@ local function _detachAllVehicles()
     _notify("~r~Todos los vehículos desenganchados")
 end
 
--- ========== NORIA ESTÁTICA (REESCRITA COMPLETAMENTE) ==========
-local _spawnedFerrisWheels = {}  -- almacena las norias creadas
+-- ========== NORIA ESTÁTICA (MODELO CORRECTO) ==========
+local _spawnedFerrisWheels = {}
 
 local function _spawnStaticFerrisWheel()
     local ped = PlayerPedId()
     local pos = GetEntityCoords(ped)
-    -- Elevamos la noria 5 metros sobre el suelo para que flote
-    local groundZ = pos.z
-    -- Opcional: obtener altura del suelo real
+    -- Obtener altura del suelo
     local handle = StartShapeTestRay(pos.x, pos.y, pos.z + 100.0, pos.x, pos.y, pos.z - 100.0, -1, ped, 0)
     local _, hit, hitPos, _, _ = GetShapeTestResult(handle)
-    if hit then groundZ = hitPos.z end
-    local spawnZ = groundZ + 5.0  -- flota a 5m del suelo
-    local spawnPos = vector3(pos.x, pos.y, spawnZ)
+    local groundZ = hit and hitPos.z or pos.z
+    local spawnZ = groundZ + 5.0  -- flota a 5m
 
-    local model = "prop_ferris_wheel_01a"
+    -- Modelo correcto: p_ferris_wheel_s (estático, funciona sin IPL)
+    local model = "p_ferris_wheel_s"
     RequestModel(model)
     local timeout = 0
     while not HasModelLoaded(model) and timeout < 100 do
@@ -448,31 +446,27 @@ local function _spawnStaticFerrisWheel()
         timeout = timeout + 1
     end
     if not HasModelLoaded(model) then
-        _notify("~r~No se pudo cargar el modelo de la noria")
+        _notify("~r~No se pudo cargar el modelo de la noria (p_ferris_wheel_s)")
         return
     end
 
-    -- Crear objeto
-    local ferris = CreateObject(model, spawnPos.x, spawnPos.y, spawnPos.z, true, true, false)
+    local ferris = CreateObject(GetHashKey(model), spawnPos.x, spawnPos.y, spawnPos.z, true, true, false)
     if not ferris or ferris == 0 then
         _notify("~r~Error al crear la noria")
         SetModelAsNoLongerNeeded(model)
         return
     end
 
-    -- Congelar para que quede estática
     FreezeEntityPosition(ferris, true)
 
-    -- Hacer visible para todos los jugadores (networking seguro)
+    -- Hacer visible para todos
     NetworkRegisterEntityAsNetworked(ferris)
     local netId = NetworkGetNetworkIdFromEntity(ferris)
     SetNetworkIdCanMigrate(netId, true)
     SetNetworkIdExistsOnAllMachines(netId, true)
     SetEntityAsMissionEntity(ferris, true, true)
 
-    -- Guardar referencia para posible eliminación posterior
     table.insert(_spawnedFerrisWheels, ferris)
-
     SetModelAsNoLongerNeeded(model)
     _notify("~g~Noria estática spawneada (visible para todos)")
 end
@@ -485,70 +479,136 @@ local function _removeAllFerrisWheels()
         end
     end
     _spawnedFerrisWheels = {}
-    _notify("~r~Todas las norias han sido eliminadas")
+    _notify("~r~Todas las norias eliminadas")
 end
 
--- ========== FREECAM ==========
+-- ========== FREECAM (REESCRITO: NADA DE NOCLIP, CÁMARA INDEPENDIENTE) ==========
 local freecamActive = false
+local freecamCam = nil
 local freecamStartPos = nil
 local freecamStartHeading = nil
-local freecamWasNoclip = false
-local freecamCam = nil
 
 local function StartFreecam()
     if freecamActive then return end
-    freecamActive = true
     local ped = PlayerPedId()
     freecamStartPos = GetEntityCoords(ped)
     freecamStartHeading = GetEntityHeading(ped)
-    freecamWasNoclip = _noclipActivo
-    if not _noclipActivo then
-        _noclipActivo = true
-        _notify("~b~Noclip activado para freecam")
-    end
+
+    -- Hacer jugador invisible e invencible, pero quieto
     SetEntityVisible(ped, false, false)
     SetEntityInvincible(ped, true)
-    -- Crear cámara freecam
+    FreezeEntityPosition(ped, true)  -- ¡Importante! El jugador no se mueve
+
+    -- Crear cámara en la posición del jugador
     freecamCam = CreateCam("DEFAULT_SCRIPTED_CAMERA", true)
-    local coords = GetEntityCoords(ped)
-    local rot = GetGameplayCamRot(2)
-    SetCamCoord(freecamCam, coords.x, coords.y, coords.z)
-    SetCamRot(freecamCam, rot.x, rot.y, rot.z, 2)
+    local camPos = freecamStartPos
+    local camRot = GetGameplayCamRot(2)
+    SetCamCoord(freecamCam, camPos.x, camPos.y, camPos.z + 0.5) -- un poco más alta
+    SetCamRot(freecamCam, camRot.x, camRot.y, camRot.z, 2)
     RenderScriptCams(true, true, 1000, true, true)
-    _notify("~b~Freecam ACTIVADA | Muévete con Noclip (WASD + Ratón) | PAGEDOWN para salir")
+
+    freecamActive = true
+    _notify("~b~Freecam ACTIVADA | Usa WASD para mover la cámara, ratón para mirar | PAGEDOWN para salir")
 end
 
 local function StopFreecam()
     if not freecamActive then return end
-    freecamActive = false
     local ped = PlayerPedId()
-    if not freecamWasNoclip then
-        _noclipActivo = false
-        local veh = GetVehiclePedIsIn(ped, false)
-        local ent = (veh~=0 and veh) or ped
-        SetEntityCollision(ent, true, true)
-        SetEntityInvincible(ped, false)
-        FreezeEntityPosition(ent, false)
-        SetEntityVelocity(ent, 0.0, 0.0, 0.0)
-    end
-    DoScreenFadeOut(500)
-    _w(500)
-    SetEntityCoords(ped, freecamStartPos.x, freecamStartPos.y, freecamStartPos.z, false, false, false, true)
-    SetEntityHeading(ped, freecamStartHeading)
-    SetEntityVisible(ped, true, false)
-    SetEntityInvincible(ped, false)
-    DoScreenFadeIn(500)
+
+    -- Detener renderizado de cámara
     RenderScriptCams(false, true, 1000, true, true)
     if freecamCam then DestroyCam(freecamCam, true) end
     freecamCam = nil
-    _notify("~b~Freecam DESACTIVADA | Regresaste a tu posición original")
+
+    -- Restaurar jugador (sin teletransporte brusco, solo lo haces visible y descongelas)
+    SetEntityVisible(ped, true, false)
+    SetEntityInvincible(ped, false)
+    FreezeEntityPosition(ped, false)
+
+    -- Asegurar que el jugador sigue exactamente donde estaba (sin cambios)
+    SetEntityCoords(ped, freecamStartPos.x, freecamStartPos.y, freecamStartPos.z, false, false, false, false)
+    SetEntityHeading(ped, freecamStartHeading)
+
+    freecamActive = false
+    _notify("~b~Freecam DESACTIVADA | El jugador permaneció en su lugar")
 end
 
-local function _toggleFreecam()
-    if freecamActive then StopFreecam() else StartFreecam() end
-end
+-- Control de la cámara en freecam (movimiento WASD, rotación con ratón)
+Citizen.CreateThread(function()
+    while true do
+        if freecamActive and freecamCam then
+            -- Velocidad de movimiento
+            local speed = 5.0
+            if IsControlPressed(0, 21) then speed = 15.0 end -- Shift para acelerar
 
--- ========== NOCLIP (FUNCIONAL) ==========
+            -- Obtener dirección actual de la cámara
+            local rot = GetCamRot(freecamCam, 2)
+            local pitch = math.rad(rot.x)
+            local yaw = math.rad(rot.z)
+            local fwdX = -math.sin(yaw) * math.cos(pitch)
+            local fwdY = math.cos(yaw) * math.cos(pitch)
+            local fwdZ = math.sin(pitch)
+            local rightX = -math.cos(yaw)
+            local rightY = -math.sin(yaw)
+            local upZ = 1.0
+
+            local move = vector3(0,0,0)
+            if IsControlPressed(0, 32) then move = move + vector3(fwdX, fwdY, fwdZ) end -- W
+            if IsControlPressed(0, 33) then move = move - vector3(fwdX, fwdY, fwdZ) end -- S
+            if IsControlPressed(0, 34) then move = move + vector3(rightX, rightY, 0) end -- A
+            if IsControlPressed(0, 35) then move = move - vector3(rightX, rightY, 0) end -- D
+            if IsControlPressed(0, 22) then move = move + vector3(0,0,1) end -- Espacio (subir)
+            if IsControlPressed(0, 36) then move = move - vector3(0,0,1) end -- Ctrl (bajar)
+
+            if move.x ~= 0 or move.y ~= 0 or move.z ~= 0 then
+                local len = math.sqrt(move.x^2 + move.y^2 + move.z^2)
+                if len > 0 then move = move / len end
+                local newCamPos = GetCamCoord(freecamCam) + move * speed
+                SetCamCoord(freecamCam, newCamPos.x, newCamPos.y, newCamPos.z)
+            end
+
+            -- Rotación con ratón
+            local mouseX = GetDisabledControlNormal(0, 1) -- eje X
+            local mouseY = GetDisabledControlNormal(0, 2) -- eje Y
+            if math.abs(mouseX) > 0.01 or math.abs(mouseY) > 0.01 then
+                local newRot = vector3(rot.x - mouseY * 5.0, 0.0, rot.z - mouseX * 5.0)
+                if newRot.x > 89.0 then newRot.x = 89.0 end
+                if newRot.x < -89.0 then newRot.x = -89.0 end
+                SetCamRot(freecamCam, newRot.x, newRot.y, newRot.z, 2)
+            end
+
+            _w(0)
+        else
+            _w(100)
+        end
+    end
+end)
+
+-- Bloquear controles del jugador mientras freecam está activa (evita que se mueva)
+Citizen.CreateThread(function()
+    while true do
+        if freecamActive then
+            DisableControlAction(0, 32, true) -- W
+            DisableControlAction(0, 33, true) -- S
+            DisableControlAction(0, 34, true) -- A
+            DisableControlAction(0, 35, true) -- D
+            DisableControlAction(0, 22, true) -- Espacio
+            DisableControlAction(0, 36, true) -- Ctrl
+            DisableControlAction(0, 44, true) -- Q
+            DisableControlAction(0, 45, true) -- R
+            DisableControlAction(0, 23, true) -- MAYUS
+            DisableControlAction(0, 24, true) -- ALT
+            DisableControlAction(0, 25, true) -- ENTER
+            DisableControlAction(0, 21, true) -- Shift
+            -- También desactivar salto, correr, etc.
+            _w(0)
+        else
+            _w(500)
+        end
+    end
+end)
+
+-- ========== NOCLIP (INDEPENDIENTE) ==========
 local _noclipActivo = false
 local _noclipVel = 5.0
 local _boostMult = 3.0
@@ -570,7 +630,7 @@ end
 
 Citizen.CreateThread(function()
     while true do
-        if _noclipActivo then
+        if _noclipActivo and not freecamActive then
             local p = PlayerPedId()
             local veh = GetVehiclePedIsIn(p, false)
             local ent = (veh~=0 and veh) or p
@@ -595,13 +655,6 @@ Citizen.CreateThread(function()
                 delta = delta * speed
                 local newCoord = GetEntityCoords(ent) + delta
                 SetEntityCoords(ent, newCoord.x, newCoord.y, newCoord.z, false, false, false, false)
-            end
-            -- Actualizar cámara freecam si está activa
-            if freecamActive and freecamCam then
-                local camPos = GetEntityCoords(p)
-                local camRot = GetGameplayCamRot(2)
-                SetCamCoord(freecamCam, camPos.x, camPos.y, camPos.z)
-                SetCamRot(freecamCam, camRot.x, camRot.y, camRot.z, 2)
             end
             _w(0)
         else
@@ -656,6 +709,10 @@ _menus["self"] = {
     {nombre="• Revivir ESX", accion=_revivirESX, desc="Resucita en servidores ESX"},
     {nombre="• Revivir QB", accion=_revivirQB, desc="Resucita en servidores QB/QC"},
     {nombre="• Noclip", accion=function()
+        if freecamActive then
+            _notify("~r~No puedes usar noclip mientras estás en freecam. Sal de freecam primero.")
+            return
+        end
         _noclipActivo = not _noclipActivo
         if _noclipActivo then _notify("~b~Noclip ACTIVADO")
         else
@@ -666,9 +723,29 @@ _menus["self"] = {
             SetEntityInvincible(p, false)
             _notify("~r~Noclip DESACTIVADO")
         end
-    end, desc="Atraviesa paredes. Controles: WASD, Shift (boost), Espacio (subir), Ctrl (bajar)"},
-    {nombre="• Freecam", accion=_toggleFreecam, desc="Cámara libre (activa noclip automáticamente). Regresa a tu posición al salir."},
+    end, desc="Atraviesa paredes (no disponible en freecam). Controles: WASD, Shift (boost), Espacio (subir), Ctrl (bajar)"},
+    {nombre="• Freecam", accion=_toggleFreecam, desc="Cámara libre (el jugador se queda quieto e invisible). El noclip se desactiva automáticamente."},
 }
+
+local function _toggleFreecam()
+    if freecamActive then
+        StopFreecam()
+        -- Al salir de freecam, si noclip estaba activo antes? No, lo dejamos como estaba (desactivado)
+        -- Pero aseguramos que noclip no se reactive mágicamente
+    else
+        -- Al activar freecam, desactivar noclip si estaba activo
+        if _noclipActivo then
+            _noclipActivo = false
+            local p=PlayerPedId()
+            local v=GetVehiclePedIsIn(p,false)
+            local e=(v~=0 and v) or p
+            SetEntityCollision(e, true, true)
+            SetEntityInvincible(p, false)
+            _notify("~y~Noclip desactivado automáticamente al entrar en freecam")
+        end
+        StartFreecam()
+    end
+end
 
 _menus["vehicle"] = {
     {nombre="• Spawn vehicle", accion=_spawnVeh, desc="Escribe el modelo y spawnea el coche"},
@@ -706,9 +783,8 @@ _menus["vehicle"] = {
     {nombre="• Soltar todos", accion=_detachAllVehicles, desc="Desengancha todos los enganchados"},
 }
 
--- MAP FUCKER REESCRITO
 _menus["map_fucker"] = {
-    {nombre="• Spawn Noria estática", accion=_spawnStaticFerrisWheel, desc="Crea una noria flotante en tu posición, visible para todos"},
+    {nombre="• Spawn Noria estática", accion=_spawnStaticFerrisWheel, desc="Crea una noria flotante (p_ferris_wheel_s) en tu posición, visible para todos"},
     {nombre="• Eliminar todas las norias", accion=_removeAllFerrisWheels, desc="Borra todas las norias que hayas spawneado"},
 }
 
@@ -813,7 +889,7 @@ local function _refrescarListaJugadores()
     _menus["player_list"] = opts
 end
 
--- DIBUJO
+-- DIBUJO (igual que antes)
 local function _drawShadowText(t,x,y,sc,font,center,col)
     SetTextFont(font)
     SetTextScale(sc,sc)
