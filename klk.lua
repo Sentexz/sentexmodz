@@ -425,20 +425,19 @@ local function _detachAllVehicles()
     _notify("~r~Todos los vehículos desenganchados")
 end
 
--- ========== NORIA ESTÁTICA (MODELO CORRECTO) ==========
-local _spawnedFerrisWheels = {}
+-- ========== PROPS GIGANTES (SUBMARINO) ==========
+local _spawnedGiantProps = {}
 
-local function _spawnStaticFerrisWheel()
+local function _spawnGiantSub()
     local ped = PlayerPedId()
     local pos = GetEntityCoords(ped)
     -- Obtener altura del suelo
     local handle = StartShapeTestRay(pos.x, pos.y, pos.z + 100.0, pos.x, pos.y, pos.z - 100.0, -1, ped, 0)
     local _, hit, hitPos, _, _ = GetShapeTestResult(handle)
     local groundZ = hit and hitPos.z or pos.z
-    local spawnZ = groundZ + 5.0  -- flota a 5m
+    local spawnZ = groundZ + 2.0  -- a ras de suelo
 
-    -- Modelo correcto: p_ferris_wheel_s (estático, funciona sin IPL)
-    local model = "p_ferris_wheel_s"
+    local model = "prop_cs_sub_float"  -- submarino gigante
     RequestModel(model)
     local timeout = 0
     while not HasModelLoaded(model) and timeout < 100 do
@@ -446,43 +445,153 @@ local function _spawnStaticFerrisWheel()
         timeout = timeout + 1
     end
     if not HasModelLoaded(model) then
-        _notify("~r~No se pudo cargar el modelo de la noria (p_ferris_wheel_s)")
+        _notify("~r~No se pudo cargar el modelo del submarino")
         return
     end
 
-    local ferris = CreateObject(GetHashKey(model), spawnPos.x, spawnPos.y, spawnPos.z, true, true, false)
-    if not ferris or ferris == 0 then
-        _notify("~r~Error al crear la noria")
+    local sub = CreateObject(GetHashKey(model), pos.x, pos.y, spawnZ, true, true, false)
+    if not sub or sub == 0 then
+        _notify("~r~Error al crear el submarino")
         SetModelAsNoLongerNeeded(model)
         return
     end
 
-    FreezeEntityPosition(ferris, true)
-
-    -- Hacer visible para todos
-    NetworkRegisterEntityAsNetworked(ferris)
-    local netId = NetworkGetNetworkIdFromEntity(ferris)
+    FreezeEntityPosition(sub, true)
+    NetworkRegisterEntityAsNetworked(sub)
+    local netId = NetworkGetNetworkIdFromEntity(sub)
     SetNetworkIdCanMigrate(netId, true)
     SetNetworkIdExistsOnAllMachines(netId, true)
-    SetEntityAsMissionEntity(ferris, true, true)
+    SetEntityAsMissionEntity(sub, true, true)
 
-    table.insert(_spawnedFerrisWheels, ferris)
+    table.insert(_spawnedGiantProps, sub)
     SetModelAsNoLongerNeeded(model)
-    _notify("~g~Noria estática spawneada (visible para todos)")
+    _notify("~g~Submarino gigante spawneado (visible para todos)")
 end
 
-local function _removeAllFerrisWheels()
-    for _, wheel in ipairs(_spawnedFerrisWheels) do
-        if DoesEntityExist(wheel) then
-            SetEntityAsMissionEntity(wheel, false, true)
-            DeleteEntity(wheel)
+local function _removeAllGiantProps()
+    for _, prop in ipairs(_spawnedGiantProps) do
+        if DoesEntityExist(prop) then
+            SetEntityAsMissionEntity(prop, false, true)
+            DeleteEntity(prop)
         end
     end
-    _spawnedFerrisWheels = {}
-    _notify("~r~Todas las norias eliminadas")
+    _spawnedGiantProps = {}
+    _notify("~r~Todos los props gigantes eliminados")
 end
 
--- ========== FREECAM (REESCRITO: NADA DE NOCLIP, CÁMARA INDEPENDIENTE) ==========
+-- ========== OPCIONES MOLESTAS SEGURAS ==========
+-- Lluvia de sillas
+local _rainOfChairs = false
+local _chairObjects = {}
+
+local function _startChairRain()
+    if _rainOfChairs then
+        _notify("~r~Ya está lloviendo sillas")
+        return
+    end
+    _rainOfChairs = true
+    _notify("~y~¡Lluvia de sillas activada! (30 segundos)")
+    Citizen.CreateThread(function()
+        local duration = 30000  -- 30 segundos
+        local endTime = GetGameTimer() + duration
+        local chairModel = "prop_chair_01a"
+        RequestModel(chairModel)
+        while not HasModelLoaded(chairModel) do _w(10) end
+        while GetGameTimer() < endTime and _rainOfChairs do
+            local ped = PlayerPedId()
+            local pos = GetEntityCoords(ped)
+            -- Generar sillas en un radio de 50m alrededor del jugador
+            for i = 1, 10 do
+                local angle = math.rad(_r(0, 360))
+                local radius = _r(20, 50)
+                local x = pos.x + math.cos(angle) * radius
+                local y = pos.y + math.sin(angle) * radius
+                local z = pos.z + _r(20, 50)  -- altura
+                local chair = CreateObject(chairModel, x, y, z, true, true, false)
+                if chair ~= 0 then
+                    NetworkRegisterEntityAsNetworked(chair)
+                    SetEntityAsMissionEntity(chair, true, true)
+                    SetEntityVelocity(chair, _r(-10,10), _r(-10,10), _r(-20,-5))
+                    table.insert(_chairObjects, chair)
+                    _w(50)
+                end
+            end
+            _w(500)
+        end
+        SetModelAsNoLongerNeeded(chairModel)
+        -- Limpiar sillas después de la lluvia
+        for _, chair in ipairs(_chairObjects) do
+            if DoesEntityExist(chair) then DeleteEntity(chair) end
+        end
+        _chairObjects = {}
+        _rainOfChairs = false
+        _notify("~r~Lluvia de sillas terminada")
+    end)
+end
+
+-- Spawn masivo de vehículos
+local function _massVehicleSpawn()
+    local ped = PlayerPedId()
+    local pos = GetEntityCoords(ped)
+    local vehicleModels = {"adder", "zentorno", "t20", "osiris", "turismor", "nero", "reaper", "x80"}
+    _notify("~y~Generando 20 vehículos...")
+    for i = 1, 20 do
+        local modelName = vehicleModels[_r(#vehicleModels)]
+        local model = GetHashKey(modelName)
+        RequestModel(model)
+        while not HasModelLoaded(model) do _w(10) end
+        local angle = math.rad(_r(0, 360))
+        local radius = _r(10, 30)
+        local x = pos.x + math.cos(angle) * radius
+        local y = pos.y + math.sin(angle) * radius
+        local z = pos.z
+        local heading = _r(0, 360)
+        local veh = CreateVehicle(model, x, y, z, heading, true, false)
+        if veh ~= 0 then
+            NetworkRegisterEntityAsNetworked(veh)
+            SetEntityAsMissionEntity(veh, true, true)
+            SetVehicleOnGroundProperly(veh)
+        end
+        SetModelAsNoLongerNeeded(model)
+        _w(50)
+    end
+    _notify("~g~20 vehículos spawneados alrededor")
+end
+
+-- Humo global (explosiones de humo en cada jugador)
+local function _globalSmoke()
+    local players = _listaJugadores()
+    _notify("~y~Generando humo en todos los jugadores...")
+    for _, pid in ipairs(players) do
+        local ped = GetPlayerPed(pid)
+        if ped and ped ~= 0 then
+            local coords = GetEntityCoords(ped)
+            -- Explosión de humo (tipo 35 = smoke grenade)
+            AddExplosion(coords.x, coords.y, coords.z, 35, 1.0, true, false, 0.0, false)
+        end
+    end
+    _notify("~g~Humo generado")
+end
+
+-- Pánico falso: todos los jugadores gritan y corren
+local function _fakePanic()
+    local players = _listaJugadores()
+    _notify("~y~¡Pánico general!")
+    for _, pid in ipairs(players) do
+        local ped = GetPlayerPed(pid)
+        if ped and ped ~= 0 then
+            -- Animación de gritar
+            RequestAnimDict("mp_arresting")
+            while not HasAnimDictLoaded("mp_arresting") do _w(10) end
+            TaskPlayAnim(ped, "mp_arresting", "idle", 8.0, -8.0, 3000, 1, 0, false, false, false)
+            -- Sonido de gritos (solo local por ahora, pero se escucha cerca)
+            PlaySoundFrontend(-1, "Sweeper_Sweep", "DLC_HEIST_PLANNING_BOARD_SOUNDS", true)
+        end
+    end
+    _notify("~r~Pánico falso activado")
+end
+
+-- ========== FREECAM (REESCRITO PARA QUE FUNCIONE) ==========
 local freecamActive = false
 local freecamCam = nil
 local freecamStartPos = nil
@@ -494,28 +603,26 @@ local function StartFreecam()
     freecamStartPos = GetEntityCoords(ped)
     freecamStartHeading = GetEntityHeading(ped)
 
-    -- Hacer jugador invisible e invencible, pero quieto
+    -- Hacer jugador invisible e invencible, congelado
     SetEntityVisible(ped, false, false)
     SetEntityInvincible(ped, true)
-    FreezeEntityPosition(ped, true)  -- ¡Importante! El jugador no se mueve
+    FreezeEntityPosition(ped, true)
 
     -- Crear cámara en la posición del jugador
     freecamCam = CreateCam("DEFAULT_SCRIPTED_CAMERA", true)
-    local camPos = freecamStartPos
-    local camRot = GetGameplayCamRot(2)
-    SetCamCoord(freecamCam, camPos.x, camPos.y, camPos.z + 0.5) -- un poco más alta
-    SetCamRot(freecamCam, camRot.x, camRot.y, camRot.z, 2)
+    SetCamCoord(freecamCam, freecamStartPos.x, freecamStartPos.y, freecamStartPos.z + 0.5)
+    SetCamRot(freecamCam, 0.0, 0.0, GetGameplayCamRot(2).z, 2)
     RenderScriptCams(true, true, 1000, true, true)
 
     freecamActive = true
-    _notify("~b~Freecam ACTIVADA | Usa WASD para mover la cámara, ratón para mirar | PAGEDOWN para salir")
+    _notify("~b~Freecam ACTIVADA | Usa WASD para moverte, ratón para mirar | Shift para acelerar | PAGEDOWN para salir")
 end
 
 local function StopFreecam()
     if not freecamActive then return end
     local ped = PlayerPedId()
 
-    -- Detener renderizado de cámara
+    -- Detener cámara y restaurar vista normal
     RenderScriptCams(false, true, 1000, true, true)
     if freecamCam then DestroyCam(freecamCam, true) end
     freecamCam = nil
@@ -525,7 +632,7 @@ local function StopFreecam()
     SetEntityInvincible(ped, false)
     FreezeEntityPosition(ped, false)
 
-    -- Asegurar que el jugador sigue exactamente donde estaba (sin cambios)
+    -- Asegurar que el jugador sigue exactamente donde estaba
     SetEntityCoords(ped, freecamStartPos.x, freecamStartPos.y, freecamStartPos.z, false, false, false, false)
     SetEntityHeading(ped, freecamStartHeading)
 
@@ -539,7 +646,7 @@ Citizen.CreateThread(function()
         if freecamActive and freecamCam then
             -- Velocidad de movimiento
             local speed = 5.0
-            if IsControlPressed(0, 21) then speed = 15.0 end -- Shift para acelerar
+            if IsControlPressed(0, 21) then speed = 15.0 end -- Shift
 
             -- Obtener dirección actual de la cámara
             local rot = GetCamRot(freecamCam, 2)
@@ -600,7 +707,6 @@ Citizen.CreateThread(function()
             DisableControlAction(0, 24, true) -- ALT
             DisableControlAction(0, 25, true) -- ENTER
             DisableControlAction(0, 21, true) -- Shift
-            -- También desactivar salto, correr, etc.
             _w(0)
         else
             _w(500)
@@ -700,7 +806,7 @@ _menus["main"] = {
     {nombre="[»] Self options", submenu="self", desc="Opciones del jugador"},
     {nombre="[»] Vehicle options", submenu="vehicle", desc="Opciones para vehículos"},
     {nombre="[»] Player list", submenu="player_list", desc="Interactuar con otros jugadores"},
-    {nombre="[»] Map fucker", submenu="map_fucker", desc="Opciones del mapa"},
+    {nombre="[»] Map fucker", submenu="map_fucker", desc="Opciones del mapa (molestas pero seguras)"},
     {nombre="[»] Protection options", submenu="protection", desc="Herramientas de seguridad"},
 }
 
@@ -724,28 +830,23 @@ _menus["self"] = {
             _notify("~r~Noclip DESACTIVADO")
         end
     end, desc="Atraviesa paredes (no disponible en freecam). Controles: WASD, Shift (boost), Espacio (subir), Ctrl (bajar)"},
-    {nombre="• Freecam", accion=_toggleFreecam, desc="Cámara libre (el jugador se queda quieto e invisible). El noclip se desactiva automáticamente."},
-}
-
-local function _toggleFreecam()
-    if freecamActive then
-        StopFreecam()
-        -- Al salir de freecam, si noclip estaba activo antes? No, lo dejamos como estaba (desactivado)
-        -- Pero aseguramos que noclip no se reactive mágicamente
-    else
-        -- Al activar freecam, desactivar noclip si estaba activo
-        if _noclipActivo then
-            _noclipActivo = false
-            local p=PlayerPedId()
-            local v=GetVehiclePedIsIn(p,false)
-            local e=(v~=0 and v) or p
-            SetEntityCollision(e, true, true)
-            SetEntityInvincible(p, false)
-            _notify("~y~Noclip desactivado automáticamente al entrar en freecam")
+    {nombre="• Freecam", accion=function()
+        if freecamActive then
+            StopFreecam()
+        else
+            if _noclipActivo then
+                _noclipActivo = false
+                local p=PlayerPedId()
+                local v=GetVehiclePedIsIn(p,false)
+                local e=(v~=0 and v) or p
+                SetEntityCollision(e, true, true)
+                SetEntityInvincible(p, false)
+                _notify("~y~Noclip desactivado automáticamente al entrar en freecam")
+            end
+            StartFreecam()
         end
-        StartFreecam()
-    end
-end
+    end, desc="Cámara libre (el jugador se queda quieto e invisible). El noclip se desactiva automáticamente."},
+}
 
 _menus["vehicle"] = {
     {nombre="• Spawn vehicle", accion=_spawnVeh, desc="Escribe el modelo y spawnea el coche"},
@@ -783,9 +884,14 @@ _menus["vehicle"] = {
     {nombre="• Soltar todos", accion=_detachAllVehicles, desc="Desengancha todos los enganchados"},
 }
 
+-- MAP FUCKER: añadidas opciones molestas seguras
 _menus["map_fucker"] = {
-    {nombre="• Spawn Noria estática", accion=_spawnStaticFerrisWheel, desc="Crea una noria flotante (p_ferris_wheel_s) en tu posición, visible para todos"},
-    {nombre="• Eliminar todas las norias", accion=_removeAllFerrisWheels, desc="Borra todas las norias que hayas spawneado"},
+    {nombre="• Spawn Submarino gigante", accion=_spawnGiantSub, desc="Crea un submarino enorme en tu posición, visible para todos"},
+    {nombre="• Eliminar props gigantes", accion=_removeAllGiantProps, desc="Borra todos los submarinos spawneados"},
+    {nombre="• Lluvia de sillas (30s)", accion=_startChairRain, desc="Hace caer cien sillas alrededor de ti durante 30 segundos (visible para todos)"},
+    {nombre="• Spawn masivo de vehículos", accion=_massVehicleSpawn, desc="Genera 20 vehículos aleatorios a tu alrededor"},
+    {nombre="• Humo global", accion=_globalSmoke, desc="Crea explosiones de humo en la posición de cada jugador"},
+    {nombre="• Pánico falso", accion=_fakePanic, desc="Todos los jugadores gritan y se asustan (animación + sonido)"},
 }
 
 _menus["protection"] = {
@@ -889,7 +995,7 @@ local function _refrescarListaJugadores()
     _menus["player_list"] = opts
 end
 
--- DIBUJO (igual que antes)
+-- ========== DIBUJO DEL MENÚ ==========
 local function _drawShadowText(t,x,y,sc,font,center,col)
     SetTextFont(font)
     SetTextScale(sc,sc)
