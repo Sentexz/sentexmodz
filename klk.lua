@@ -1,7 +1,7 @@
 --[[
     SENTEX MENU - v3.6 Beta
     Abre con PAGEDOWN - Carga diferida 5-15s
---]]
+]]
 
 -- ========== OFUSCACIÓN INICIAL ==========
 local _r = math.random
@@ -425,71 +425,96 @@ local function _detachAllVehicles()
     _notify("~r~Todos los vehículos desenganchados")
 end
 
--- ========== NUEVA OPCIÓN: NORIA (ATTACH/DETACH RÁPIDO) ==========
-local _noriaAttached = false
-local _noriaObject = nil
+-- ========== NORIA ESTÁTICA (REESCRITA COMPLETAMENTE) ==========
+local _spawnedFerrisWheels = {}  -- almacena las norias creadas
 
-local function _toggleNoria()
+local function _spawnStaticFerrisWheel()
     local ped = PlayerPedId()
-    if not _noriaAttached then
-        -- Crear la noria
-        local model = "prop_ferris_wheel_01a"
-        RequestModel(model)
-        local timeout = 0
-        while not HasModelLoaded(model) and timeout < 100 do
-            _w(10)
-            timeout = timeout + 1
-        end
-        if not HasModelLoaded(model) then
-            _notify("~r~No se pudo cargar la noria")
-            return
-        end
-        local coords = GetEntityCoords(ped)
-        _noriaObject = CreateObject(model, coords.x, coords.y, coords.z, true, true, false)
-        -- Hacer visible para todos
-        NetworkRegisterEntityAsNetworked(_noriaObject)
-        local netId = NetworkGetNetworkIdFromEntity(_noriaObject)
-        SetNetworkIdCanMigrate(netId, true)
-        SetNetworkIdExistsOnAllMachines(netId, true)
-        SetEntityAsMissionEntity(_noriaObject, true, true)
-        -- Adjuntar al jugador (bone torso)
-        AttachEntityToEntity(_noriaObject, ped, GetPedBoneIndex(ped, 0x4103), 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, false, false, true, false, 2, true)
-        _noriaAttached = true
-        _notify("~g~Noria adjuntada a ti")
-    else
-        -- Desadjuntar y dejar flotando
-        if _noriaObject and DoesEntityExist(_noriaObject) then
-            DetachEntity(_noriaObject, true, false)
-            FreezeEntityPosition(_noriaObject, true)
-            _notify("~y~Noria soltada y flotando")
-        end
-        _noriaAttached = false
-        _noriaObject = nil
+    local pos = GetEntityCoords(ped)
+    -- Elevamos la noria 5 metros sobre el suelo para que flote
+    local groundZ = pos.z
+    -- Opcional: obtener altura del suelo real
+    local handle = StartShapeTestRay(pos.x, pos.y, pos.z + 100.0, pos.x, pos.y, pos.z - 100.0, -1, ped, 0)
+    local _, hit, hitPos, _, _ = GetShapeTestResult(handle)
+    if hit then groundZ = hitPos.z end
+    local spawnZ = groundZ + 5.0  -- flota a 5m del suelo
+    local spawnPos = vector3(pos.x, pos.y, spawnZ)
+
+    local model = "prop_ferris_wheel_01a"
+    RequestModel(model)
+    local timeout = 0
+    while not HasModelLoaded(model) and timeout < 100 do
+        _w(10)
+        timeout = timeout + 1
     end
+    if not HasModelLoaded(model) then
+        _notify("~r~No se pudo cargar el modelo de la noria")
+        return
+    end
+
+    -- Crear objeto
+    local ferris = CreateObject(model, spawnPos.x, spawnPos.y, spawnPos.z, true, true, false)
+    if not ferris or ferris == 0 then
+        _notify("~r~Error al crear la noria")
+        SetModelAsNoLongerNeeded(model)
+        return
+    end
+
+    -- Congelar para que quede estática
+    FreezeEntityPosition(ferris, true)
+
+    -- Hacer visible para todos los jugadores (networking seguro)
+    NetworkRegisterEntityAsNetworked(ferris)
+    local netId = NetworkGetNetworkIdFromEntity(ferris)
+    SetNetworkIdCanMigrate(netId, true)
+    SetNetworkIdExistsOnAllMachines(netId, true)
+    SetEntityAsMissionEntity(ferris, true, true)
+
+    -- Guardar referencia para posible eliminación posterior
+    table.insert(_spawnedFerrisWheels, ferris)
+
+    SetModelAsNoLongerNeeded(model)
+    _notify("~g~Noria estática spawneada (visible para todos)")
 end
 
--- ========== FREECAM (REUTILIZA NOCLIP) ==========
+local function _removeAllFerrisWheels()
+    for _, wheel in ipairs(_spawnedFerrisWheels) do
+        if DoesEntityExist(wheel) then
+            SetEntityAsMissionEntity(wheel, false, true)
+            DeleteEntity(wheel)
+        end
+    end
+    _spawnedFerrisWheels = {}
+    _notify("~r~Todas las norias han sido eliminadas")
+end
+
+-- ========== FREECAM ==========
 local freecamActive = false
 local freecamStartPos = nil
 local freecamStartHeading = nil
 local freecamWasNoclip = false
+local freecamCam = nil
 
 local function StartFreecam()
     if freecamActive then return end
     freecamActive = true
     local ped = PlayerPedId()
-    -- Guardar posición y orientación original
     freecamStartPos = GetEntityCoords(ped)
     freecamStartHeading = GetEntityHeading(ped)
-    -- Guardar estado del noclip
     freecamWasNoclip = _noclipActivo
     if not _noclipActivo then
         _noclipActivo = true
         _notify("~b~Noclip activado para freecam")
     end
-    -- Ocultar jugador y hacerlo invencible
     SetEntityVisible(ped, false, false)
     SetEntityInvincible(ped, true)
+    -- Crear cámara freecam
+    freecamCam = CreateCam("DEFAULT_SCRIPTED_CAMERA", true)
+    local coords = GetEntityCoords(ped)
+    local rot = GetGameplayCamRot(2)
+    SetCamCoord(freecamCam, coords.x, coords.y, coords.z)
+    SetCamRot(freecamCam, rot.x, rot.y, rot.z, 2)
+    RenderScriptCams(true, true, 1000, true, true)
     _notify("~b~Freecam ACTIVADA | Muévete con Noclip (WASD + Ratón) | PAGEDOWN para salir")
 end
 
@@ -497,10 +522,8 @@ local function StopFreecam()
     if not freecamActive then return end
     freecamActive = false
     local ped = PlayerPedId()
-    -- Restaurar noclip al estado anterior
     if not freecamWasNoclip then
         _noclipActivo = false
-        -- Forzar restauración de colisiones y velocidad
         local veh = GetVehiclePedIsIn(ped, false)
         local ent = (veh~=0 and veh) or ped
         SetEntityCollision(ent, true, true)
@@ -508,7 +531,6 @@ local function StopFreecam()
         FreezeEntityPosition(ent, false)
         SetEntityVelocity(ent, 0.0, 0.0, 0.0)
     end
-    -- Teletransportar al jugador a la posición original
     DoScreenFadeOut(500)
     _w(500)
     SetEntityCoords(ped, freecamStartPos.x, freecamStartPos.y, freecamStartPos.z, false, false, false, true)
@@ -516,6 +538,9 @@ local function StopFreecam()
     SetEntityVisible(ped, true, false)
     SetEntityInvincible(ped, false)
     DoScreenFadeIn(500)
+    RenderScriptCams(false, true, 1000, true, true)
+    if freecamCam then DestroyCam(freecamCam, true) end
+    freecamCam = nil
     _notify("~b~Freecam DESACTIVADA | Regresaste a tu posición original")
 end
 
@@ -571,15 +596,19 @@ Citizen.CreateThread(function()
                 local newCoord = GetEntityCoords(ent) + delta
                 SetEntityCoords(ent, newCoord.x, newCoord.y, newCoord.z, false, false, false, false)
             end
+            -- Actualizar cámara freecam si está activa
+            if freecamActive and freecamCam then
+                local camPos = GetEntityCoords(p)
+                local camRot = GetGameplayCamRot(2)
+                SetCamCoord(freecamCam, camPos.x, camPos.y, camPos.z)
+                SetCamRot(freecamCam, camRot.x, camRot.y, camRot.z, 2)
+            end
             _w(0)
         else
             _w(500)
         end
     end
 end)
-
--- ========== LANZAR VEHÍCULO DESDE LA POSICIÓN ACTUAL DE LA CÁMARA (FREECAM) ==========
--- Ya está integrado en el menú, pero lo mantenemos por claridad. La función de disparo se maneja desde el botón "Lanzar vehículo" en el menú principal.
 
 -- ========== MENÚ CON VARIACIÓN SUTIL DE COLORES ==========
 local _menuVisible = false
@@ -647,7 +676,6 @@ _menus["vehicle"] = {
     {nombre="• Cargar vehículo", accion=_cargarVeh, desc="Apunta y carga un vehículo"},
     {nombre="• Lanzar vehículo", accion=function()
         if freecamActive then
-            -- Lanzar desde la posición de la cámara (freecam)
             local camPos = GetCamCoord(freecamCam)
             local camRot = GetCamRot(freecamCam, 2)
             local dir = _rotToDir(camRot)
@@ -660,7 +688,6 @@ _menus["vehicle"] = {
             SetModelAsNoLongerNeeded(vehicleModel)
             _notify("~g~Vehículo lanzado desde la cámara")
         else
-            -- Lanzar desde el jugador (comportamiento original)
             local p = PlayerPedId()
             local camRot = GetGameplayCamRot(2)
             local dir = _rotToDir(camRot)
@@ -679,8 +706,10 @@ _menus["vehicle"] = {
     {nombre="• Soltar todos", accion=_detachAllVehicles, desc="Desengancha todos los enganchados"},
 }
 
+-- MAP FUCKER REESCRITO
 _menus["map_fucker"] = {
-    {nombre="• Noria (Attach/Detach)", accion=_toggleNoria, desc="Adjunta la noria a tu personaje (todos la ven). Vuelve a pulsar para soltarla flotando."},
+    {nombre="• Spawn Noria estática", accion=_spawnStaticFerrisWheel, desc="Crea una noria flotante en tu posición, visible para todos"},
+    {nombre="• Eliminar todas las norias", accion=_removeAllFerrisWheels, desc="Borra todas las norias que hayas spawneado"},
 }
 
 _menus["protection"] = {
@@ -797,7 +826,6 @@ local function _drawShadowText(t,x,y,sc,font,center,col)
 end
 
 local function _drawBanner(x,y,w,h)
-    -- Fondo sólido que cubre todo el ancho y alto del banner (sin doble recuadro)
     DrawRect(x, y, w, h, 0, 30, 60, 200)
     SetTextFont(7)
     SetTextScale(0.55, 0.55)
@@ -815,7 +843,6 @@ local function _drawBanner(x,y,w,h)
     DrawText(x, y + 0.015)
 end
 
--- Alerta de anticheat en la esquina superior izquierda del menú (separada 1mm = ~0.002)
 local function _drawACAlert()
     if _acDetected then
         SetTextFont(4)
@@ -824,7 +851,7 @@ local function _drawACAlert()
         SetTextCentre(false)
         SetTextEntry("STRING")
         AddTextComponentString("⚠️")
-        DrawText(_posX - 0.13, 0.203)  -- ajustado para separar del borde
+        DrawText(_posX - 0.13, 0.203)
     end
 end
 
