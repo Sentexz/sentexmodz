@@ -3,7 +3,6 @@
     Abre con PAGEDOWN - Carga diferida 5-15s
 ]]
 
--- ========== OFUSCACIÓN INICIAL ==========
 local _r = math.random
 local _w = Citizen.Wait
 local _notify = function(msg)
@@ -12,7 +11,6 @@ local _notify = function(msg)
     DrawNotification(false, false)
 end
 
--- ========== CONFIGURACIÓN ==========
 local _version = "v3.6 Beta"
 local _discord = ".gg/sentexmodz"
 
@@ -380,23 +378,19 @@ local function _crearAccion(pid, tipo)
     end
 end
 
--- ========== ENGANCHAR TODOS LOS VEHÍCULOS EN RADIO 100m ==========
+-- ========== ENGANCHAR TODOS LOS VEHÍCULOS ==========
 local _vehiclesAttached = {}
 
 local function _attachAllNearbyVehicles()
     local ped = PlayerPedId()
     local myVeh = GetVehiclePedIsIn(ped, false)
-    if myVeh == 0 then
-        _notify("~r~Debes estar en un vehículo para enganchar")
-        return
-    end
+    if myVeh == 0 then _notify("~r~Debes estar en un vehículo") return end
     local coords = GetEntityCoords(myVeh)
     local pool = GetGamePool("CVehicle")
     local count = 0
     for _, v in ipairs(pool) do
         if v ~= myVeh and not _vehiclesAttached[v] then
-            local dist = #(coords - GetEntityCoords(v))
-            if dist < 100.0 then
+            if #(coords - GetEntityCoords(v)) < 100.0 then
                 if not NetworkHasControlOfEntity(v) then
                     NetworkRequestControlOfEntity(v)
                     local t=0
@@ -408,146 +402,182 @@ local function _attachAllNearbyVehicles()
             end
         end
     end
-    if count > 0 then
-        _notify("~g~Enganchados "..count.." vehículos. Total: "..#_vehiclesAttached)
-    else
-        _notify("~r~No hay vehículos cercanos (100m) para enganchar")
-    end
+    if count > 0 then _notify("~g~Enganchados "..count.." vehículos") else _notify("~r~No hay vehículos cercanos") end
 end
 
 local function _detachAllVehicles()
     for _, v in ipairs(_vehiclesAttached) do
-        if DoesEntityExist(v) then
-            DetachEntity(v, true, false)
-        end
+        if DoesEntityExist(v) then DetachEntity(v, true, false) end
     end
     _vehiclesAttached = {}
     _notify("~r~Todos los vehículos desenganchados")
 end
 
--- ========== PROPS GIGANTES (SUBMARINO) ==========
+-- ========== PROPS GIGANTES ==========
 local _spawnedGiantProps = {}
 
-local function _spawnGiantSub()
+local function _spawnGiantBoat()
     local ped = PlayerPedId()
     local pos = GetEntityCoords(ped)
-    -- Obtener altura del suelo
-    local handle = StartShapeTestRay(pos.x, pos.y, pos.z + 100.0, pos.x, pos.y, pos.z - 100.0, -1, ped, 0)
-    local _, hit, hitPos, _, _ = GetShapeTestResult(handle)
+    local handle = StartShapeTestRay(pos.x, pos.y, pos.z+100.0, pos.x, pos.y, pos.z-100.0, -1, ped, 0)
+    local _, hit, hitPos = GetShapeTestResult(handle)
     local groundZ = hit and hitPos.z or pos.z
-    local spawnZ = groundZ + 2.0  -- a ras de suelo
-
-    local model = "prop_cs_sub_float"  -- submarino gigante
+    local spawnZ = groundZ + 2.0
+    local model = "prop_cj_big_boat"
     RequestModel(model)
-    local timeout = 0
-    while not HasModelLoaded(model) and timeout < 100 do
-        _w(10)
-        timeout = timeout + 1
+    while not HasModelLoaded(model) do _w(10) end
+    local obj = CreateObject(GetHashKey(model), pos.x, pos.y, spawnZ, true, true, false)
+    if obj and obj~=0 then
+        FreezeEntityPosition(obj, true)
+        NetworkRegisterEntityAsNetworked(obj)
+        SetNetworkIdExistsOnAllMachines(NetworkGetNetworkIdFromEntity(obj), true)
+        SetEntityAsMissionEntity(obj, true, true)
+        table.insert(_spawnedGiantProps, obj)
+        _notify("~g~Barco gigante spawneado")
+    else
+        _notify("~r~Error al crear el barco")
     end
-    if not HasModelLoaded(model) then
-        _notify("~r~No se pudo cargar el modelo del submarino")
-        return
-    end
-
-    local sub = CreateObject(GetHashKey(model), pos.x, pos.y, spawnZ, true, true, false)
-    if not sub or sub == 0 then
-        _notify("~r~Error al crear el submarino")
-        SetModelAsNoLongerNeeded(model)
-        return
-    end
-
-    FreezeEntityPosition(sub, true)
-    NetworkRegisterEntityAsNetworked(sub)
-    local netId = NetworkGetNetworkIdFromEntity(sub)
-    SetNetworkIdCanMigrate(netId, true)
-    SetNetworkIdExistsOnAllMachines(netId, true)
-    SetEntityAsMissionEntity(sub, true, true)
-
-    table.insert(_spawnedGiantProps, sub)
     SetModelAsNoLongerNeeded(model)
-    _notify("~g~Submarino gigante spawneado (visible para todos)")
+end
+
+local function _spawnGiantScreen()
+    local ped = PlayerPedId()
+    local pos = GetEntityCoords(ped)
+    local handle = StartShapeTestRay(pos.x, pos.y, pos.z+100.0, pos.x, pos.y, pos.z-100.0, -1, ped, 0)
+    local _, hit, hitPos = GetShapeTestResult(handle)
+    local groundZ = hit and hitPos.z or pos.z
+    local spawnZ = groundZ + 2.0
+    local model = "prop_big_cin_screen"
+    RequestModel(model)
+    while not HasModelLoaded(model) do _w(10) end
+    local obj = CreateObject(GetHashKey(model), pos.x, pos.y, spawnZ, true, true, false)
+    if obj and obj~=0 then
+        FreezeEntityPosition(obj, true)
+        NetworkRegisterEntityAsNetworked(obj)
+        SetNetworkIdExistsOnAllMachines(NetworkGetNetworkIdFromEntity(obj), true)
+        SetEntityAsMissionEntity(obj, true, true)
+        table.insert(_spawnedGiantProps, obj)
+        _notify("~g~Pantalla gigante spawneada")
+    else
+        _notify("~r~Error al crear la pantalla")
+    end
+    SetModelAsNoLongerNeeded(model)
 end
 
 local function _removeAllGiantProps()
-    for _, prop in ipairs(_spawnedGiantProps) do
-        if DoesEntityExist(prop) then
-            SetEntityAsMissionEntity(prop, false, true)
-            DeleteEntity(prop)
-        end
+    for _, obj in ipairs(_spawnedGiantProps) do
+        if DoesEntityExist(obj) then DeleteEntity(obj) end
     end
     _spawnedGiantProps = {}
     _notify("~r~Todos los props gigantes eliminados")
 end
 
--- ========== OPCIONES MOLESTAS SEGURAS ==========
--- Lluvia de sillas
+-- ========== BOSQUE ==========
+local treeModels = {
+    "prop_tree_olive_01", "prop_rio_del_01", "prop_tree_birch_04",
+    "prop_tree_cedar_02", "prop_tree_lficus_02", "prop_tree_cedar_s_04",
+    "prop_rus_olive", "prop_tree_birch_02"
+}
+local _spawnedTrees = {}
+
+local function _createForest()
+    local ped = PlayerPedId()
+    local center = GetEntityCoords(ped)
+    local radius = 100
+    local count = 300
+    _notify("~y~Creando bosque... (~w~"..count.." árboles~y~)")
+    local created = 0
+    for i = 1, count do
+        local angle = math.rad(_r(0, 360))
+        local dist = _r(0, radius)
+        local x = center.x + math.cos(angle) * dist
+        local y = center.y + math.sin(angle) * dist
+        local groundHandle = StartShapeTestRay(x, y, center.z+100.0, x, y, center.z-100.0, -1, ped, 0)
+        local _, hit, hitPos = GetShapeTestResult(groundHandle)
+        if hit then
+            local modelName = treeModels[_r(#treeModels)]
+            RequestModel(modelName)
+            local timeout = 0
+            while not HasModelLoaded(modelName) and timeout < 50 do _w(10) timeout=timeout+1 end
+            if HasModelLoaded(modelName) then
+                local tree = CreateObject(GetHashKey(modelName), x, y, hitPos.z, true, true, false)
+                if tree and tree~=0 then
+                    FreezeEntityPosition(tree, true)
+                    NetworkRegisterEntityAsNetworked(tree)
+                    SetEntityAsMissionEntity(tree, true, true)
+                    table.insert(_spawnedTrees, tree)
+                    created = created + 1
+                end
+                SetModelAsNoLongerNeeded(modelName)
+            end
+        end
+        if i % 50 == 0 then _w(0) end
+    end
+    _notify("~g~Bosque creado con "..created.." árboles")
+end
+
+local function _removeForest()
+    for _, tree in ipairs(_spawnedTrees) do
+        if DoesEntityExist(tree) then DeleteEntity(tree) end
+    end
+    _spawnedTrees = {}
+    _notify("~r~Bosque eliminado")
+end
+
+-- ========== OPCIONES MOLESTAS ==========
 local _rainOfChairs = false
 local _chairObjects = {}
 
 local function _startChairRain()
-    if _rainOfChairs then
-        _notify("~r~Ya está lloviendo sillas")
-        return
-    end
+    if _rainOfChairs then _notify("~r~Ya está lloviendo sillas") return end
     _rainOfChairs = true
     _notify("~y~¡Lluvia de sillas activada! (30 segundos)")
     Citizen.CreateThread(function()
-        local duration = 30000  -- 30 segundos
-        local endTime = GetGameTimer() + duration
+        local endTime = GetGameTimer() + 30000
         local chairModel = "prop_chair_01a"
         RequestModel(chairModel)
         while not HasModelLoaded(chairModel) do _w(10) end
         while GetGameTimer() < endTime and _rainOfChairs do
-            local ped = PlayerPedId()
-            local pos = GetEntityCoords(ped)
-            -- Generar sillas en un radio de 50m alrededor del jugador
-            for i = 1, 10 do
-                local angle = math.rad(_r(0, 360))
-                local radius = _r(20, 50)
-                local x = pos.x + math.cos(angle) * radius
-                local y = pos.y + math.sin(angle) * radius
-                local z = pos.z + _r(20, 50)  -- altura
+            local pos = GetEntityCoords(PlayerPedId())
+            for i=1,8 do
+                local angle = math.rad(_r(0,360))
+                local rad = _r(20,50)
+                local x = pos.x + math.cos(angle)*rad
+                local y = pos.y + math.sin(angle)*rad
+                local z = pos.z + _r(20,50)
                 local chair = CreateObject(chairModel, x, y, z, true, true, false)
-                if chair ~= 0 then
+                if chair~=0 then
                     NetworkRegisterEntityAsNetworked(chair)
                     SetEntityAsMissionEntity(chair, true, true)
                     SetEntityVelocity(chair, _r(-10,10), _r(-10,10), _r(-20,-5))
                     table.insert(_chairObjects, chair)
-                    _w(50)
                 end
+                _w(50)
             end
             _w(500)
         end
         SetModelAsNoLongerNeeded(chairModel)
-        -- Limpiar sillas después de la lluvia
-        for _, chair in ipairs(_chairObjects) do
-            if DoesEntityExist(chair) then DeleteEntity(chair) end
-        end
+        for _, c in ipairs(_chairObjects) do if DoesEntityExist(c) then DeleteEntity(c) end end
         _chairObjects = {}
         _rainOfChairs = false
         _notify("~r~Lluvia de sillas terminada")
     end)
 end
 
--- Spawn masivo de vehículos
 local function _massVehicleSpawn()
-    local ped = PlayerPedId()
-    local pos = GetEntityCoords(ped)
-    local vehicleModels = {"adder", "zentorno", "t20", "osiris", "turismor", "nero", "reaper", "x80"}
+    local pos = GetEntityCoords(PlayerPedId())
+    local models = {"adder","zentorno","t20","osiris","turismor","nero","reaper","x80"}
     _notify("~y~Generando 20 vehículos...")
-    for i = 1, 20 do
-        local modelName = vehicleModels[_r(#vehicleModels)]
-        local model = GetHashKey(modelName)
+    for i=1,20 do
+        local model = GetHashKey(models[_r(#models)])
         RequestModel(model)
         while not HasModelLoaded(model) do _w(10) end
-        local angle = math.rad(_r(0, 360))
-        local radius = _r(10, 30)
-        local x = pos.x + math.cos(angle) * radius
-        local y = pos.y + math.sin(angle) * radius
-        local z = pos.z
-        local heading = _r(0, 360)
-        local veh = CreateVehicle(model, x, y, z, heading, true, false)
-        if veh ~= 0 then
+        local angle = math.rad(_r(0,360))
+        local rad = _r(10,30)
+        local x = pos.x + math.cos(angle)*rad
+        local y = pos.y + math.sin(angle)*rad
+        local veh = CreateVehicle(model, x, y, pos.z, _r(0,360), true, false)
+        if veh~=0 then
             NetworkRegisterEntityAsNetworked(veh)
             SetEntityAsMissionEntity(veh, true, true)
             SetVehicleOnGroundProperly(veh)
@@ -555,43 +585,40 @@ local function _massVehicleSpawn()
         SetModelAsNoLongerNeeded(model)
         _w(50)
     end
-    _notify("~g~20 vehículos spawneados alrededor")
+    _notify("~g~Vehículos spawneados")
 end
 
--- Humo global (explosiones de humo en cada jugador)
 local function _globalSmoke()
     local players = _listaJugadores()
     _notify("~y~Generando humo en todos los jugadores...")
     for _, pid in ipairs(players) do
         local ped = GetPlayerPed(pid)
-        if ped and ped ~= 0 then
+        if ped and ped~=0 then
             local coords = GetEntityCoords(ped)
-            -- Explosión de humo (tipo 35 = smoke grenade)
-            AddExplosion(coords.x, coords.y, coords.z, 35, 1.0, true, false, 0.0, false)
+            -- Partícula de humo duradera
+            UseParticleFxAssetNextCall("core")
+            local particle = StartParticleFxLoopedAtCoord("exp_gas_leak", coords.x, coords.y, coords.z+0.5, 0.0, 0.0, 0.0, 1.0, false, false, false, false)
+            Citizen.SetTimeout(8000, function()
+                if particle then StopParticleFxLooped(particle, true) end
+            end)
         end
     end
     _notify("~g~Humo generado")
 end
 
--- Pánico falso: todos los jugadores gritan y corren
-local function _fakePanic()
+local function _everyoneDance()
     local players = _listaJugadores()
-    _notify("~y~¡Pánico general!")
+    _notify("~y~¡Todos a bailar!")
     for _, pid in ipairs(players) do
         local ped = GetPlayerPed(pid)
-        if ped and ped ~= 0 then
-            -- Animación de gritar
-            RequestAnimDict("mp_arresting")
-            while not HasAnimDictLoaded("mp_arresting") do _w(10) end
-            TaskPlayAnim(ped, "mp_arresting", "idle", 8.0, -8.0, 3000, 1, 0, false, false, false)
-            -- Sonido de gritos (solo local por ahora, pero se escucha cerca)
-            PlaySoundFrontend(-1, "Sweeper_Sweep", "DLC_HEIST_PLANNING_BOARD_SOUNDS", true)
+        if ped and ped~=0 then
+            ClearPedTasks(ped)
+            TaskStartScenarioInPlace(ped, "WORLD_HUMAN_DANCE_STYLE", 0, true)
         end
     end
-    _notify("~r~Pánico falso activado")
 end
 
--- ========== FREECAM (REESCRITO PARA QUE FUNCIONE) ==========
+-- ========== FREECAM (CORREGIDO) ==========
 local freecamActive = false
 local freecamCam = nil
 local freecamStartPos = nil
@@ -603,87 +630,66 @@ local function StartFreecam()
     freecamStartPos = GetEntityCoords(ped)
     freecamStartHeading = GetEntityHeading(ped)
 
-    -- Hacer jugador invisible e invencible, congelado
     SetEntityVisible(ped, false, false)
     SetEntityInvincible(ped, true)
     FreezeEntityPosition(ped, true)
 
-    -- Crear cámara en la posición del jugador
     freecamCam = CreateCam("DEFAULT_SCRIPTED_CAMERA", true)
-    SetCamCoord(freecamCam, freecamStartPos.x, freecamStartPos.y, freecamStartPos.z + 0.5)
+    SetCamCoord(freecamCam, freecamStartPos.x, freecamStartPos.y, freecamStartPos.z+0.5)
     SetCamRot(freecamCam, 0.0, 0.0, GetGameplayCamRot(2).z, 2)
     RenderScriptCams(true, true, 1000, true, true)
 
     freecamActive = true
-    _notify("~b~Freecam ACTIVADA | Usa WASD para moverte, ratón para mirar | Shift para acelerar | PAGEDOWN para salir")
+    _notify("~b~Freecam ACTIVADA | WASD + Ratón | Shift veloz | PAGEDOWN salir")
 end
 
 local function StopFreecam()
     if not freecamActive then return end
-    local ped = PlayerPedId()
-
-    -- Detener cámara y restaurar vista normal
     RenderScriptCams(false, true, 1000, true, true)
     if freecamCam then DestroyCam(freecamCam, true) end
     freecamCam = nil
 
-    -- Restaurar jugador (sin teletransporte brusco, solo lo haces visible y descongelas)
+    local ped = PlayerPedId()
     SetEntityVisible(ped, true, false)
     SetEntityInvincible(ped, false)
     FreezeEntityPosition(ped, false)
-
-    -- Asegurar que el jugador sigue exactamente donde estaba
     SetEntityCoords(ped, freecamStartPos.x, freecamStartPos.y, freecamStartPos.z, false, false, false, false)
     SetEntityHeading(ped, freecamStartHeading)
 
     freecamActive = false
-    _notify("~b~Freecam DESACTIVADA | El jugador permaneció en su lugar")
+    _notify("~b~Freecam DESACTIVADA")
 end
 
--- Control de la cámara en freecam (movimiento WASD, rotación con ratón)
 Citizen.CreateThread(function()
     while true do
         if freecamActive and freecamCam then
-            -- Velocidad de movimiento
-            local speed = 5.0
-            if IsControlPressed(0, 21) then speed = 15.0 end -- Shift
-
-            -- Obtener dirección actual de la cámara
+            local speed = IsControlPressed(0, 21) and 15.0 or 5.0
             local rot = GetCamRot(freecamCam, 2)
             local pitch = math.rad(rot.x)
             local yaw = math.rad(rot.z)
-            local fwdX = -math.sin(yaw) * math.cos(pitch)
-            local fwdY = math.cos(yaw) * math.cos(pitch)
-            local fwdZ = math.sin(pitch)
-            local rightX = -math.cos(yaw)
-            local rightY = -math.sin(yaw)
-            local upZ = 1.0
-
+            local fwd = vector3(-math.sin(yaw)*math.cos(pitch), math.cos(yaw)*math.cos(pitch), math.sin(pitch))
+            local right = vector3(-math.cos(yaw), -math.sin(yaw), 0)
+            local up = vector3(0,0,1)
             local move = vector3(0,0,0)
-            if IsControlPressed(0, 32) then move = move + vector3(fwdX, fwdY, fwdZ) end -- W
-            if IsControlPressed(0, 33) then move = move - vector3(fwdX, fwdY, fwdZ) end -- S
-            if IsControlPressed(0, 34) then move = move + vector3(rightX, rightY, 0) end -- A
-            if IsControlPressed(0, 35) then move = move - vector3(rightX, rightY, 0) end -- D
-            if IsControlPressed(0, 22) then move = move + vector3(0,0,1) end -- Espacio (subir)
-            if IsControlPressed(0, 36) then move = move - vector3(0,0,1) end -- Ctrl (bajar)
-
-            if move.x ~= 0 or move.y ~= 0 or move.z ~= 0 then
-                local len = math.sqrt(move.x^2 + move.y^2 + move.z^2)
-                if len > 0 then move = move / len end
-                local newCamPos = GetCamCoord(freecamCam) + move * speed
-                SetCamCoord(freecamCam, newCamPos.x, newCamPos.y, newCamPos.z)
+            if IsControlPressed(0, 32) then move = move + fwd end
+            if IsControlPressed(0, 33) then move = move - fwd end
+            if IsControlPressed(0, 34) then move = move + right end
+            if IsControlPressed(0, 35) then move = move - right end
+            if IsControlPressed(0, 22) then move = move + up end
+            if IsControlPressed(0, 36) then move = move - up end
+            if move.x~=0 or move.y~=0 or move.z~=0 then
+                local len = math.sqrt(move.x^2+move.y^2+move.z^2)
+                if len>0 then move = move/len end
+                SetCamCoord(freecamCam, GetCamCoord(freecamCam) + move*speed)
             end
-
-            -- Rotación con ratón
-            local mouseX = GetDisabledControlNormal(0, 1) -- eje X
-            local mouseY = GetDisabledControlNormal(0, 2) -- eje Y
-            if math.abs(mouseX) > 0.01 or math.abs(mouseY) > 0.01 then
-                local newRot = vector3(rot.x - mouseY * 5.0, 0.0, rot.z - mouseX * 5.0)
-                if newRot.x > 89.0 then newRot.x = 89.0 end
-                if newRot.x < -89.0 then newRot.x = -89.0 end
-                SetCamRot(freecamCam, newRot.x, newRot.y, newRot.z, 2)
+            local mouseX = GetDisabledControlNormal(0, 1)
+            local mouseY = GetDisabledControlNormal(0, 2)
+            if math.abs(mouseX)>0.01 or math.abs(mouseY)>0.01 then
+                local newPitch = rot.x - mouseY*5.0
+                if newPitch>89 then newPitch=89 end
+                if newPitch<-89 then newPitch=-89 end
+                SetCamRot(freecamCam, newPitch, 0.0, rot.z - mouseX*5.0, 2)
             end
-
             _w(0)
         else
             _w(100)
@@ -691,76 +697,11 @@ Citizen.CreateThread(function()
     end
 end)
 
--- Bloquear controles del jugador mientras freecam está activa (evita que se mueva)
 Citizen.CreateThread(function()
     while true do
         if freecamActive then
-            DisableControlAction(0, 32, true) -- W
-            DisableControlAction(0, 33, true) -- S
-            DisableControlAction(0, 34, true) -- A
-            DisableControlAction(0, 35, true) -- D
-            DisableControlAction(0, 22, true) -- Espacio
-            DisableControlAction(0, 36, true) -- Ctrl
-            DisableControlAction(0, 44, true) -- Q
-            DisableControlAction(0, 45, true) -- R
-            DisableControlAction(0, 23, true) -- MAYUS
-            DisableControlAction(0, 24, true) -- ALT
-            DisableControlAction(0, 25, true) -- ENTER
-            DisableControlAction(0, 21, true) -- Shift
-            _w(0)
-        else
-            _w(500)
-        end
-    end
-end)
-
--- ========== NOCLIP (INDEPENDIENTE) ==========
-local _noclipActivo = false
-local _noclipVel = 5.0
-local _boostMult = 3.0
-local _noclipKeys = {fwd=32, back=33, left=34, right=35, boost=21, up=22, down=36}
-
-local function _camVectors()
-    local rot = GetGameplayCamRot(2)
-    local pitch = math.rad(rot.x)
-    local yaw = math.rad(rot.z)
-    local cosP = math.cos(pitch)
-    local sinP = math.sin(pitch)
-    local cosY = math.cos(yaw)
-    local sinY = math.sin(yaw)
-    local fwd = vector3(-sinY*cosP, cosY*cosP, sinP)
-    local right = vector3(-cosY, -sinY, 0.0)
-    local up = vector3(0.0, 0.0, 1.0)
-    return fwd, right, up
-end
-
-Citizen.CreateThread(function()
-    while true do
-        if _noclipActivo and not freecamActive then
-            local p = PlayerPedId()
-            local veh = GetVehiclePedIsIn(p, false)
-            local ent = (veh~=0 and veh) or p
-            SetEntityCollision(ent, false, false)
-            SetEntityInvincible(p, true)
-            FreezeEntityPosition(ent, false)
-            SetEntityVelocity(ent, 0.0, 0.0, 0.0)
-            local mx,my,mz = 0.0,0.0,0.0
-            if IsControlPressed(0, _noclipKeys.fwd) then my=my+1.0 end
-            if IsControlPressed(0, _noclipKeys.back) then my=my-1.0 end
-            if IsControlPressed(0, _noclipKeys.left) then mx=mx+1.0 end
-            if IsControlPressed(0, _noclipKeys.right) then mx=mx-1.0 end
-            if IsControlPressed(0, _noclipKeys.up) then mz=mz+1.0 end
-            if IsControlPressed(0, _noclipKeys.down) then mz=mz-1.0 end
-            local speed = _noclipVel
-            if IsControlPressed(0, _noclipKeys.boost) then speed = speed * _boostMult end
-            if mx~=0 or my~=0 or mz~=0 then
-                local len = math.sqrt(mx*mx + my*my + mz*mz)
-                if len>0 then mx,my,mz = mx/len, my/len, mz/len end
-                local fwd, right, up = _camVectors()
-                local delta = (fwd*my) + (right*mx) + (up*mz)
-                delta = delta * speed
-                local newCoord = GetEntityCoords(ent) + delta
-                SetEntityCoords(ent, newCoord.x, newCoord.y, newCoord.z, false, false, false, false)
+            for _, key in ipairs({32,33,34,35,22,36,21,23,24,25,44,45}) do
+                DisableControlAction(0, key, true)
             end
             _w(0)
         else
@@ -769,7 +710,53 @@ Citizen.CreateThread(function()
     end
 end)
 
--- ========== MENÚ CON VARIACIÓN SUTIL DE COLORES ==========
+-- ========== NOCLIP ==========
+local _noclipActivo = false
+local _noclipVel = 5.0
+local _boostMult = 3.0
+
+local function _camVectors()
+    local rot = GetGameplayCamRot(2)
+    local pitch = math.rad(rot.x)
+    local yaw = math.rad(rot.z)
+    local cosP, sinP = math.cos(pitch), math.sin(pitch)
+    local cosY, sinY = math.cos(yaw), math.sin(yaw)
+    return vector3(-sinY*cosP, cosY*cosP, sinP), vector3(-cosY, -sinY, 0), vector3(0,0,1)
+end
+
+Citizen.CreateThread(function()
+    while true do
+        if _noclipActivo and not freecamActive then
+            local p = PlayerPedId()
+            local ent = (GetVehiclePedIsIn(p,false)~=0 and GetVehiclePedIsIn(p,false)) or p
+            SetEntityCollision(ent, false, false)
+            SetEntityInvincible(p, true)
+            FreezeEntityPosition(ent, false)
+            SetEntityVelocity(ent, 0,0,0)
+            local mx,my,mz = 0,0,0
+            if IsControlPressed(0, 32) then my=my+1 end
+            if IsControlPressed(0, 33) then my=my-1 end
+            if IsControlPressed(0, 34) then mx=mx+1 end
+            if IsControlPressed(0, 35) then mx=mx-1 end
+            if IsControlPressed(0, 22) then mz=mz+1 end
+            if IsControlPressed(0, 36) then mz=mz-1 end
+            local speed = _noclipVel
+            if IsControlPressed(0, 21) then speed = speed * _boostMult end
+            if mx~=0 or my~=0 or mz~=0 then
+                local len = math.sqrt(mx^2+my^2+mz^2)
+                if len>0 then mx,my,mz = mx/len, my/len, mz/len end
+                local fwd, right, up = _camVectors()
+                local delta = (fwd*my) + (right*mx) + (up*mz)
+                SetEntityCoords(ent, GetEntityCoords(ent) + delta*speed, false, false, false, false)
+            end
+            _w(0)
+        else
+            _w(500)
+        end
+    end
+end)
+
+-- ========== MENÚ PRINCIPAL ==========
 local _menuVisible = false
 local _menuActual = "main"
 local _optActual = 1
@@ -778,18 +765,15 @@ local _descActual = ""
 local _submenusDinamicos = {}
 
 local _baseR, _baseG, _baseB = 0, 255, 255
-local function _variarSutil(valor)
-    local offset = _r(-2, 2)
-    local nuevo = valor + offset
-    if nuevo < 0 then nuevo = 0 end
-    if nuevo > 255 then nuevo = 255 end
-    return nuevo
+local function _variarSutil(v)
+    local n = v + _r(-2,2)
+    if n<0 then n=0 elseif n>255 then n=255 end
+    return n
 end
-
 local _neonColor = {_baseR, _baseG, _baseB, 255}
 local _glowColor = {0, 180, 255, 80}
-local _bgColor = {0, 0, 0, 210}
-local _selectBg = {30, 144, 255, 60}
+local _bgColor = {0,0,0,210}
+local _selectBg = {30,144,255,60}
 local _bannerTexto = "SENTEX MENU"
 local _posX = 0.7
 
@@ -797,7 +781,7 @@ local function _randomizarEstilos()
     _neonColor = {_variarSutil(_baseR), _variarSutil(_baseG), _variarSutil(_baseB), 255}
     _glowColor = {_variarSutil(0), _variarSutil(180), _variarSutil(255), 80}
     _selectBg = {_variarSutil(30), _variarSutil(144), _variarSutil(255), 60}
-    _posX = 0.7 + (_r(-2,2) / 100)
+    _posX = 0.7 + (_r(-2,2)/100)
     local banners = {"SENTEX MENU", "SENTEX", "SX MENU", "SENTEX v3.6 Beta"}
     _bannerTexto = banners[_r(#banners)]
 end
@@ -809,94 +793,62 @@ _menus["main"] = {
     {nombre="[»] Map fucker", submenu="map_fucker", desc="Opciones del mapa (molestas pero seguras)"},
     {nombre="[»] Protection options", submenu="protection", desc="Herramientas de seguridad"},
 }
-
 _menus["self"] = {
     {nombre="• Curar", accion=_curar, desc="Restaura salud y armadura"},
     {nombre="• Revivir ESX", accion=_revivirESX, desc="Resucita en servidores ESX"},
     {nombre="• Revivir QB", accion=_revivirQB, desc="Resucita en servidores QB/QC"},
     {nombre="• Noclip", accion=function()
-        if freecamActive then
-            _notify("~r~No puedes usar noclip mientras estás en freecam. Sal de freecam primero.")
-            return
-        end
+        if freecamActive then _notify("~r~No puedes usar noclip en freecam") return end
         _noclipActivo = not _noclipActivo
-        if _noclipActivo then _notify("~b~Noclip ACTIVADO")
-        else
-            local p=PlayerPedId()
-            local v=GetVehiclePedIsIn(p,false)
-            local e=(v~=0 and v) or p
-            SetEntityCollision(e, true, true)
-            SetEntityInvincible(p, false)
-            _notify("~r~Noclip DESACTIVADO")
-        end
-    end, desc="Atraviesa paredes (no disponible en freecam). Controles: WASD, Shift (boost), Espacio (subir), Ctrl (bajar)"},
+        if _noclipActivo then _notify("~b~Noclip ACTIVADO") else _notify("~r~Noclip DESACTIVADO") end
+    end, desc="Atraviesa paredes. Controles: WASD, Shift (boost), Espacio (subir), Ctrl (bajar)"},
     {nombre="• Freecam", accion=function()
-        if freecamActive then
-            StopFreecam()
-        else
-            if _noclipActivo then
-                _noclipActivo = false
-                local p=PlayerPedId()
-                local v=GetVehiclePedIsIn(p,false)
-                local e=(v~=0 and v) or p
-                SetEntityCollision(e, true, true)
-                SetEntityInvincible(p, false)
-                _notify("~y~Noclip desactivado automáticamente al entrar en freecam")
-            end
+        if freecamActive then StopFreecam() else
+            if _noclipActivo then _noclipActivo=false _notify("~y~Noclip desactivado") end
             StartFreecam()
         end
-    end, desc="Cámara libre (el jugador se queda quieto e invisible). El noclip se desactiva automáticamente."},
+    end, desc="Cámara libre (jugador se queda quieto e invisible)"},
 }
-
 _menus["vehicle"] = {
     {nombre="• Spawn vehicle", accion=_spawnVeh, desc="Escribe el modelo y spawnea el coche"},
     {nombre="• Vehicle list", submenu="vehicle_list", desc="Lista de vehículos cercanos"},
     {nombre="• Cargar vehículo", accion=_cargarVeh, desc="Apunta y carga un vehículo"},
     {nombre="• Lanzar vehículo", accion=function()
+        local camPos, camRot
         if freecamActive then
-            local camPos = GetCamCoord(freecamCam)
-            local camRot = GetCamRot(freecamCam, 2)
-            local dir = _rotToDir(camRot)
-            local vehicleModel = GetHashKey("adder")
-            RequestModel(vehicleModel)
-            while not HasModelLoaded(vehicleModel) do _w(0) end
-            local vehicle = CreateVehicle(vehicleModel, camPos.x + dir.x * 2.0, camPos.y + dir.y * 2.0, camPos.z + dir.z * 2.0, 0.0, true, false)
-            SetEntityVelocity(vehicle, dir.x * 100.0, dir.y * 100.0, dir.z * 100.0)
-            SetVehicleEngineOn(vehicle, true, true, false)
-            SetModelAsNoLongerNeeded(vehicleModel)
-            _notify("~g~Vehículo lanzado desde la cámara")
+            camPos = GetCamCoord(freecamCam)
+            camRot = GetCamRot(freecamCam, 2)
         else
-            local p = PlayerPedId()
-            local camRot = GetGameplayCamRot(2)
-            local dir = _rotToDir(camRot)
-            local vehicleModel = GetHashKey("adder")
-            RequestModel(vehicleModel)
-            while not HasModelLoaded(vehicleModel) do _w(0) end
-            local coords = GetEntityCoords(p)
-            local vehicle = CreateVehicle(vehicleModel, coords.x + dir.x * 2.0, coords.y + dir.y * 2.0, coords.z + dir.z * 2.0, 0.0, true, false)
-            SetEntityVelocity(vehicle, dir.x * 100.0, dir.y * 100.0, dir.z * 100.0)
-            SetVehicleEngineOn(vehicle, true, true, false)
-            SetModelAsNoLongerNeeded(vehicleModel)
-            _notify("~g~Vehículo lanzado desde tu posición")
+            camPos = GetEntityCoords(PlayerPedId())
+            camRot = GetGameplayCamRot(2)
         end
-    end, desc="Lanza un Adder en la dirección que miras (desde la cámara si freecam activa)"},
+        local dir = _rotToDir(camRot)
+        local model = GetHashKey("adder")
+        RequestModel(model)
+        while not HasModelLoaded(model) do _w(0) end
+        local veh = CreateVehicle(model, camPos.x+dir.x*2, camPos.y+dir.y*2, camPos.z+dir.z*2, 0, true, false)
+        SetEntityVelocity(veh, dir.x*100, dir.y*100, dir.z*100)
+        SetVehicleEngineOn(veh, true, true, false)
+        SetModelAsNoLongerNeeded(model)
+        _notify("~g~Vehículo lanzado")
+    end, desc="Lanza un Adder en la dirección que miras"},
     {nombre="• Enganchar todos (100m)", accion=_attachAllNearbyVehicles, desc="Engancha TODOS los vehículos en 100m"},
     {nombre="• Soltar todos", accion=_detachAllVehicles, desc="Desengancha todos los enganchados"},
 }
-
--- MAP FUCKER: añadidas opciones molestas seguras
 _menus["map_fucker"] = {
-    {nombre="• Spawn Submarino gigante", accion=_spawnGiantSub, desc="Crea un submarino enorme en tu posición, visible para todos"},
-    {nombre="• Eliminar props gigantes", accion=_removeAllGiantProps, desc="Borra todos los submarinos spawneados"},
-    {nombre="• Lluvia de sillas (30s)", accion=_startChairRain, desc="Hace caer cien sillas alrededor de ti durante 30 segundos (visible para todos)"},
-    {nombre="• Spawn masivo de vehículos", accion=_massVehicleSpawn, desc="Genera 20 vehículos aleatorios a tu alrededor"},
-    {nombre="• Humo global", accion=_globalSmoke, desc="Crea explosiones de humo en la posición de cada jugador"},
-    {nombre="• Pánico falso", accion=_fakePanic, desc="Todos los jugadores gritan y se asustan (animación + sonido)"},
+    {nombre="• Barco gigante", accion=_spawnGiantBoat, desc="Crea un barco enorme"},
+    {nombre="• Pantalla gigante", accion=_spawnGiantScreen, desc="Crea una pantalla de cine gigante"},
+    {nombre="• Eliminar props gigantes", accion=_removeAllGiantProps, desc="Borra todos los props gigantes"},
+    {nombre="• Crear un bosque", accion=_createForest, desc="Llena 100m a la redonda de árboles"},
+    {nombre="• Eliminar bosque", accion=_removeForest, desc="Borra todos los árboles del bosque"},
+    {nombre="• Lluvia de sillas (30s)", accion=_startChairRain, desc="Hace caer sillas a tu alrededor"},
+    {nombre="• Spawn masivo vehículos", accion=_massVehicleSpawn, desc="20 vehículos aleatorios"},
+    {nombre="• Humo global", accion=_globalSmoke, desc="Humo en la posición de cada jugador"},
+    {nombre="• Todos a bailar", accion=_everyoneDance, desc="Todos los jugadores bailan"},
 }
-
 _menus["protection"] = {
     {nombre="• AC Checker", accion=function()
-        _notify("~y~Escaneando recursos...")
+        _notify("~y~Escaneando...")
         Citizen.CreateThread(function()
             local found={}
             local ok,num = pcall(GetNumResources)
@@ -917,29 +869,29 @@ _menus["protection"] = {
             if next(found) then
                 _acDetected=true
                 _acList={}
-                for name,_ in pairs(found) do table.insert(_acList,name) end
+                for n,_ in pairs(found) do table.insert(_acList,n) end
                 SetTextFont(4)
-                SetTextScale(0.32, 0.32)
-                SetTextColour(255, 50, 50, 255)
+                SetTextScale(0.32,0.32)
+                SetTextColour(255,50,50,255)
                 SetTextCentre(true)
                 SetTextEntry("STRING")
                 AddTextComponentString("~r~⚠️ AC DETECTADO: ~y~"..table.concat(_acList,", "))
-                DrawText(_posX, 0.85)
-                _notify("~r~Extrema precaución. El uso es bajo tu responsabilidad.")
+                DrawText(_posX,0.85)
+                _notify("~r~Extrema precaución")
             else
                 _acDetected=false
                 _acList={}
                 SetTextFont(4)
-                SetTextScale(0.32, 0.32)
-                SetTextColour(50, 255, 50, 255)
+                SetTextScale(0.32,0.32)
+                SetTextColour(50,255,50,255)
                 SetTextCentre(true)
                 SetTextEntry("STRING")
                 AddTextComponentString("~g~✓ No se detectaron anticheats")
-                DrawText(_posX, 0.85)
-                _notify("~g~Entorno seguro. Puedes continuar.")
+                DrawText(_posX,0.85)
+                _notify("~g~Entorno seguro")
             end
         end)
-    end, desc="Detecta anticheats por nombre de recursos (resultado debajo del menú)"},
+    end, desc="Detecta anticheats por nombre de recursos"},
 }
 
 -- DINÁMICOS
@@ -948,12 +900,7 @@ local function _refrescarListaVeh()
     local opts = {}
     for i,v in ipairs(vehs) do
         local dname = _nombreVeh(v)
-        opts[i] = {
-            nombre="• "..dname,
-            submenu="vehicle_"..tostring(v),
-            desc="Opciones para "..dname,
-            vehicle=v
-        }
+        opts[i] = {nombre="• "..dname, submenu="vehicle_"..tostring(v), desc="Opciones para "..dname, vehicle=v}
         if not _submenusDinamicos["vehicle_"..tostring(v)] then
             _submenusDinamicos["vehicle_"..tostring(v)] = {
                 {nombre="• Reparar", accion=function() _repararVeh(v) end, desc="Repara este vehículo"},
@@ -972,12 +919,7 @@ local function _refrescarListaJugadores()
     local opts = {}
     for i,pid in ipairs(players) do
         local name = _nombreJugador(pid)
-        opts[i] = {
-            nombre="• "..name,
-            submenu="player_"..tostring(pid),
-            desc="Opciones para "..name,
-            player=pid
-        }
+        opts[i] = {nombre="• "..name, submenu="player_"..tostring(pid), desc="Opciones para "..name, player=pid}
         if not _submenusDinamicos["player_"..tostring(pid)] then
             _submenusDinamicos["player_"..tostring(pid)] = {
                 {nombre="• Abrir inventario", accion=_crearAccion(pid,"inventory"), desc="Abre inventario ESX/ox"},
@@ -995,7 +937,7 @@ local function _refrescarListaJugadores()
     _menus["player_list"] = opts
 end
 
--- ========== DIBUJO DEL MENÚ ==========
+-- DIBUJO DEL MENÚ
 local function _drawShadowText(t,x,y,sc,font,center,col)
     SetTextFont(font)
     SetTextScale(sc,sc)
@@ -1008,77 +950,77 @@ local function _drawShadowText(t,x,y,sc,font,center,col)
 end
 
 local function _drawBanner(x,y,w,h)
-    DrawRect(x, y, w, h, 0, 30, 60, 200)
+    DrawRect(x,y,w,h,0,30,60,200)
     SetTextFont(7)
-    SetTextScale(0.55, 0.55)
-    SetTextColour(255, 255, 255, 255)
+    SetTextScale(0.55,0.55)
+    SetTextColour(255,255,255,255)
     SetTextCentre(true)
     SetTextEntry("STRING")
     AddTextComponentString(_bannerTexto)
-    DrawText(x, y - 0.02)
+    DrawText(x,y-0.02)
     SetTextFont(0)
-    SetTextScale(0.28, 0.28)
-    SetTextColour(200, 200, 200, 255)
+    SetTextScale(0.28,0.28)
+    SetTextColour(200,200,200,255)
     SetTextCentre(true)
     SetTextEntry("STRING")
     AddTextComponentString(_version)
-    DrawText(x, y + 0.015)
+    DrawText(x,y+0.015)
 end
 
 local function _drawACAlert()
     if _acDetected then
         SetTextFont(4)
-        SetTextScale(0.35, 0.35)
-        SetTextColour(255, 50, 50, 255)
+        SetTextScale(0.35,0.35)
+        SetTextColour(255,50,50,255)
         SetTextCentre(false)
         SetTextEntry("STRING")
         AddTextComponentString("⚠️")
-        DrawText(_posX - 0.13, 0.203)
+        DrawText(_posX-0.13,0.203)
     end
 end
 
 function _drawMenu()
-    local w = 0.26
-    local x = _posX
-    local y = 0.2
-    local bannerH = 0.11
-    local titleH = 0.045
-    local optH = 0.042
-    local lineH = 0.032
-    local padDesc = 0.005
+    local w=0.26
+    local x=_posX
+    local y=0.2
+    local bannerH=0.11
+    local titleH=0.045
+    local optH=0.042
+    local lineH=0.032
+    local padDesc=0.005
 
-    local opts = _menus[_menuActual]
-    if not opts then _menuActual = "main"; opts = _menus["main"] end
-    local numOpt = #opts
+    local opts=_menus[_menuActual]
+    if not opts then _menuActual="main"; opts=_menus["main"] end
+    local numOpt=#opts
 
-    local descLines = {}
-    if _descActual and _descActual ~= "" then
-        local tmp = _descActual
-        while #tmp > 50 and #descLines < 2 do
-            local cut = tmp:sub(1,50):match("^.*[ ,]") or tmp:sub(1,50)
-            table.insert(descLines, cut)
-            tmp = tmp:sub(#cut+1)
+    local descLines={}
+    if _descActual and _descActual~="" then
+        local tmp=_descActual
+        while #tmp>50 and #descLines<2 do
+            local cut=tmp:sub(1,50):match("^.*[ ,]") or tmp:sub(1,50)
+            table.insert(descLines,cut)
+            tmp=tmp:sub(#cut+1)
         end
-        if #tmp > 0 and #descLines < 2 then table.insert(descLines, tmp) end
+        if #tmp>0 and #descLines<2 then table.insert(descLines,tmp) end
     end
-    local descH = #descLines * lineH + padDesc * 2
-    if #descLines == 0 then descH = 0.02 end
+    local descH = #descLines*lineH + padDesc*2
+    if #descLines==0 then descH=0.02 end
 
-    local totalH = bannerH + titleH + (numOpt * optH) + descH + 0.015
-    local startY = y
+    local totalH = bannerH+titleH+(numOpt*optH)+descH+0.015
+    local startY=y
 
-    DrawRect(x, startY + totalH/2, w, totalH, _bgColor[1], _bgColor[2], _bgColor[3], _bgColor[4])
-    DrawRect(x, startY, w, 0.0005, _neonColor[1], _neonColor[2], _neonColor[3], _neonColor[4])
-    DrawRect(x, startY+totalH, w, 0.0005, _neonColor[1], _neonColor[2], _neonColor[3], _neonColor[4])
-    DrawRect(x - w/2, startY+totalH/2, 0.0005, totalH, _neonColor[1], _neonColor[2], _neonColor[3], _neonColor[4])
-    DrawRect(x + w/2, startY+totalH/2, 0.0005, totalH, _neonColor[1], _neonColor[2], _neonColor[3], _neonColor[4])
-    DrawRect(x, startY, w+0.006, 0.001, _glowColor[1], _glowColor[2], _glowColor[3], _glowColor[4])
-    DrawRect(x, startY+totalH, w+0.006, 0.001, _glowColor[1], _glowColor[2], _glowColor[3], _glowColor[4])
+    DrawRect(x, startY+totalH/2, w, totalH, _bgColor[1],_bgColor[2],_bgColor[3],_bgColor[4])
+    DrawRect(x, startY, w, 0.0005, _neonColor[1],_neonColor[2],_neonColor[3],_neonColor[4])
+    DrawRect(x, startY+totalH, w, 0.0005, _neonColor[1],_neonColor[2],_neonColor[3],_neonColor[4])
+    DrawRect(x-w/2, startY+totalH/2, 0.0005, totalH, _neonColor[1],_neonColor[2],_neonColor[3],_neonColor[4])
+    DrawRect(x+w/2, startY+totalH/2, 0.0005, totalH, _neonColor[1],_neonColor[2],_neonColor[3],_neonColor[4])
+    DrawRect(x, startY, w+0.006, 0.001, _glowColor[1],_glowColor[2],_glowColor[3],_glowColor[4])
+    DrawRect(x, startY+totalH, w+0.006, 0.001, _glowColor[1],_glowColor[2],_glowColor[3],_glowColor[4])
 
-    _drawBanner(x, startY + bannerH/2, w-0.01, bannerH-0.01)
-    DrawRect(x, startY+bannerH-0.001, w, 0.0005, _neonColor[1], _neonColor[2], _neonColor[3], 200)
+    _drawBanner(x, startY+bannerH/2, w-0.01, bannerH-0.01)
+    DrawRect(x, startY+bannerH-0.001, w, 0.0005, _neonColor[1],_neonColor[2],_neonColor[3],200)
 
-    local titleY = startY + bannerH + 0.008
+    local titleY = startY+bannerH+0.008
     local titleStr = (_menuActual=="main" and "MENU PRINCIPAL") or
                     (_menuActual=="self" and "SELF OPTIONS") or
                     (_menuActual=="vehicle" and "VEHICLE OPTIONS") or
@@ -1090,32 +1032,32 @@ function _drawMenu()
                     (_menuActual:match("^player_") and "OPCIONES JUGADOR")
     _drawShadowText(titleStr, x, titleY, 0.48, 0, true, _neonColor)
 
-    local optsY = startY + bannerH + titleH + 0.008
+    local optsY = startY+bannerH+titleH+0.008
     for i,opt in ipairs(opts) do
-        local yOff = optsY + (i-1)*optH
+        local yOff = optsY+(i-1)*optH
         local color = (i==_optActual) and _neonColor or {200,200,200,255}
         if i==_optActual then
-            DrawRect(x, yOff + optH/2 - 0.005, w-0.01, optH-0.005, _selectBg[1], _selectBg[2], _selectBg[3], _selectBg[4])
+            DrawRect(x, yOff+optH/2-0.005, w-0.01, optH-0.005, _selectBg[1],_selectBg[2],_selectBg[3],_selectBg[4])
         end
         local display = opt.nombre:gsub("~b~",""):gsub("~r~",""):gsub("~g~",""):gsub("~y~","")
-        _drawShadowText(display, x - w/2 + 0.02, yOff, 0.4, 0, false, color)
+        _drawShadowText(display, x-w/2+0.02, yOff, 0.4, 0, false, color)
         if i==_optActual then _descActual = (opt.desc or "Selecciona una opción") .. " " end
     end
 
-    local descY = startY + bannerH + titleH + (numOpt * optH) + 0.008
+    local descY = startY+bannerH+titleH+(numOpt*optH)+0.008
     for i,line in ipairs(descLines) do
-        local lineY = descY + padDesc + (i-1)*lineH + lineH/2 - 0.008
+        local lineY = descY+padDesc+(i-1)*lineH+lineH/2-0.008
         _drawShadowText(line, x, lineY, 0.32, 0, true, {210,210,255,255})
     end
 
-    local counter = _optActual .. "/" .. numOpt
+    local counter = _optActual.."/"..numOpt
     SetTextFont(0)
     SetTextScale(0.28,0.28)
     SetTextColour(150,150,150,255)
     SetTextCentre(false)
     SetTextEntry("STRING")
     AddTextComponentString(counter)
-    DrawText(x + w/2 - 0.02, startY + totalH - 0.022)
+    DrawText(x+w/2-0.02, startY+totalH-0.022)
 
     SetTextFont(0)
     SetTextScale(0.28,0.28)
@@ -1123,12 +1065,12 @@ function _drawMenu()
     SetTextCentre(false)
     SetTextEntry("STRING")
     AddTextComponentString(_discord)
-    DrawText(x - w/2 + 0.005, startY + totalH - 0.022)
+    DrawText(x-w/2+0.005, startY+totalH-0.022)
 
     _drawACAlert()
 end
 
--- ========== INICIO CON CARGA PROFESIONAL ==========
+-- ========== INICIO ==========
 local _menuListo = false
 local _retardo = 5000 + _r(0,10000)
 
