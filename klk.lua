@@ -201,7 +201,7 @@ local function _nombreVeh(v)
     return name
 end
 
--- CARGAR/LANZAR VEHÍCULO (individual, viejo)
+-- CARGAR/LANZAR VEHÍCULO (individual)
 local _vehCargado = nil
 local _cargando = false
 
@@ -381,7 +381,7 @@ local function _crearAccion(pid, tipo)
 end
 
 -- ========== NUEVO: ENGANCHAR MÚLTIPLES VEHÍCULOS ==========
-local _vehiclesAttached = {}  -- lista de vehículos enganchados
+local _vehiclesAttached = {}
 
 local function _attachClosestVehicle()
     local ped = PlayerPedId()
@@ -427,7 +427,7 @@ local function _detachAllVehicles()
     _notify("~r~Todos los vehículos desenganchados")
 end
 
--- ========== FREECAM CORREGIDA (INDEPENDIENTE) ==========
+-- ========== FREECAM CORREGIDA (CON MOVIMIENTO IGUAL AL NOCLIP) ==========
 local freecamActive = false
 local freecamCam = nil
 local freecamSpeed = 3.0
@@ -436,10 +436,10 @@ local function StartFreecam()
     if freecamActive then return end
     freecamActive = true
     local ped = PlayerPedId()
-    -- Guardar posición original y congelar al jugador (opcional)
-    SetEntityVisible(ped, false, false)  -- ocultamos al jugador
+    -- Ocultar al jugador y hacerlo invencible, pero NO deshabilitamos controles
+    SetEntityVisible(ped, false, false)
     SetEntityInvincible(ped, true)
-    SetPlayerControl(PlayerId(), false, 0)  -- deshabilitar controles del jugador
+    FreezeEntityPosition(ped, true)  -- Congelamos al jugador en su sitio
     -- Crear cámara
     local coords = GetEntityCoords(ped)
     freecamCam = CreateCam("DEFAULT_SCRIPTED_CAMERA", true)
@@ -458,27 +458,27 @@ local function StopFreecam()
         DestroyCam(freecamCam, true)
         freecamCam = nil
     end
-    SetPlayerControl(PlayerId(), true, 0)
     SetEntityVisible(PlayerPedId(), true, false)
     SetEntityInvincible(PlayerPedId(), false)
+    FreezeEntityPosition(PlayerPedId(), false)
     _notify("~b~Freecam DESACTIVADA")
 end
 
--- Hilo de movimiento de cámara (exactamente igual que el noclip)
+-- Hilo de movimiento (usando IsControlPressed normal, igual que el noclip)
 Citizen.CreateThread(function()
     while true do
         if freecamActive and freecamCam then
             local mx, my, mz = 0.0, 0.0, 0.0
-            if IsDisabledControlPressed(0, 32) then my = my + freecamSpeed end  -- W
-            if IsDisabledControlPressed(0, 33) then my = my - freecamSpeed end  -- S
-            if IsDisabledControlPressed(0, 34) then mx = mx - freecamSpeed end  -- A
-            if IsDisabledControlPressed(0, 35) then mx = mx + freecamSpeed end  -- D
-            if IsDisabledControlPressed(0, 22) then mz = mz + freecamSpeed end  -- Espacio
-            if IsDisabledControlPressed(0, 36) then mz = mz - freecamSpeed end  -- Ctrl
+            if IsControlPressed(0, 32) then my = my + freecamSpeed end  -- W
+            if IsControlPressed(0, 33) then my = my - freecamSpeed end  -- S
+            if IsControlPressed(0, 34) then mx = mx - freecamSpeed end  -- A
+            if IsControlPressed(0, 35) then mx = mx + freecamSpeed end  -- D
+            if IsControlPressed(0, 22) then mz = mz + freecamSpeed end  -- Espacio
+            if IsControlPressed(0, 36) then mz = mz - freecamSpeed end  -- Ctrl
             local pos = GetCamCoord(freecamCam)
             local newPos = vector3(pos.x + mx, pos.y + my, pos.z + mz)
             SetCamCoord(freecamCam, newPos.x, newPos.y, newPos.z)
-            -- Ratón
+            -- Ratón (usamos GetDisabledControlNormal porque sigue funcionando aunque el jugador tenga controles)
             local mouseX = GetDisabledControlNormal(0, 1)
             local mouseY = GetDisabledControlNormal(0, 2)
             if mouseX ~= 0 or mouseY ~= 0 then
@@ -486,7 +486,7 @@ Citizen.CreateThread(function()
                 SetCamRot(freecamCam, rot.x + mouseY * -50.0, 0.0, rot.z + mouseX * -50.0, 2)
             end
             -- Teletransporte con Y
-            if IsDisabledControlJustPressed(0, 246) then
+            if IsControlJustPressed(0, 246) then
                 local camPos = GetCamCoord(freecamCam)
                 local camRot = GetCamRot(freecamCam, 2)
                 local ped = PlayerPedId()
@@ -495,7 +495,7 @@ Citizen.CreateThread(function()
                 _notify("~g~Teletransportado a la cámara")
             end
             -- Disparar vehículo con clic izquierdo
-            if IsDisabledControlJustPressed(0, 24) then
+            if IsControlJustPressed(0, 24) then
                 local camPos = GetCamCoord(freecamCam)
                 local camRot = GetCamRot(freecamCam, 2)
                 local dir = _rotToDir(camRot)
@@ -519,7 +519,7 @@ local function _toggleFreecam()
     if freecamActive then StopFreecam() else StartFreecam() end
 end
 
--- NOCLIP
+-- NOCLIP (sin cambios, ya funciona)
 local _noclipActivo = false
 local _noclipVel = 5.0
 local _boostMult = 3.0
@@ -645,9 +645,7 @@ _menus["vehicle"] = {
     {nombre="• Soltar todos los vehículos", accion=_detachAllVehicles, desc="Desengancha todos los vehículos enganchados"},
 }
 
-_menus["map_fucker"] = {
-    -- Ya no está "Attach cars" aquí
-}
+_menus["map_fucker"] = {}  -- Vacío porque attach cars se movió
 
 _menus["protection"] = {
     {nombre="• AC Checker", accion=function()
@@ -673,10 +671,9 @@ _menus["protection"] = {
                 _acDetected=true
                 _acList={}
                 for name,_ in pairs(found) do table.insert(_acList,name) end
-                -- Mostrar mensaje centrado debajo del menú
-                local msg = "~r~⚠️ AC: "..table.concat(_acList,", ").." ~s~"
+                -- Mensaje centrado debajo del mapa
                 SetNotificationTextEntry("STRING")
-                AddTextComponentString(msg)
+                AddTextComponentString("~r~⚠️ AC: "..table.concat(_acList,", ").." ~s~")
                 DrawNotification(false, false)
                 _notify("~r~Extrema precaución. El uso es bajo tu responsabilidad.")
             else
@@ -741,7 +738,7 @@ local function _refrescarListaJugadores()
     _menus["player_list"] = opts
 end
 
--- DIBUJO (banner de texto mejorado)
+-- DIBUJO
 local function _drawShadowText(t,x,y,sc,font,center,col)
     SetTextFont(font)
     SetTextScale(sc,sc)
@@ -774,16 +771,16 @@ local function _drawBanner(x,y,w,h)
     DrawText(x, y + 0.015)
 end
 
--- Función para dibujar el indicador de anticheat en la esquina superior izquierda del menú
+-- Indicador de anticheat en la esquina superior izquierda de la pantalla (fuera del menú)
 local function _drawACIndicator()
     if _acDetected then
         SetTextFont(4)
         SetTextScale(0.28, 0.28)
-        SetTextColour(255, 0, 0, 255)  -- rojo
+        SetTextColour(255, 0, 0, 255)
         SetTextCentre(false)
         SetTextEntry("STRING")
         AddTextComponentString("⚠️ AC: Detectado")
-        DrawText(0.005, 0.005)  -- esquina superior izquierda
+        DrawText(0.005, 0.005)
     end
 end
 
@@ -875,11 +872,11 @@ function _drawMenu()
     AddTextComponentString(_discord)
     DrawText(x - w/2 + 0.005, startY + totalH - 0.022)
 
-    -- Dibujar advertencia de anticheat en la esquina superior izquierda del menú
+    -- Dibujar indicador de anticheat en la esquina superior izquierda de la pantalla
     _drawACIndicator()
 end
 
--- ========== INICIO CON CARGA PROFESIONAL (SIN ^) ==========
+-- ========== INICIO CON CARGA PROFESIONAL ==========
 local _menuListo = false
 local _retardo = 5000 + _r(0,10000)
 
