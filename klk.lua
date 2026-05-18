@@ -425,94 +425,51 @@ local function _detachAllVehicles()
     _notify("~r~Todos los vehículos desenganchados")
 end
 
--- ========== FREECAM (FUNCIONAL) ==========
+-- ========== FREECAM (USANDO NOCLIP + INVISIBILIDAD) ==========
 local freecamActive = false
-local freecamCam = nil
-local freecamSpeed = 3.0
+local freecamStartPos = nil
+local freecamStartHeading = nil
+local _noclipActivo = false
 
 local function StartFreecam()
     if freecamActive then return end
     freecamActive = true
     local ped = PlayerPedId()
+    -- Guardar posición y heading originales
+    freecamStartPos = GetEntityCoords(ped)
+    freecamStartHeading = GetEntityHeading(ped)
+    -- Hacer invisible al jugador y deshabilitar colisión
     SetEntityVisible(ped, false, false)
     SetEntityInvincible(ped, true)
-    FreezeEntityPosition(ped, true)
-    local coords = GetEntityCoords(ped)
-    freecamCam = CreateCam("DEFAULT_SCRIPTED_CAMERA", true)
-    SetCamCoord(freecamCam, coords.x, coords.y, coords.z + 2.0)
-    SetCamRot(freecamCam, 0.0, 0.0, GetEntityHeading(ped))
-    RenderScriptCams(true, true, 1000, true, true)
-    SetCamActive(freecamCam, true)
-    _notify("~b~Freecam ACTIVADA | Movimiento: WASD + Ratón | Tecla Y para teletransportar")
+    SetEntityCollision(ped, false, false)
+    -- Activar noclip (reutilizando el mismo sistema que ya funciona)
+    _noclipActivo = true
+    _notify("~b~Freecam ACTIVADA | Movimiento: WASD + Ratón | Y para teletransportar al inicio")
 end
 
 local function StopFreecam()
     if not freecamActive then return end
     freecamActive = false
-    RenderScriptCams(false, true, 1000, true, true)
-    if freecamCam and DoesCamExist(freecamCam) then
-        DestroyCam(freecamCam, true)
-        freecamCam = nil
+    local ped = PlayerPedId()
+    -- Desactivar noclip
+    _noclipActivo = false
+    -- Restaurar visibilidad y colisión
+    SetEntityVisible(ped, true, false)
+    SetEntityInvincible(ped, false)
+    SetEntityCollision(ped, true, true)
+    -- Teletransportar al jugador a la posición original donde activó la freecam
+    if freecamStartPos then
+        SetEntityCoords(ped, freecamStartPos.x, freecamStartPos.y, freecamStartPos.z, false, false, false, true)
+        SetEntityHeading(ped, freecamStartHeading)
     end
-    SetEntityVisible(PlayerPedId(), true, false)
-    SetEntityInvincible(PlayerPedId(), false)
-    FreezeEntityPosition(PlayerPedId(), false)
-    _notify("~b~Freecam DESACTIVADA")
+    _notify("~b~Freecam DESACTIVADA. Regresaste al punto de inicio.")
 end
-
-Citizen.CreateThread(function()
-    while true do
-        if freecamActive and freecamCam then
-            local mx, my, mz = 0.0, 0.0, 0.0
-            if IsDisabledControlPressed(0, 32) then my = my + freecamSpeed end
-            if IsDisabledControlPressed(0, 33) then my = my - freecamSpeed end
-            if IsDisabledControlPressed(0, 34) then mx = mx - freecamSpeed end
-            if IsDisabledControlPressed(0, 35) then mx = mx + freecamSpeed end
-            if IsDisabledControlPressed(0, 22) then mz = mz + freecamSpeed end
-            if IsDisabledControlPressed(0, 36) then mz = mz - freecamSpeed end
-            local pos = GetCamCoord(freecamCam)
-            local newPos = vector3(pos.x + mx, pos.y + my, pos.z + mz)
-            SetCamCoord(freecamCam, newPos.x, newPos.y, newPos.z)
-            local mouseX = GetDisabledControlNormal(0, 1)
-            local mouseY = GetDisabledControlNormal(0, 2)
-            if mouseX ~= 0 or mouseY ~= 0 then
-                local rot = GetCamRot(freecamCam, 2)
-                SetCamRot(freecamCam, rot.x + mouseY * -50.0, 0.0, rot.z + mouseX * -50.0, 2)
-            end
-            if IsDisabledControlJustPressed(0, 246) then
-                local camPos = GetCamCoord(freecamCam)
-                local camRot = GetCamRot(freecamCam, 2)
-                local ped = PlayerPedId()
-                SetEntityCoords(ped, camPos.x, camPos.y, camPos.z, false, false, false, true)
-                SetEntityHeading(ped, camRot.z)
-                _notify("~g~Teletransportado a la cámara")
-            end
-            if IsDisabledControlJustPressed(0, 24) then
-                local camPos = GetCamCoord(freecamCam)
-                local camRot = GetCamRot(freecamCam, 2)
-                local dir = _rotToDir(camRot)
-                local vehicleModel = GetHashKey("adder")
-                RequestModel(vehicleModel)
-                while not HasModelLoaded(vehicleModel) do Citizen.Wait(0) end
-                local vehicle = CreateVehicle(vehicleModel, camPos.x + dir.x * 2.0, camPos.y + dir.y * 2.0, camPos.z + dir.z * 2.0, 0.0, true, false)
-                SetEntityVelocity(vehicle, dir.x * 100.0, dir.y * 100.0, dir.z * 100.0)
-                SetVehicleEngineOn(vehicle, true, true, false)
-                SetModelAsNoLongerNeeded(vehicleModel)
-                _notify("~g~Vehículo lanzado")
-            end
-            Citizen.Wait(0)
-        else
-            Citizen.Wait(500)
-        end
-    end
-end)
 
 local function _toggleFreecam()
     if freecamActive then StopFreecam() else StartFreecam() end
 end
 
--- NOCLIP
-local _noclipActivo = false
+-- NOCLIP (funcional, se activa/desactiva desde la opción del menú y desde freecam)
 local _noclipVel = 5.0
 local _boostMult = 3.0
 local _noclipKeys = {fwd=32, back=33, left=34, right=35, boost=21, up=22, down=36}
@@ -623,7 +580,7 @@ _menus["self"] = {
             _notify("~r~Noclip DESACTIVADO")
         end
     end, desc="Atraviesa paredes. Controles: WASD, Shift (boost), Espacio (subir), Ctrl (bajar)"},
-    {nombre="• Freecam", accion=_toggleFreecam, desc="Cámara libre (WASD + Ratón). Tecla Y para teletransportarse, clic izquierdo lanza coche."},
+    {nombre="• Freecam", accion=_toggleFreecam, desc="Cámara libre (usa Noclip + invisible). Tecla Y para teletransportar al inicio."},
 }
 
 _menus["vehicle"] = {
@@ -661,7 +618,6 @@ _menus["protection"] = {
                 _acDetected=true
                 _acList={}
                 for name,_ in pairs(found) do table.insert(_acList,name) end
-                -- Mostrar debajo del menú (coordenadas relativas)
                 SetTextFont(4)
                 SetTextScale(0.32, 0.32)
                 SetTextColour(255, 50, 50, 255)
@@ -752,9 +708,11 @@ local function _drawShadowText(t,x,y,sc,font,center,col)
 end
 
 local function _drawBanner(x,y,w,h)
+    -- Solo un rectángulo de fondo, sin doble capa
     DrawRect(x, y, w, h, 10, 20, 40, 200)
-    DrawRect(x, y - h/4, w, h/2, 20, 40, 80, 200)
+    -- Borde inferior neón
     DrawRect(x, y + h/2 - 0.005, w, 0.008, _neonColor[1], _neonColor[2], _neonColor[3], 255)
+    -- Texto
     SetTextFont(7)
     SetTextScale(0.55, 0.55)
     SetTextColour(255, 255, 255, 255)
@@ -772,7 +730,7 @@ local function _drawBanner(x,y,w,h)
     DrawText(x, y + 0.015)
 end
 
--- Alerta de anticheat en la esquina superior izquierda del menú
+-- Alerta de anticheat en la esquina superior izquierda del menú (separada 5px)
 local function _drawACAlert()
     if _acDetected then
         SetTextFont(4)
@@ -781,7 +739,7 @@ local function _drawACAlert()
         SetTextCentre(false)
         SetTextEntry("STRING")
         AddTextComponentString("⚠️")
-        DrawText(_posX - 0.13, 0.205)
+        DrawText(_posX - 0.135, 0.205)  -- Separado del borde
     end
 end
 
