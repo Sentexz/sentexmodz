@@ -1,5 +1,5 @@
 --[[
-    SENTEX MENU - v3.6 (enganche vehículos) [ANTI-FIRMA SUTIL + FREECAM FUNCIONAL]
+    SENTEX MENU - v3.6 Beta
     Abre con PAGEDOWN - Carga diferida 5-15s
 --]]
 
@@ -13,7 +13,7 @@ local _notify = function(msg)
 end
 
 -- ========== CONFIGURACIÓN ==========
-local _version = "v3.6 (enganchar vehículo de jugador)"
+local _version = "v3.6 Beta"
 local _discord = ".gg/sentexmodz"
 
 -- ========== DETECCIÓN DE ANTICHEAT ==========
@@ -380,10 +380,10 @@ local function _crearAccion(pid, tipo)
     end
 end
 
--- ENGANCHAR MÚLTIPLES VEHÍCULOS
+-- ========== ENGANCHAR TODOS LOS VEHÍCULOS EN RADIO 100m ==========
 local _vehiclesAttached = {}
 
-local function _attachClosestVehicle()
+local function _attachAllNearbyVehicles()
     local ped = PlayerPedId()
     local myVeh = GetVehiclePedIsIn(ped, false)
     if myVeh == 0 then
@@ -392,28 +392,26 @@ local function _attachClosestVehicle()
     end
     local coords = GetEntityCoords(myVeh)
     local pool = GetGamePool("CVehicle")
-    local closest = nil
-    local closestDist = 20.0
+    local count = 0
     for _, v in ipairs(pool) do
         if v ~= myVeh and not _vehiclesAttached[v] then
             local dist = #(coords - GetEntityCoords(v))
-            if dist < closestDist then
-                closest = v
-                closestDist = dist
+            if dist < 100.0 then
+                if not NetworkHasControlOfEntity(v) then
+                    NetworkRequestControlOfEntity(v)
+                    local t=0
+                    while not NetworkHasControlOfEntity(v) and t<20 do _w(50) t=t+1 end
+                end
+                AttachEntityToEntity(v, myVeh, 0, 0.0, -2.0, 0.0, 0.0, 0.0, 0.0, false, false, false, false, 2, true)
+                table.insert(_vehiclesAttached, v)
+                count = count + 1
             end
         end
     end
-    if closest then
-        if not NetworkHasControlOfEntity(closest) then
-            NetworkRequestControlOfEntity(closest)
-            local t=0
-            while not NetworkHasControlOfEntity(closest) and t<20 do _w(50) t=t+1 end
-        end
-        AttachEntityToEntity(closest, myVeh, 0, 0.0, -2.0, 0.0, 0.0, 0.0, 0.0, false, false, false, false, 2, true)
-        table.insert(_vehiclesAttached, closest)
-        _notify("~g~Vehículo enganchado. Total: "..#_vehiclesAttached)
+    if count > 0 then
+        _notify("~g~Enganchados "..count.." vehículos. Total: "..#_vehiclesAttached)
     else
-        _notify("~r~No hay vehículos cercanos para enganchar")
+        _notify("~r~No hay vehículos cercanos (100m) para enganchar")
     end
 end
 
@@ -427,7 +425,7 @@ local function _detachAllVehicles()
     _notify("~r~Todos los vehículos desenganchados")
 end
 
--- ========== FREECAM CORREGIDA (USANDO IsDisabledControlPressed) ==========
+-- ========== FREECAM (FUNCIONAL) ==========
 local freecamActive = false
 local freecamCam = nil
 local freecamSpeed = 3.0
@@ -436,11 +434,9 @@ local function StartFreecam()
     if freecamActive then return end
     freecamActive = true
     local ped = PlayerPedId()
-    -- Ocultar y congelar al jugador
     SetEntityVisible(ped, false, false)
     SetEntityInvincible(ped, true)
     FreezeEntityPosition(ped, true)
-    -- Crear cámara
     local coords = GetEntityCoords(ped)
     freecamCam = CreateCam("DEFAULT_SCRIPTED_CAMERA", true)
     SetCamCoord(freecamCam, coords.x, coords.y, coords.z + 2.0)
@@ -464,28 +460,25 @@ local function StopFreecam()
     _notify("~b~Freecam DESACTIVADA")
 end
 
--- Hilo de movimiento (USA IsDisabledControlPressed para que las teclas funcionen siempre)
 Citizen.CreateThread(function()
     while true do
         if freecamActive and freecamCam then
             local mx, my, mz = 0.0, 0.0, 0.0
-            if IsDisabledControlPressed(0, 32) then my = my + freecamSpeed end  -- W
-            if IsDisabledControlPressed(0, 33) then my = my - freecamSpeed end  -- S
-            if IsDisabledControlPressed(0, 34) then mx = mx - freecamSpeed end  -- A
-            if IsDisabledControlPressed(0, 35) then mx = mx + freecamSpeed end  -- D
-            if IsDisabledControlPressed(0, 22) then mz = mz + freecamSpeed end  -- Espacio
-            if IsDisabledControlPressed(0, 36) then mz = mz - freecamSpeed end  -- Ctrl
+            if IsDisabledControlPressed(0, 32) then my = my + freecamSpeed end
+            if IsDisabledControlPressed(0, 33) then my = my - freecamSpeed end
+            if IsDisabledControlPressed(0, 34) then mx = mx - freecamSpeed end
+            if IsDisabledControlPressed(0, 35) then mx = mx + freecamSpeed end
+            if IsDisabledControlPressed(0, 22) then mz = mz + freecamSpeed end
+            if IsDisabledControlPressed(0, 36) then mz = mz - freecamSpeed end
             local pos = GetCamCoord(freecamCam)
             local newPos = vector3(pos.x + mx, pos.y + my, pos.z + mz)
             SetCamCoord(freecamCam, newPos.x, newPos.y, newPos.z)
-            -- Ratón (usa GetDisabledControlNormal)
             local mouseX = GetDisabledControlNormal(0, 1)
             local mouseY = GetDisabledControlNormal(0, 2)
             if mouseX ~= 0 or mouseY ~= 0 then
                 local rot = GetCamRot(freecamCam, 2)
                 SetCamRot(freecamCam, rot.x + mouseY * -50.0, 0.0, rot.z + mouseX * -50.0, 2)
             end
-            -- Teletransporte con Y (usa IsDisabledControlJustPressed)
             if IsDisabledControlJustPressed(0, 246) then
                 local camPos = GetCamCoord(freecamCam)
                 local camRot = GetCamRot(freecamCam, 2)
@@ -494,7 +487,6 @@ Citizen.CreateThread(function()
                 SetEntityHeading(ped, camRot.z)
                 _notify("~g~Teletransportado a la cámara")
             end
-            -- Disparar vehículo con clic izquierdo
             if IsDisabledControlJustPressed(0, 24) then
                 local camPos = GetCamCoord(freecamCam)
                 local camRot = GetCamRot(freecamCam, 2)
@@ -519,7 +511,7 @@ local function _toggleFreecam()
     if freecamActive then StopFreecam() else StartFreecam() end
 end
 
--- ========== NOCLIP (FUNCIONAL) ==========
+-- NOCLIP
 local _noclipActivo = false
 local _noclipVel = 5.0
 local _boostMult = 3.0
@@ -574,7 +566,7 @@ Citizen.CreateThread(function()
     end
 end)
 
--- ========== MENÚ ==========
+-- ========== MENÚ CON VARIACIÓN SUTIL DE COLORES ==========
 local _menuVisible = false
 local _menuActual = "main"
 local _optActual = 1
@@ -603,7 +595,7 @@ local function _randomizarEstilos()
     _glowColor = {_variarSutil(0), _variarSutil(180), _variarSutil(255), 80}
     _selectBg = {_variarSutil(30), _variarSutil(144), _variarSutil(255), 60}
     _posX = 0.7 + (_r(-2,2) / 100)
-    local banners = {"SENTEX MENU", "SENTEX", "SX MENU", "SENTEX v3.6"}
+    local banners = {"SENTEX MENU", "SENTEX", "SX MENU", "SENTEX v3.6 Beta"}
     _bannerTexto = banners[_r(#banners)]
 end
 
@@ -639,8 +631,8 @@ _menus["vehicle"] = {
     {nombre="• Vehicle list", submenu="vehicle_list", desc="Lista de vehículos cercanos"},
     {nombre="• Cargar vehículo", accion=_cargarVeh, desc="Apunta y carga un vehículo"},
     {nombre="• Lanzar vehículo", accion=_lanzarVeh, desc="Lanza el vehículo cargado"},
-    {nombre="• Enganchar vehículo cercano", accion=_attachClosestVehicle, desc="Engancha el vehículo más cercano (múltiples)"},
-    {nombre="• Soltar todos los vehículos", accion=_detachAllVehicles, desc="Desengancha todos los enganchados"},
+    {nombre="• Enganchar todos (100m)", accion=_attachAllNearbyVehicles, desc="Engancha TODOS los vehículos en 100m"},
+    {nombre="• Soltar todos", accion=_detachAllVehicles, desc="Desengancha todos los enganchados"},
 }
 
 _menus["map_fucker"] = {}
@@ -669,17 +661,29 @@ _menus["protection"] = {
                 _acDetected=true
                 _acList={}
                 for name,_ in pairs(found) do table.insert(_acList,name) end
-                SetNotificationTextEntry("STRING")
-                AddTextComponentString("~r~⚠️ AC: "..table.concat(_acList,", ").." ~s~")
-                DrawNotification(false, false)
+                -- Mostrar debajo del menú (coordenadas relativas)
+                SetTextFont(4)
+                SetTextScale(0.32, 0.32)
+                SetTextColour(255, 50, 50, 255)
+                SetTextCentre(true)
+                SetTextEntry("STRING")
+                AddTextComponentString("~r~⚠️ AC DETECTADO: ~y~"..table.concat(_acList,", "))
+                DrawText(_posX, 0.85)
                 _notify("~r~Extrema precaución. El uso es bajo tu responsabilidad.")
             else
                 _acDetected=false
                 _acList={}
-                _notify("~g~No se detectaron anticheats conocidos")
+                SetTextFont(4)
+                SetTextScale(0.32, 0.32)
+                SetTextColour(50, 255, 50, 255)
+                SetTextCentre(true)
+                SetTextEntry("STRING")
+                AddTextComponentString("~g~✓ No se detectaron anticheats")
+                DrawText(_posX, 0.85)
+                _notify("~g~Entorno seguro. Puedes continuar.")
             end
         end)
-    end, desc="Detecta anticheats por nombre de recursos"},
+    end, desc="Detecta anticheats por nombre de recursos (resultado debajo del menú)"},
 }
 
 -- DINÁMICOS
@@ -768,15 +772,16 @@ local function _drawBanner(x,y,w,h)
     DrawText(x, y + 0.015)
 end
 
-local function _drawACIndicator()
+-- Alerta de anticheat en la esquina superior izquierda del menú
+local function _drawACAlert()
     if _acDetected then
         SetTextFont(4)
-        SetTextScale(0.28, 0.28)
-        SetTextColour(255, 0, 0, 255)
+        SetTextScale(0.35, 0.35)
+        SetTextColour(255, 50, 50, 255)
         SetTextCentre(false)
         SetTextEntry("STRING")
-        AddTextComponentString("⚠️ AC: Detectado")
-        DrawText(0.005, 0.005)
+        AddTextComponentString("⚠️")
+        DrawText(_posX - 0.13, 0.205)
     end
 end
 
@@ -868,10 +873,10 @@ function _drawMenu()
     AddTextComponentString(_discord)
     DrawText(x - w/2 + 0.005, startY + totalH - 0.022)
 
-    _drawACIndicator()
+    _drawACAlert()
 end
 
--- ========== INICIO ==========
+-- ========== INICIO CON CARGA PROFESIONAL ==========
 local _menuListo = false
 local _retardo = 5000 + _r(0,10000)
 
