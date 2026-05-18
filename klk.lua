@@ -524,7 +524,7 @@ local function _removeForest()
     _notify("~r~Bosque eliminado")
 end
 
--- ========== OPCIONES MOLESTAS ==========
+-- ========== OPCIONES MOLESTAS (SEGURAS) ==========
 local _rainOfChairs = false
 local _chairObjects = {}
 
@@ -564,16 +564,17 @@ local function _startChairRain()
     end)
 end
 
-local function _massVehicleSpawn()
+-- SPAWN DE VEHÍCULOS SEGURO (solo 5 coches con delay)
+local function _safeMassVehicleSpawn()
     local pos = GetEntityCoords(PlayerPedId())
     local models = {"adder","zentorno","t20","osiris","turismor","nero","reaper","x80"}
-    _notify("~y~Generando 20 vehículos...")
-    for i=1,20 do
+    _notify("~y~Generando 5 vehículos alrededor...")
+    for i=1,5 do
         local model = GetHashKey(models[_r(#models)])
         RequestModel(model)
         while not HasModelLoaded(model) do _w(10) end
         local angle = math.rad(_r(0,360))
-        local rad = _r(10,30)
+        local rad = _r(10,25)
         local x = pos.x + math.cos(angle)*rad
         local y = pos.y + math.sin(angle)*rad
         local veh = CreateVehicle(model, x, y, pos.z, _r(0,360), true, false)
@@ -583,9 +584,9 @@ local function _massVehicleSpawn()
             SetVehicleOnGroundProperly(veh)
         end
         SetModelAsNoLongerNeeded(model)
-        _w(50)
+        _w(250)
     end
-    _notify("~g~Vehículos spawneados")
+    _notify("~g~5 vehículos spawneados (modo seguro)")
 end
 
 local function _globalSmoke()
@@ -595,7 +596,6 @@ local function _globalSmoke()
         local ped = GetPlayerPed(pid)
         if ped and ped~=0 then
             local coords = GetEntityCoords(ped)
-            -- Partícula de humo duradera
             UseParticleFxAssetNextCall("core")
             local particle = StartParticleFxLoopedAtCoord("exp_gas_leak", coords.x, coords.y, coords.z+0.5, 0.0, 0.0, 0.0, 1.0, false, false, false, false)
             Citizen.SetTimeout(8000, function()
@@ -617,6 +617,78 @@ local function _everyoneDance()
         end
     end
 end
+
+-- ========== NOCLIP CORREGIDO (con reposicionamiento al suelo) ==========
+local _noclipActivo = false
+local _noclipVel = 5.0
+local _boostMult = 3.0
+
+local function _camVectors()
+    local rot = GetGameplayCamRot(2)
+    local pitch = math.rad(rot.x)
+    local yaw = math.rad(rot.z)
+    local cosP, sinP = math.cos(pitch), math.sin(pitch)
+    local cosY, sinY = math.cos(yaw), math.sin(yaw)
+    return vector3(-sinY*cosP, cosY*cosP, sinP), vector3(-cosY, -sinY, 0), vector3(0,0,1)
+end
+
+-- Función para reposicionar al jugador sobre el suelo (evita caídas)
+local function _fixPlayerPosition()
+    local ped = PlayerPedId()
+    local coords = GetEntityCoords(ped)
+    local rayHandle = StartShapeTestRay(coords.x, coords.y, coords.z+5.0, coords.x, coords.y, coords.z-10.0, -1, ped, 0)
+    local _, hit, hitPos, _, _ = GetShapeTestResult(rayHandle)
+    if hit then
+        local newZ = hitPos.z + 0.5
+        SetEntityCoords(ped, coords.x, coords.y, newZ, false, false, false, false)
+    end
+end
+
+local function _disableNoclip()
+    if not _noclipActivo then return end
+    local ped = PlayerPedId()
+    local veh = GetVehiclePedIsIn(ped, false)
+    local ent = (veh~=0 and veh) or ped
+    SetEntityCollision(ent, true, true)
+    SetEntityInvincible(ped, false)
+    FreezeEntityPosition(ent, false)
+    -- Reposicionar al jugador sobre el suelo antes de restaurar la gravedad
+    _fixPlayerPosition()
+    _noclipActivo = false
+    _notify("~r~Noclip DESACTIVADO (posición corregida)")
+end
+
+Citizen.CreateThread(function()
+    while true do
+        if _noclipActivo and not freecamActive then
+            local p = PlayerPedId()
+            local ent = (GetVehiclePedIsIn(p,false)~=0 and GetVehiclePedIsIn(p,false)) or p
+            SetEntityCollision(ent, false, false)
+            SetEntityInvincible(p, true)
+            FreezeEntityPosition(ent, false)
+            SetEntityVelocity(ent, 0,0,0)
+            local mx,my,mz = 0,0,0
+            if IsControlPressed(0, 32) then my=my+1 end
+            if IsControlPressed(0, 33) then my=my-1 end
+            if IsControlPressed(0, 34) then mx=mx+1 end
+            if IsControlPressed(0, 35) then mx=mx-1 end
+            if IsControlPressed(0, 22) then mz=mz+1 end
+            if IsControlPressed(0, 36) then mz=mz-1 end
+            local speed = _noclipVel
+            if IsControlPressed(0, 21) then speed = speed * _boostMult end
+            if mx~=0 or my~=0 or mz~=0 then
+                local len = math.sqrt(mx^2+my^2+mz^2)
+                if len>0 then mx,my,mz = mx/len, my/len, mz/len end
+                local fwd, right, up = _camVectors()
+                local delta = (fwd*my) + (right*mx) + (up*mz)
+                SetEntityCoords(ent, GetEntityCoords(ent) + delta*speed, false, false, false, false)
+            end
+            _w(0)
+        else
+            _w(500)
+        end
+    end
+end)
 
 -- ========== FREECAM (CORREGIDO) ==========
 local freecamActive = false
@@ -710,52 +782,6 @@ Citizen.CreateThread(function()
     end
 end)
 
--- ========== NOCLIP ==========
-local _noclipActivo = false
-local _noclipVel = 5.0
-local _boostMult = 3.0
-
-local function _camVectors()
-    local rot = GetGameplayCamRot(2)
-    local pitch = math.rad(rot.x)
-    local yaw = math.rad(rot.z)
-    local cosP, sinP = math.cos(pitch), math.sin(pitch)
-    local cosY, sinY = math.cos(yaw), math.sin(yaw)
-    return vector3(-sinY*cosP, cosY*cosP, sinP), vector3(-cosY, -sinY, 0), vector3(0,0,1)
-end
-
-Citizen.CreateThread(function()
-    while true do
-        if _noclipActivo and not freecamActive then
-            local p = PlayerPedId()
-            local ent = (GetVehiclePedIsIn(p,false)~=0 and GetVehiclePedIsIn(p,false)) or p
-            SetEntityCollision(ent, false, false)
-            SetEntityInvincible(p, true)
-            FreezeEntityPosition(ent, false)
-            SetEntityVelocity(ent, 0,0,0)
-            local mx,my,mz = 0,0,0
-            if IsControlPressed(0, 32) then my=my+1 end
-            if IsControlPressed(0, 33) then my=my-1 end
-            if IsControlPressed(0, 34) then mx=mx+1 end
-            if IsControlPressed(0, 35) then mx=mx-1 end
-            if IsControlPressed(0, 22) then mz=mz+1 end
-            if IsControlPressed(0, 36) then mz=mz-1 end
-            local speed = _noclipVel
-            if IsControlPressed(0, 21) then speed = speed * _boostMult end
-            if mx~=0 or my~=0 or mz~=0 then
-                local len = math.sqrt(mx^2+my^2+mz^2)
-                if len>0 then mx,my,mz = mx/len, my/len, mz/len end
-                local fwd, right, up = _camVectors()
-                local delta = (fwd*my) + (right*mx) + (up*mz)
-                SetEntityCoords(ent, GetEntityCoords(ent) + delta*speed, false, false, false, false)
-            end
-            _w(0)
-        else
-            _w(500)
-        end
-    end
-end)
-
 -- ========== MENÚ PRINCIPAL ==========
 local _menuVisible = false
 local _menuActual = "main"
@@ -799,12 +825,16 @@ _menus["self"] = {
     {nombre="• Revivir QB", accion=_revivirQB, desc="Resucita en servidores QB/QC"},
     {nombre="• Noclip", accion=function()
         if freecamActive then _notify("~r~No puedes usar noclip en freecam") return end
-        _noclipActivo = not _noclipActivo
-        if _noclipActivo then _notify("~b~Noclip ACTIVADO") else _notify("~r~Noclip DESACTIVADO") end
+        if _noclipActivo then
+            _disableNoclip()
+        else
+            _noclipActivo = true
+            _notify("~b~Noclip ACTIVADO")
+        end
     end, desc="Atraviesa paredes. Controles: WASD, Shift (boost), Espacio (subir), Ctrl (bajar)"},
     {nombre="• Freecam", accion=function()
         if freecamActive then StopFreecam() else
-            if _noclipActivo then _noclipActivo=false _notify("~y~Noclip desactivado") end
+            if _noclipActivo then _disableNoclip() end
             StartFreecam()
         end
     end, desc="Cámara libre (jugador se queda quieto e invisible)"},
@@ -842,7 +872,7 @@ _menus["map_fucker"] = {
     {nombre="• Crear un bosque", accion=_createForest, desc="Llena 100m a la redonda de árboles"},
     {nombre="• Eliminar bosque", accion=_removeForest, desc="Borra todos los árboles del bosque"},
     {nombre="• Lluvia de sillas (30s)", accion=_startChairRain, desc="Hace caer sillas a tu alrededor"},
-    {nombre="• Spawn masivo vehículos", accion=_massVehicleSpawn, desc="20 vehículos aleatorios"},
+    {nombre="• Spawn 5 vehículos (seguro)", accion=_safeMassVehicleSpawn, desc="Genera 5 coches alrededor (evita baneo)"},
     {nombre="• Humo global", accion=_globalSmoke, desc="Humo en la posición de cada jugador"},
     {nombre="• Todos a bailar", accion=_everyoneDance, desc="Todos los jugadores bailan"},
 }
@@ -937,7 +967,7 @@ local function _refrescarListaJugadores()
     _menus["player_list"] = opts
 end
 
--- DIBUJO DEL MENÚ
+-- DIBUJO DEL MENÚ (sin cambios)
 local function _drawShadowText(t,x,y,sc,font,center,col)
     SetTextFont(font)
     SetTextScale(sc,sc)
