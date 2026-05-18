@@ -427,7 +427,7 @@ local function _detachAllVehicles()
     _notify("~r~Todos los vehículos desenganchados")
 end
 
--- ========== FREECAM CORREGIDA (USANDO LÓGICA DEL NOCLIP) ==========
+-- ========== FREECAM CORREGIDA (INDEPENDIENTE) ==========
 local freecamActive = false
 local freecamCam = nil
 local freecamSpeed = 3.0
@@ -673,7 +673,11 @@ _menus["protection"] = {
                 _acDetected=true
                 _acList={}
                 for name,_ in pairs(found) do table.insert(_acList,name) end
-                _notify("~r~⚠️ ANTICHEAT DETECTADO: ~y~"..table.concat(_acList,", ").."~s~")
+                -- Mostrar mensaje centrado debajo del menú
+                local msg = "~r~⚠️ AC: "..table.concat(_acList,", ").." ~s~"
+                SetNotificationTextEntry("STRING")
+                AddTextComponentString(msg)
+                DrawNotification(false, false)
                 _notify("~r~Extrema precaución. El uso es bajo tu responsabilidad.")
             else
                 _acDetected=false
@@ -770,16 +774,16 @@ local function _drawBanner(x,y,w,h)
     DrawText(x, y + 0.015)
 end
 
-local function _drawACWarning(x,y,totalH)
+-- Función para dibujar el indicador de anticheat en la esquina superior izquierda del menú
+local function _drawACIndicator()
     if _acDetected then
-        local wy = y + totalH + 0.018
         SetTextFont(4)
-        SetTextScale(0.28,0.28)
-        SetTextColour(_neonColor[1],_neonColor[2],_neonColor[3],255)
-        SetTextCentre(true)
+        SetTextScale(0.28, 0.28)
+        SetTextColour(255, 0, 0, 255)  -- rojo
+        SetTextCentre(false)
         SetTextEntry("STRING")
-        AddTextComponentString("⚠️ ANTICHEAT DETECTADO - RIESGO ELEVADO ⚠️")
-        DrawText(x, wy)
+        AddTextComponentString("⚠️ AC: Detectado")
+        DrawText(0.005, 0.005)  -- esquina superior izquierda
     end
 end
 
@@ -871,7 +875,8 @@ function _drawMenu()
     AddTextComponentString(_discord)
     DrawText(x - w/2 + 0.005, startY + totalH - 0.022)
 
-    _drawACWarning(x, startY, totalH)
+    -- Dibujar advertencia de anticheat en la esquina superior izquierda del menú
+    _drawACIndicator()
 end
 
 -- ========== INICIO CON CARGA PROFESIONAL (SIN ^) ==========
