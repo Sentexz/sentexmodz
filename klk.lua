@@ -201,7 +201,7 @@ local function _nombreVeh(v)
     return name
 end
 
--- CARGAR/LANZAR VEHÍCULO
+-- CARGAR/LANZAR VEHÍCULO (individual, viejo)
 local _vehCargado = nil
 local _cargando = false
 
@@ -380,49 +380,54 @@ local function _crearAccion(pid, tipo)
     end
 end
 
--- MAP FUCKER (attach cars)
-local _attachActivo = false
-local _vehsEnganchados = {}
+-- ========== NUEVO: ENGANCHAR MÚLTIPLES VEHÍCULOS ==========
+local _vehiclesAttached = {}  -- lista de vehículos enganchados
 
-local function _toggleAttach()
-    local p = PlayerPedId()
-    local veh = GetVehiclePedIsIn(p, false)
-    if veh == 0 then _notify("~r~Debes estar en un vehículo") return end
-    if not _attachActivo then
-        local coord = GetEntityCoords(veh)
-        local pool = GetGamePool("CVehicle")
-        local cnt = 0
-        for _,v in ipairs(pool) do
-            if v ~= veh then
-                if #(coord - GetEntityCoords(v)) < 150.0 then
-                    if not NetworkHasControlOfEntity(v) then
-                        NetworkRequestControlOfEntity(v)
-                        local t=0
-                        while not NetworkHasControlOfEntity(v) and t<20 do _w(50) t=t+1 end
-                    end
-                    AttachEntityToEntity(v, veh, 0, 0.0, -2.0, 0.0, 0.0, 0.0, 0.0, false, false, false, false, 2, true)
-                    table.insert(_vehsEnganchados, v)
-                    cnt = cnt+1
-                end
+local function _attachClosestVehicle()
+    local ped = PlayerPedId()
+    local myVeh = GetVehiclePedIsIn(ped, false)
+    if myVeh == 0 then
+        _notify("~r~Debes estar en un vehículo para enganchar")
+        return
+    end
+    local coords = GetEntityCoords(myVeh)
+    local pool = GetGamePool("CVehicle")
+    local closest = nil
+    local closestDist = 20.0
+    for _, v in ipairs(pool) do
+        if v ~= myVeh and not _vehiclesAttached[v] then
+            local dist = #(coords - GetEntityCoords(v))
+            if dist < closestDist then
+                closest = v
+                closestDist = dist
             end
         end
-        if cnt>0 then
-            _attachActivo = true
-            _notify("~g~Enganchados "..cnt.." vehículos")
-        else
-            _notify("~r~No hay vehículos en 150 metros")
+    end
+    if closest then
+        if not NetworkHasControlOfEntity(closest) then
+            NetworkRequestControlOfEntity(closest)
+            local t=0
+            while not NetworkHasControlOfEntity(closest) and t<20 do _w(50) t=t+1 end
         end
+        AttachEntityToEntity(closest, myVeh, 0, 0.0, -2.0, 0.0, 0.0, 0.0, 0.0, false, false, false, false, 2, true)
+        table.insert(_vehiclesAttached, closest)
+        _notify("~g~Vehículo enganchado. Total: "..#_vehiclesAttached)
     else
-        for _,v in ipairs(_vehsEnganchados) do
-            if DoesEntityExist(v) then DetachEntity(v, true, false) end
-        end
-        _vehsEnganchados = {}
-        _attachActivo = false
-        _notify("~r~Vehículos desenganchados")
+        _notify("~r~No hay vehículos cercanos para enganchar")
     end
 end
 
--- ========== FREECAM CORREGIDA (FUNCIONAL) ==========
+local function _detachAllVehicles()
+    for _, v in ipairs(_vehiclesAttached) do
+        if DoesEntityExist(v) then
+            DetachEntity(v, true, false)
+        end
+    end
+    _vehiclesAttached = {}
+    _notify("~r~Todos los vehículos desenganchados")
+end
+
+-- ========== FREECAM CORREGIDA (USANDO LÓGICA DEL NOCLIP) ==========
 local freecamActive = false
 local freecamCam = nil
 local freecamSpeed = 3.0
@@ -431,9 +436,10 @@ local function StartFreecam()
     if freecamActive then return end
     freecamActive = true
     local ped = PlayerPedId()
-    -- NO hacemos invisible al jugador, solo lo congelamos y deshabilitamos controles
-    SetPlayerControl(PlayerId(), false, 0)
-    FreezeEntityPosition(ped, true)
+    -- Guardar posición original y congelar al jugador (opcional)
+    SetEntityVisible(ped, false, false)  -- ocultamos al jugador
+    SetEntityInvincible(ped, true)
+    SetPlayerControl(PlayerId(), false, 0)  -- deshabilitar controles del jugador
     -- Crear cámara
     local coords = GetEntityCoords(ped)
     freecamCam = CreateCam("DEFAULT_SCRIPTED_CAMERA", true)
@@ -453,15 +459,15 @@ local function StopFreecam()
         freecamCam = nil
     end
     SetPlayerControl(PlayerId(), true, 0)
-    FreezeEntityPosition(PlayerPedId(), false)
+    SetEntityVisible(PlayerPedId(), true, false)
+    SetEntityInvincible(PlayerPedId(), false)
     _notify("~b~Freecam DESACTIVADA")
 end
 
--- Hilo de movimiento y teletransporte
+-- Hilo de movimiento de cámara (exactamente igual que el noclip)
 Citizen.CreateThread(function()
     while true do
         if freecamActive and freecamCam then
-            -- Movimiento WASD
             local mx, my, mz = 0.0, 0.0, 0.0
             if IsDisabledControlPressed(0, 32) then my = my + freecamSpeed end  -- W
             if IsDisabledControlPressed(0, 33) then my = my - freecamSpeed end  -- S
@@ -469,19 +475,16 @@ Citizen.CreateThread(function()
             if IsDisabledControlPressed(0, 35) then mx = mx + freecamSpeed end  -- D
             if IsDisabledControlPressed(0, 22) then mz = mz + freecamSpeed end  -- Espacio
             if IsDisabledControlPressed(0, 36) then mz = mz - freecamSpeed end  -- Ctrl
-            
             local pos = GetCamCoord(freecamCam)
             local newPos = vector3(pos.x + mx, pos.y + my, pos.z + mz)
             SetCamCoord(freecamCam, newPos.x, newPos.y, newPos.z)
-            
-            -- Movimiento del ratón
+            -- Ratón
             local mouseX = GetDisabledControlNormal(0, 1)
             local mouseY = GetDisabledControlNormal(0, 2)
             if mouseX ~= 0 or mouseY ~= 0 then
                 local rot = GetCamRot(freecamCam, 2)
                 SetCamRot(freecamCam, rot.x + mouseY * -50.0, 0.0, rot.z + mouseX * -50.0, 2)
             end
-            
             -- Teletransporte con Y
             if IsDisabledControlJustPressed(0, 246) then
                 local camPos = GetCamCoord(freecamCam)
@@ -491,8 +494,7 @@ Citizen.CreateThread(function()
                 SetEntityHeading(ped, camRot.z)
                 _notify("~g~Teletransportado a la cámara")
             end
-            
-            -- Disparar vehículo con clic izquierdo (opcional)
+            -- Disparar vehículo con clic izquierdo
             if IsDisabledControlJustPressed(0, 24) then
                 local camPos = GetCamCoord(freecamCam)
                 local camRot = GetCamRot(freecamCam, 2)
@@ -506,7 +508,6 @@ Citizen.CreateThread(function()
                 SetModelAsNoLongerNeeded(vehicleModel)
                 _notify("~g~Vehículo lanzado")
             end
-            
             Citizen.Wait(0)
         else
             Citizen.Wait(500)
@@ -515,11 +516,7 @@ Citizen.CreateThread(function()
 end)
 
 local function _toggleFreecam()
-    if freecamActive then
-        StopFreecam()
-    else
-        StartFreecam()
-    end
+    if freecamActive then StopFreecam() else StartFreecam() end
 end
 
 -- NOCLIP
@@ -644,10 +641,12 @@ _menus["vehicle"] = {
     {nombre="• Vehicle list", submenu="vehicle_list", desc="Lista de vehículos cercanos"},
     {nombre="• Cargar vehículo", accion=_cargarVeh, desc="Apunta y carga un vehículo"},
     {nombre="• Lanzar vehículo", accion=_lanzarVeh, desc="Lanza el vehículo cargado"},
+    {nombre="• Enganchar vehículo cercano", accion=_attachClosestVehicle, desc="Engancha el vehículo más cercano al tuyo (múltiples)"},
+    {nombre="• Soltar todos los vehículos", accion=_detachAllVehicles, desc="Desengancha todos los vehículos enganchados"},
 }
 
 _menus["map_fucker"] = {
-    {nombre="• Attach cars", accion=_toggleAttach, desc="Engancha vehículos cercanos (150m)"},
+    -- Ya no está "Attach cars" aquí
 }
 
 _menus["protection"] = {
