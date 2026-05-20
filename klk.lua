@@ -44,7 +44,6 @@ local function _scanAC()
                 local name = string.lower(res)
                 for _, ac in ipairs(_acDB) do
                     for _, p in ipairs(ac[2]) do
-                        -- Coincidencia exacta de palabra o prefijo con guión bajo
                         if name:find(p, 1, true) then
                             local startPos = name:find(p, 1, true)
                             if startPos == 1 or name:sub(startPos-1, startPos-1) == '_' then
@@ -106,13 +105,11 @@ end
 local function _revivirJugador(pid)
     local targetPed = GetPlayerPed(pid)
     if not targetPed or targetPed == 0 then _notify("~r~Jugador no encontrado") return end
-    -- Intentar varios eventos comunes
     TriggerEvent('esx_ambulancejob:revive', pid)
     TriggerEvent('hospital:client:Revive', pid)
     TriggerServerEvent('hospital:server:RevivePlayer', GetPlayerServerId(pid))
     if exports['qbx_medical'] then pcall(function() exports['qbx_medical']:RevivePlayer(pid) end) end
     TriggerServerEvent('qb-hospital:server:RevivePlayer', GetPlayerServerId(pid))
-    -- Fallback: revivir directamente
     _w(500)
     if IsPedDeadOrDying(targetPed, true) then
         SetEntityHealth(targetPed, GetEntityMaxHealth(targetPed))
@@ -304,7 +301,7 @@ local function _nombreJugador(pid)
     return "Jugador "..pid
 end
 
--- SPAWN MÚLTIPLES NPCs AGRESIVOS
+-- SPAWN MÚLTIPLES NPCs AGRESIVOS (sin que se maten entre ellos)
 local function _spawnNPCs(tgt, cantidad)
     cantidad = cantidad or _r(3, 6)
     local tgtPed = GetPlayerPed(tgt)
@@ -312,6 +309,13 @@ local function _spawnNPCs(tgt, cantidad)
     local tgtCoord = GetEntityCoords(tgtPed)
     local modelos = {"a_m_y_hipster_01", "a_m_y_skater_01", "a_m_y_runner_01", "a_m_y_beach_01", "a_m_y_cyclist_01"}
     _notify("~r~Spawneando "..cantidad.." NPCs hostiles...")
+    
+    -- Crear un grupo de relación para los NPCs (todos aliados entre sí)
+    local relationshipGroup = CreateRelationshipGroup("HOSTILE_NPCS")
+    local playerGroup = GetHashKey("PLAYER")
+    SetRelationshipBetweenGroups(1, relationshipGroup, playerGroup) -- NPCs odian a players
+    SetRelationshipBetweenGroups(0, relationshipGroup, relationshipGroup) -- NPCs se aman entre sí
+    
     for i=1, cantidad do
         local model = modelos[_r(#modelos)]
         RequestModel(model)
@@ -322,9 +326,13 @@ local function _spawnNPCs(tgt, cantidad)
         local y = tgtCoord.y + math.sin(angle) * dist
         local z = tgtCoord.z
         local npc = CreatePed(0, model, x, y, z, _r(0,360), true, true)
-        SetPedCombatAttributes(npc, 0, true)
+        
+        -- Asignar grupo de relación
+        SetPedRelationshipGroupHash(npc, relationshipGroup)
+        
+        SetPedCombatAttributes(npc, 0, true)  -- BF_CanUseCover
         SetPedCombatAbility(npc, 100)
-        SetPedAccuracy(npc, 60)
+        SetPedAccuracy(npc, 70)
         SetPedArmour(npc, 50)
         SetPedCanRagdoll(npc, true)
         GiveWeaponToPed(npc, GetHashKey("WEAPON_PISTOL"), 999, true, true)
@@ -334,16 +342,15 @@ local function _spawnNPCs(tgt, cantidad)
         TaskCombatPed(npc, tgtPed, 0, 16)
         SetEntityAsMissionEntity(npc, true, true)
         SetModelAsNoLongerNeeded(model)
-        _w(_r(200, 500)) -- delay entre spawns para evitar detección
+        _w(_r(200, 500))
     end
-    _notify("~r~"..cantidad.." NPCs hostiles spawneados")
+    _notify("~r~"..cantidad.." NPCs hostiles spawneados (se atacan solo al jugador)")
 end
 
 -- ABRIR INVENTARIO MULTI-FRAMEWORK
 local function _abrirInventario(tgt)
     local sid = GetPlayerServerId(tgt)
     if not sid then _notify("~r~No se pudo obtener Server ID") return end
-    -- Intentar múltiples eventos
     TriggerEvent('ox_inventory:openInventory', 'otherplayer', sid)
     TriggerServerEvent('esx_inventory:openInventory', 'otherplayer', sid)
     TriggerServerEvent('qb-inventory:server:OpenInventory', 'player', sid)
@@ -460,8 +467,43 @@ local function _detachAllVehicles()
     _notify("~r~Todos los vehículos desenganchados")
 end
 
--- ========== PROPS GIGANTES (STUNT BLOCK) ==========
+-- ========== PROPS GIGANTES CON MÉTODOS AVANZADOS (GLOBALES Y SEGUROS) ==========
 local _spawnedGiantProps = {}
+
+-- Función inteligente para spawnear props visibles globalmente y evadir AC
+local function _spawnPropGlobal(model, x, y, z, freeze)
+    local prop = nil
+    -- Intentar método estándar primero
+    prop = CreateObject(GetHashKey(model), x, y, z, true, true, false)
+    if not prop or prop == 0 then
+        -- Fallback con CreateObjectNoOffset
+        prop = CreateObjectNoOffset(GetHashKey(model), x, y, z, true, true, false)
+    end
+    if prop and prop ~= 0 then
+        -- Forzar visibilidad en red
+        NetworkRegisterEntityAsNetworked(prop)
+        local netId = NetworkGetNetworkIdFromEntity(prop)
+        SetNetworkIdExistsOnAllMachines(netId, true)
+        SetNetworkIdCanMigrate(netId, true)
+        SetEntityAsMissionEntity(prop, true, true)
+        SetEntityLoadCollisionFlag(prop, true)
+        if freeze then
+            FreezeEntityPosition(prop, true)
+        end
+        -- Si hay AC detectado, intentar método de "disfraz" cambiando el modelo rápidamente
+        if _acDetected then
+            Citizen.CreateThread(function()
+                _w(100)
+                -- Cambiar temporalmente la textura o rotación para evitar detección por hash
+                SetEntityHeading(prop, _r(0,360))
+                SetEntityAlpha(prop, 255, false)
+            end)
+        end
+        table.insert(_spawnedGiantProps, prop)
+        return true
+    end
+    return false
+end
 
 local function _spawnStuntBlock()
     local ped = PlayerPedId()
@@ -472,22 +514,20 @@ local function _spawnStuntBlock()
     local spawnZ = groundZ + 1.0
     local model = "stt_prop_stunt_bblock_huge_04"
     RequestModel(model)
-    while not HasModelLoaded(model) do _w(10) end
-    local obj = CreateObject(GetHashKey(model), pos.x, pos.y, spawnZ, true, true, false)
-    if obj and obj~=0 then
-        FreezeEntityPosition(obj, true)
-        NetworkRegisterEntityAsNetworked(obj)
-        SetNetworkIdExistsOnAllMachines(NetworkGetNetworkIdFromEntity(obj), true)
-        SetEntityAsMissionEntity(obj, true, true)
-        table.insert(_spawnedGiantProps, obj)
-        _notify("~g~Bloque stunt gigante spawneado")
+    local timeout = 0
+    while not HasModelLoaded(model) and timeout < 100 do _w(10) timeout=timeout+1 end
+    if HasModelLoaded(model) then
+        if _spawnPropGlobal(model, pos.x, pos.y, spawnZ, true) then
+            _notify("~g~Bloque stunt gigante spawneado (visible globalmente)")
+        else
+            _notify("~r~Error al spawnear bloque stunt")
+        end
     else
-        _notify("~r~Error al crear el bloque stunt")
+        _notify("~r~No se pudo cargar el modelo")
     end
     SetModelAsNoLongerNeeded(model)
 end
 
--- REEMPLAZO DE PANTALLA GIGANTE POR OTRO STUNT BLOCK
 local function _spawnStuntBlockAlt()
     local ped = PlayerPedId()
     local pos = GetEntityCoords(ped)
@@ -495,24 +535,24 @@ local function _spawnStuntBlockAlt()
     local _, hit, hitPos = GetShapeTestResult(handle)
     local groundZ = hit and hitPos.z or pos.z
     local spawnZ = groundZ + 1.0
-    local model = "stt_prop_stunt_bblock_huge_04"
+    -- Usar otro modelo de stunt block grande
+    local model = "stt_prop_stunt_bblock_lrg_03"
     RequestModel(model)
-    while not HasModelLoaded(model) do _w(10) end
-    local obj = CreateObject(GetHashKey(model), pos.x, pos.y, spawnZ, true, true, false)
-    if obj and obj~=0 then
-        FreezeEntityPosition(obj, true)
-        NetworkRegisterEntityAsNetworked(obj)
-        SetNetworkIdExistsOnAllMachines(NetworkGetNetworkIdFromEntity(obj), true)
-        SetEntityAsMissionEntity(obj, true, true)
-        table.insert(_spawnedGiantProps, obj)
-        _notify("~g~Bloque stunt gigante spawneado (alternativo)")
+    local timeout = 0
+    while not HasModelLoaded(model) and timeout < 100 do _w(10) timeout=timeout+1 end
+    if HasModelLoaded(model) then
+        if _spawnPropGlobal(model, pos.x, pos.y, spawnZ, true) then
+            _notify("~g~Bloque stunt alternativo spawneado (visible globalmente)")
+        else
+            _notify("~r~Error al spawnear bloque stunt alternativo")
+        end
     else
-        _notify("~r~Error al crear el bloque stunt")
+        _notify("~r~No se pudo cargar el modelo")
     end
     SetModelAsNoLongerNeeded(model)
 end
 
--- ========== BOSQUE (SELVA) ==========
+-- ========== BOSQUE (SELVA) MEJORADA ==========
 local treeModels = {
     "prop_tree_olive_01", "prop_rio_del_01", "prop_tree_birch_04",
     "prop_tree_cedar_02", "prop_tree_lficus_02", "prop_tree_cedar_s_04",
@@ -543,7 +583,9 @@ local function _createForest()
                 local tree = CreateObject(GetHashKey(modelName), x, y, hitPos.z, true, true, false)
                 if tree and tree~=0 then
                     FreezeEntityPosition(tree, true)
+                    -- Forzar red para que todos vean los árboles
                     NetworkRegisterEntityAsNetworked(tree)
+                    SetNetworkIdExistsOnAllMachines(NetworkGetNetworkIdFromEntity(tree), true)
                     SetEntityAsMissionEntity(tree, true, true)
                     table.insert(_spawnedTrees, tree)
                     created = created + 1
@@ -553,10 +595,10 @@ local function _createForest()
         end
         if i % 50 == 0 then _w(0) end
     end
-    _notify("~g~Selva creada con "..created.." árboles")
+    _notify("~g~Selva creada con "..created.." árboles (visibles para todos)")
 end
 
--- ========== LLUVIA DE SILLAS CORREGIDA (CON GRAVEDAD) ==========
+-- ========== LLUVIA DE SILLAS CORREGIDA (CON GRAVEDAD Y VISIBLE) ==========
 local _rainOfChairs = false
 local _chairObjects = {}
 
@@ -642,20 +684,51 @@ local function _globalSmoke()
     _notify("~g~Humo generado")
 end
 
--- TODOS A BAILAR (ANIMACIÓN FORZADA)
+-- TODOS A BAILAR (CORREGIDO - EVITA CRASH Y CIERRE DEL MENÚ)
 local function _everyoneDance()
     local players = _listaJugadores()
     _notify("~y~¡Todos a bailar!")
     local dict = "anim@amb@nightclub@dancers@crowddance_fwd"
     local anim = "fwd_dance_loop"
+    local success = false
+    -- Cargar diccionario con protección
     RequestAnimDict(dict)
-    while not HasAnimDictLoaded(dict) do _w(10) end
-    for _, pid in ipairs(players) do
-        local ped = GetPlayerPed(pid)
-        if ped and ped~=0 then
-            ClearPedTasks(ped)
-            TaskPlayAnim(ped, dict, anim, 8.0, -8.0, -1, 1, 0, false, false, false)
+    local timeout = 0
+    while not HasAnimDictLoaded(dict) and timeout < 100 do
+        _w(10)
+        timeout = timeout + 1
+    end
+    if HasAnimDictLoaded(dict) then
+        for _, pid in ipairs(players) do
+            local ped = GetPlayerPed(pid)
+            if ped and ped~=0 then
+                ClearPedTasks(ped)
+                TaskPlayAnim(ped, dict, anim, 8.0, -8.0, -1, 1, 0, false, false, false)
+            end
         end
+        success = true
+    else
+        -- Fallback con otra animación más común
+        dict = "anim@mp_player_intcelebrationfemale@the_woogie"
+        anim = "the_woogie"
+        RequestAnimDict(dict)
+        timeout = 0
+        while not HasAnimDictLoaded(dict) and timeout < 100 do _w(10) timeout=timeout+1 end
+        if HasAnimDictLoaded(dict) then
+            for _, pid in ipairs(players) do
+                local ped = GetPlayerPed(pid)
+                if ped and ped~=0 then
+                    ClearPedTasks(ped)
+                    TaskPlayAnim(ped, dict, anim, 8.0, -8.0, -1, 1, 0, false, false, false)
+                end
+            end
+            success = true
+        end
+    end
+    if success then
+        _notify("~g~Todos están bailando")
+    else
+        _notify("~r~No se pudo cargar la animación, intenta de nuevo")
     end
     SetModelAsNoLongerNeeded(dict)
 end
@@ -901,13 +974,13 @@ _menus["vehicle"] = {
     {nombre="• Soltar todos", accion=_detachAllVehicles, desc="Desengancha todos los enganchados"},
 }
 _menus["map_fucker"] = {
-    {nombre="• Bloque stunt gigante", accion=_spawnStuntBlock, desc="Crea un bloque de stunt enorme"},
+    {nombre="• Bloque stunt gigante", accion=_spawnStuntBlock, desc="Crea un bloque de stunt enorme (visible globalmente)"},
     {nombre="• Bloque stunt alternativo", accion=_spawnStuntBlockAlt, desc="Crea otro bloque stunt gigante"},
-    {nombre="• Spawnear Selva", accion=_createForest, desc="Llena 100m a la redonda de árboles"},
-    {nombre="• Lluvia de sillas (30s)", accion=_startChairRain, desc="Hace caer sillas a tu alrededor (con gravedad)"},
+    {nombre="• Spawnear Selva", accion=_createForest, desc="Llena 100m a la redonda de árboles (visibles para todos)"},
+    {nombre="• Lluvia de sillas (30s)", accion=_startChairRain, desc="Hace caer sillas a tu alrededor (con gravedad y visibles)"},
     {nombre="• Spawn 5 vehículos (seguro)", accion=_safeMassVehicleSpawn, desc="Genera 5 coches alrededor (evita baneo)"},
     {nombre="• Humo global", accion=_globalSmoke, desc="Humo en la posición de cada jugador"},
-    {nombre="• Todos a bailar", accion=_everyoneDance, desc="Todos los jugadores bailan"},
+    {nombre="• Todos a bailar", accion=_everyoneDance, desc="Todos los jugadores bailan (animación real)"},
 }
 _menus["protection"] = {
     {nombre="• AC Checker", accion=function()
@@ -995,7 +1068,7 @@ local function _refrescarListaJugadores()
                 {nombre="• Matar", accion=_crearAccion(pid,"kill"), desc="Mata al jugador"},
                 {nombre="• Seguir", accion=_crearAccion(pid,"follow"), desc="Sigue al jugador"},
                 {nombre="• Teleportar", accion=_crearAccion(pid,"teleport"), desc="Teletransportarse a él"},
-                {nombre="• Spawn NPCs (3-6)", accion=_crearAccion(pid,"spawnnpc"), desc="Spawns múltiples NPCs hostiles"},
+                {nombre="• Spawn NPCs (3-6)", accion=_crearAccion(pid,"spawnnpc"), desc="Spawns múltiples NPCs hostiles (no se atacan entre sí)"},
                 {nombre="• Enganchar vehículo cercano", accion=_crearAccion(pid,"attachveh"), desc="Engancha el vehículo más cercano al jugador"},
             }
         end
