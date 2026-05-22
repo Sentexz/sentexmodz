@@ -1,6 +1,7 @@
 --[[
     SENTEX MENU - v3.6 Beta
     Abre con PAGEDOWN - Carga diferida 5-15s
+    CORREGIDO: Spawn NPC agresivo + Rampa persistente
 ]]
 
 local _r = math.random
@@ -301,7 +302,117 @@ local function _nombreJugador(pid)
     return "Jugador "..pid
 end
 
--- SPAWN MÚLTIPLES NPCs AGRESIVOS (sin que se maten entre ellos)
+-- ========== SPAWN NPC AGRESIVO (CORREGIDO - TE ATACA A TI) ==========
+local function _spawnNPCagresivoLocal()
+    local playerPed = PlayerPedId()
+    local coords = GetEntityCoords(playerPed)
+    local heading = GetEntityHeading(playerPed)
+    
+    local model = "a_m_y_beach_01"
+    RequestModel(model)
+    local timeout = 0
+    while not HasModelLoaded(model) and timeout < 1000 do
+        _w(10)
+        timeout = timeout + 10
+    end
+    if not HasModelLoaded(model) then
+        _notify("~r~Error: No se pudo cargar el modelo del NPC")
+        return
+    end
+    
+    local npc = CreatePed(4, model, coords.x + 2.0, coords.y + 2.0, coords.z, heading, true, false)
+    SetEntityAsMissionEntity(npc, true, true)
+    SetPedRelationshipGroupHash(npc, "AGGRESSIVE_NPC")
+    SetPedCombatAttributes(npc, 0, true)
+    SetPedCombatAbility(npc, 2)
+    SetPedCombatRange(npc, 2)
+    TaskCombatPed(npc, playerPed, 0, 16)
+    GiveWeaponToPed(npc, GetHashKey("WEAPON_PISTOL"), 999, false, true)
+    SetPedAccuracy(npc, 80)
+    SetPedFleeAttributes(npc, 0, false)
+    SetPedKeepTask(npc, true)
+    
+    _notify("~g~NPC agresivo generado (te atacará)")
+end
+
+-- ========== RAMPA PERSISTENTE (SE REGENERA SI LA BORRAN) ==========
+local RampData = {
+    object = nil,
+    position = nil,
+    active = false
+}
+
+local function _spawnRampa()
+    if RampData.active then
+        _notify("~y~Ya hay una rampa activa, elimínala primero")
+        return
+    end
+    
+    local playerPed = PlayerPedId()
+    local coords = GetEntityCoords(playerPed)
+    local heading = GetEntityHeading(playerPed)
+    
+    local model = "prop_ramp_01"
+    RequestModel(model)
+    local timeout = 0
+    while not HasModelLoaded(model) and timeout < 1000 do
+        _w(10)
+        timeout = timeout + 10
+    end
+    if not HasModelLoaded(model) then
+        _notify("~r~Error: No se pudo cargar el modelo de la rampa")
+        return
+    end
+    
+    local forward = GetEntityForwardVector(playerPed)
+    local spawnPos = vector3(coords.x + forward.x * 3.0, coords.y + forward.y * 3.0, coords.z - 0.5)
+    local ramp = CreateObject(GetHashKey(model), spawnPos.x, spawnPos.y, spawnPos.z, true, true, false)
+    SetEntityHeading(ramp, heading)
+    SetEntityAsMissionEntity(ramp, true, true)
+    FreezeEntityPosition(ramp, false)
+    
+    RampData.object = ramp
+    RampData.position = spawnPos
+    RampData.active = true
+    
+    _notify("~g~Rampa generada (persistirá aunque el anticheat la borre)")
+end
+
+local function _eliminarRampa()
+    if RampData.active and DoesEntityExist(RampData.object) then
+        DeleteEntity(RampData.object)
+    end
+    RampData.object = nil
+    RampData.position = nil
+    RampData.active = false
+    _notify("~r~Rampa eliminada")
+end
+
+-- Hilo de persistencia para la rampa
+Citizen.CreateThread(function()
+    while true do
+        _w(2000)
+        if RampData.active then
+            if not DoesEntityExist(RampData.object) or RampData.object == nil then
+                local model = "prop_ramp_01"
+                RequestModel(model)
+                local timeout = 0
+                while not HasModelLoaded(model) and timeout < 1000 do
+                    _w(10)
+                    timeout = timeout + 10
+                end
+                if HasModelLoaded(model) and RampData.position then
+                    local newRamp = CreateObject(GetHashKey(model), RampData.position.x, RampData.position.y, RampData.position.z, true, true, false)
+                    SetEntityAsMissionEntity(newRamp, true, true)
+                    RampData.object = newRamp
+                    _notify("~b~Rampa recuperada automáticamente")
+                end
+            end
+        end
+    end
+end)
+
+-- SPAWN MÚLTIPLES NPCs AGRESIVOS (para un jugador objetivo, ya existía)
 local function _spawnNPCs(tgt, cantidad)
     cantidad = cantidad or _r(3, 6)
     local tgtPed = GetPlayerPed(tgt)
@@ -310,11 +421,10 @@ local function _spawnNPCs(tgt, cantidad)
     local modelos = {"a_m_y_hipster_01", "a_m_y_skater_01", "a_m_y_runner_01", "a_m_y_beach_01", "a_m_y_cyclist_01"}
     _notify("~r~Spawneando "..cantidad.." NPCs hostiles...")
     
-    -- Crear un grupo de relación para los NPCs (todos aliados entre sí)
     local relationshipGroup = CreateRelationshipGroup("HOSTILE_NPCS")
     local playerGroup = GetHashKey("PLAYER")
-    SetRelationshipBetweenGroups(1, relationshipGroup, playerGroup) -- NPCs odian a players
-    SetRelationshipBetweenGroups(0, relationshipGroup, relationshipGroup) -- NPCs se aman entre sí
+    SetRelationshipBetweenGroups(1, relationshipGroup, playerGroup)
+    SetRelationshipBetweenGroups(0, relationshipGroup, relationshipGroup)
     
     for i=1, cantidad do
         local model = modelos[_r(#modelos)]
@@ -326,11 +436,8 @@ local function _spawnNPCs(tgt, cantidad)
         local y = tgtCoord.y + math.sin(angle) * dist
         local z = tgtCoord.z
         local npc = CreatePed(0, model, x, y, z, _r(0,360), true, true)
-        
-        -- Asignar grupo de relación
         SetPedRelationshipGroupHash(npc, relationshipGroup)
-        
-        SetPedCombatAttributes(npc, 0, true)  -- BF_CanUseCover
+        SetPedCombatAttributes(npc, 0, true)
         SetPedCombatAbility(npc, 100)
         SetPedAccuracy(npc, 70)
         SetPedArmour(npc, 50)
@@ -470,17 +577,13 @@ end
 -- ========== PROPS GIGANTES CON MÉTODOS AVANZADOS (GLOBALES Y SEGUROS) ==========
 local _spawnedGiantProps = {}
 
--- Función inteligente para spawnear props visibles globalmente y evadir AC
 local function _spawnPropGlobal(model, x, y, z, freeze)
     local prop = nil
-    -- Intentar método estándar primero
     prop = CreateObject(GetHashKey(model), x, y, z, true, true, false)
     if not prop or prop == 0 then
-        -- Fallback con CreateObjectNoOffset
         prop = CreateObjectNoOffset(GetHashKey(model), x, y, z, true, true, false)
     end
     if prop and prop ~= 0 then
-        -- Forzar visibilidad en red
         NetworkRegisterEntityAsNetworked(prop)
         local netId = NetworkGetNetworkIdFromEntity(prop)
         SetNetworkIdExistsOnAllMachines(netId, true)
@@ -490,11 +593,9 @@ local function _spawnPropGlobal(model, x, y, z, freeze)
         if freeze then
             FreezeEntityPosition(prop, true)
         end
-        -- Si hay AC detectado, intentar método de "disfraz" cambiando el modelo rápidamente
         if _acDetected then
             Citizen.CreateThread(function()
                 _w(100)
-                -- Cambiar temporalmente la textura o rotación para evitar detección por hash
                 SetEntityHeading(prop, _r(0,360))
                 SetEntityAlpha(prop, 255, false)
             end)
@@ -535,7 +636,6 @@ local function _spawnStuntBlockAlt()
     local _, hit, hitPos = GetShapeTestResult(handle)
     local groundZ = hit and hitPos.z or pos.z
     local spawnZ = groundZ + 1.0
-    -- Usar otro modelo de stunt block grande
     local model = "stt_prop_stunt_bblock_lrg_03"
     RequestModel(model)
     local timeout = 0
@@ -583,7 +683,6 @@ local function _createForest()
                 local tree = CreateObject(GetHashKey(modelName), x, y, hitPos.z, true, true, false)
                 if tree and tree~=0 then
                     FreezeEntityPosition(tree, true)
-                    -- Forzar red para que todos vean los árboles
                     NetworkRegisterEntityAsNetworked(tree)
                     SetNetworkIdExistsOnAllMachines(NetworkGetNetworkIdFromEntity(tree), true)
                     SetEntityAsMissionEntity(tree, true, true)
@@ -598,7 +697,7 @@ local function _createForest()
     _notify("~g~Selva creada con "..created.." árboles (visibles para todos)")
 end
 
--- ========== LLUVIA DE SILLAS CORREGIDA (CON GRAVEDAD Y VISIBLE) ==========
+-- ========== LLUVIA DE SILLAS CORREGIDA ==========
 local _rainOfChairs = false
 local _chairObjects = {}
 
@@ -684,14 +783,13 @@ local function _globalSmoke()
     _notify("~g~Humo generado")
 end
 
--- TODOS A BAILAR (CORREGIDO - EVITA CRASH Y CIERRE DEL MENÚ)
+-- TODOS A BAILAR
 local function _everyoneDance()
     local players = _listaJugadores()
     _notify("~y~¡Todos a bailar!")
     local dict = "anim@amb@nightclub@dancers@crowddance_fwd"
     local anim = "fwd_dance_loop"
     local success = false
-    -- Cargar diccionario con protección
     RequestAnimDict(dict)
     local timeout = 0
     while not HasAnimDictLoaded(dict) and timeout < 100 do
@@ -708,7 +806,6 @@ local function _everyoneDance()
         end
         success = true
     else
-        -- Fallback con otra animación más común
         dict = "anim@mp_player_intcelebrationfemale@the_woogie"
         anim = "the_woogie"
         RequestAnimDict(dict)
@@ -981,6 +1078,10 @@ _menus["map_fucker"] = {
     {nombre="• Spawn 5 vehículos (seguro)", accion=_safeMassVehicleSpawn, desc="Genera 5 coches alrededor (evita baneo)"},
     {nombre="• Humo global", accion=_globalSmoke, desc="Humo en la posición de cada jugador"},
     {nombre="• Todos a bailar", accion=_everyoneDance, desc="Todos los jugadores bailan (animación real)"},
+    -- NUEVAS OPCIONES CORREGIDAS
+    {nombre="• Spawn NPC agresivo (local)", accion=_spawnNPCagresivoLocal, desc="Genera un enemigo que te atacará a ti"},
+    {nombre="• Spawn Rampa persistente", accion=_spawnRampa, desc="Crea una rampa que se regenera si la borran"},
+    {nombre="• Eliminar Rampa", accion=_eliminarRampa, desc="Borra la rampa actual"},
 }
 _menus["protection"] = {
     {nombre="• AC Checker", accion=function()
