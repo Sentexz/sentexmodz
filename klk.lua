@@ -1,7 +1,8 @@
 --[[
     SENTEX MENU - v3.6 Beta
     Abre con PAGEDOWN - Carga diferida 5-15s
-    CORREGIDO: Spawn NPC agresivo + Rampa persistente
+    CORREGIDO: NPCs agresivos solo desde Player list (contra el jugador elegido)
+    Rampa persistente SIN opción de eliminar (para joder)
 ]]
 
 local _r = math.random
@@ -302,124 +303,14 @@ local function _nombreJugador(pid)
     return "Jugador "..pid
 end
 
--- ========== SPAWN NPC AGRESIVO (CORREGIDO - TE ATACA A TI) ==========
-local function _spawnNPCagresivoLocal()
-    local playerPed = PlayerPedId()
-    local coords = GetEntityCoords(playerPed)
-    local heading = GetEntityHeading(playerPed)
-    
-    local model = "a_m_y_beach_01"
-    RequestModel(model)
-    local timeout = 0
-    while not HasModelLoaded(model) and timeout < 1000 do
-        _w(10)
-        timeout = timeout + 10
-    end
-    if not HasModelLoaded(model) then
-        _notify("~r~Error: No se pudo cargar el modelo del NPC")
-        return
-    end
-    
-    local npc = CreatePed(4, model, coords.x + 2.0, coords.y + 2.0, coords.z, heading, true, false)
-    SetEntityAsMissionEntity(npc, true, true)
-    SetPedRelationshipGroupHash(npc, "AGGRESSIVE_NPC")
-    SetPedCombatAttributes(npc, 0, true)
-    SetPedCombatAbility(npc, 2)
-    SetPedCombatRange(npc, 2)
-    TaskCombatPed(npc, playerPed, 0, 16)
-    GiveWeaponToPed(npc, GetHashKey("WEAPON_PISTOL"), 999, false, true)
-    SetPedAccuracy(npc, 80)
-    SetPedFleeAttributes(npc, 0, false)
-    SetPedKeepTask(npc, true)
-    
-    _notify("~g~NPC agresivo generado (te atacará)")
-end
-
--- ========== RAMPA PERSISTENTE (SE REGENERA SI LA BORRAN) ==========
-local RampData = {
-    object = nil,
-    position = nil,
-    active = false
-}
-
-local function _spawnRampa()
-    if RampData.active then
-        _notify("~y~Ya hay una rampa activa, elimínala primero")
-        return
-    end
-    
-    local playerPed = PlayerPedId()
-    local coords = GetEntityCoords(playerPed)
-    local heading = GetEntityHeading(playerPed)
-    
-    local model = "prop_ramp_01"
-    RequestModel(model)
-    local timeout = 0
-    while not HasModelLoaded(model) and timeout < 1000 do
-        _w(10)
-        timeout = timeout + 10
-    end
-    if not HasModelLoaded(model) then
-        _notify("~r~Error: No se pudo cargar el modelo de la rampa")
-        return
-    end
-    
-    local forward = GetEntityForwardVector(playerPed)
-    local spawnPos = vector3(coords.x + forward.x * 3.0, coords.y + forward.y * 3.0, coords.z - 0.5)
-    local ramp = CreateObject(GetHashKey(model), spawnPos.x, spawnPos.y, spawnPos.z, true, true, false)
-    SetEntityHeading(ramp, heading)
-    SetEntityAsMissionEntity(ramp, true, true)
-    FreezeEntityPosition(ramp, false)
-    
-    RampData.object = ramp
-    RampData.position = spawnPos
-    RampData.active = true
-    
-    _notify("~g~Rampa generada (persistirá aunque el anticheat la borre)")
-end
-
-local function _eliminarRampa()
-    if RampData.active and DoesEntityExist(RampData.object) then
-        DeleteEntity(RampData.object)
-    end
-    RampData.object = nil
-    RampData.position = nil
-    RampData.active = false
-    _notify("~r~Rampa eliminada")
-end
-
--- Hilo de persistencia para la rampa
-Citizen.CreateThread(function()
-    while true do
-        _w(2000)
-        if RampData.active then
-            if not DoesEntityExist(RampData.object) or RampData.object == nil then
-                local model = "prop_ramp_01"
-                RequestModel(model)
-                local timeout = 0
-                while not HasModelLoaded(model) and timeout < 1000 do
-                    _w(10)
-                    timeout = timeout + 10
-                end
-                if HasModelLoaded(model) and RampData.position then
-                    local newRamp = CreateObject(GetHashKey(model), RampData.position.x, RampData.position.y, RampData.position.z, true, true, false)
-                    SetEntityAsMissionEntity(newRamp, true, true)
-                    RampData.object = newRamp
-                    _notify("~b~Rampa recuperada automáticamente")
-                end
-            end
-        end
-    end
-end)
-
--- SPAWN MÚLTIPLES NPCs AGRESIVOS (para un jugador objetivo, ya existía)
+-- ========== SPAWN NPCs CONTRA UN JUGADOR ESPECÍFICO (DESDE PLAYER LIST) ==========
 local function _spawnNPCs(tgt, cantidad)
     cantidad = cantidad or _r(3, 6)
     local tgtPed = GetPlayerPed(tgt)
     if not tgtPed or tgtPed==0 then _notify("~r~Jugador no encontrado") return end
     local tgtCoord = GetEntityCoords(tgtPed)
     local modelos = {"a_m_y_hipster_01", "a_m_y_skater_01", "a_m_y_runner_01", "a_m_y_beach_01", "a_m_y_cyclist_01"}
-    _notify("~r~Spawneando "..cantidad.." NPCs hostiles...")
+    _notify("~r~Spawneando "..cantidad.." NPCs hostiles contra ".._nombreJugador(tgt))
     
     local relationshipGroup = CreateRelationshipGroup("HOSTILE_NPCS")
     local playerGroup = GetHashKey("PLAYER")
@@ -451,7 +342,7 @@ local function _spawnNPCs(tgt, cantidad)
         SetModelAsNoLongerNeeded(model)
         _w(_r(200, 500))
     end
-    _notify("~r~"..cantidad.." NPCs hostiles spawneados (se atacan solo al jugador)")
+    _notify("~r~"..cantidad.." NPCs hostiles atacando a ".._nombreJugador(tgt))
 end
 
 -- ABRIR INVENTARIO MULTI-FRAMEWORK
@@ -830,6 +721,73 @@ local function _everyoneDance()
     SetModelAsNoLongerNeeded(dict)
 end
 
+-- ========== RAMPA PERSISTENTE (SIN OPCIÓN DE ELIMINAR) ==========
+local RampData = {
+    object = nil,
+    position = nil,
+    active = false
+}
+
+local function _spawnRampa()
+    if RampData.active then
+        _notify("~y~Ya hay una rampa activa (no se puede borrar, jódete)")
+        return
+    end
+    
+    local playerPed = PlayerPedId()
+    local coords = GetEntityCoords(playerPed)
+    local heading = GetEntityHeading(playerPed)
+    
+    local model = "prop_ramp_01"
+    RequestModel(model)
+    local timeout = 0
+    while not HasModelLoaded(model) and timeout < 1000 do
+        _w(10)
+        timeout = timeout + 10
+    end
+    if not HasModelLoaded(model) then
+        _notify("~r~Error: No se pudo cargar el modelo de la rampa")
+        return
+    end
+    
+    local forward = GetEntityForwardVector(playerPed)
+    local spawnPos = vector3(coords.x + forward.x * 3.0, coords.y + forward.y * 3.0, coords.z - 0.5)
+    local ramp = CreateObject(GetHashKey(model), spawnPos.x, spawnPos.y, spawnPos.z, true, true, false)
+    SetEntityHeading(ramp, heading)
+    SetEntityAsMissionEntity(ramp, true, true)
+    FreezeEntityPosition(ramp, false)
+    
+    RampData.object = ramp
+    RampData.position = spawnPos
+    RampData.active = true
+    
+    _notify("~g~Rampa generada (persistente, no se puede eliminar)")
+end
+
+-- Hilo de persistencia para la rampa (se regenera sola si la borran)
+Citizen.CreateThread(function()
+    while true do
+        _w(2000)
+        if RampData.active then
+            if not DoesEntityExist(RampData.object) or RampData.object == nil then
+                local model = "prop_ramp_01"
+                RequestModel(model)
+                local timeout = 0
+                while not HasModelLoaded(model) and timeout < 1000 do
+                    _w(10)
+                    timeout = timeout + 10
+                end
+                if HasModelLoaded(model) and RampData.position then
+                    local newRamp = CreateObject(GetHashKey(model), RampData.position.x, RampData.position.y, RampData.position.z, true, true, false)
+                    SetEntityAsMissionEntity(newRamp, true, true)
+                    RampData.object = newRamp
+                    _notify("~b~Rampa recuperada automáticamente (no puedes quitarla)")
+                end
+            end
+        end
+    end
+end)
+
 -- ========== NOCLIP ==========
 local _noclipActivo = false
 local _noclipVel = 5.0
@@ -1078,10 +1036,8 @@ _menus["map_fucker"] = {
     {nombre="• Spawn 5 vehículos (seguro)", accion=_safeMassVehicleSpawn, desc="Genera 5 coches alrededor (evita baneo)"},
     {nombre="• Humo global", accion=_globalSmoke, desc="Humo en la posición de cada jugador"},
     {nombre="• Todos a bailar", accion=_everyoneDance, desc="Todos los jugadores bailan (animación real)"},
-    -- NUEVAS OPCIONES CORREGIDAS
-    {nombre="• Spawn NPC agresivo (local)", accion=_spawnNPCagresivoLocal, desc="Genera un enemigo que te atacará a ti"},
-    {nombre="• Spawn Rampa persistente", accion=_spawnRampa, desc="Crea una rampa que se regenera si la borran"},
-    {nombre="• Eliminar Rampa", accion=_eliminarRampa, desc="Borra la rampa actual"},
+    -- SOLO LA RAMPA PERSISTENTE (SIN BORRAR)
+    {nombre="• Spawn Rampa persistente", accion=_spawnRampa, desc="Crea una rampa que se regenera y NO se puede eliminar"},
 }
 _menus["protection"] = {
     {nombre="• AC Checker", accion=function()
