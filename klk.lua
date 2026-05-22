@@ -1,6 +1,5 @@
 --[[
     SENTEXMODZ PREMIUM 2026 - Menú con banner desde URL (imgur)
-    AGREGADO: Spawn de NPCs agresivos + Rampa persistente
 ]]
 
 -- ==================== BANNER DESDE URL ====================
@@ -13,6 +12,7 @@ local function LoadBanner()
     if bannerLoaded then return true end
     local txd = CreateRuntimeTxd(bannerDict)
     if txd then
+        -- Intentar crear textura desde URL directa
         local success = CreateRuntimeTextureFromImage(txd, "banner", BANNER_URL)
         if success then
             bannerLoaded = true
@@ -30,6 +30,7 @@ local function DibujarBanner(x, y, w, h)
     if bannerLoaded and HasStreamedTextureDictLoaded(bannerDict) then
         DrawSprite(bannerDict, "banner", x, y, w, h, 0.0, 255, 255, 255, 255)
     end
+    -- NO dibujar nada si falla (sin recuadro blanco)
 end
 
 -- ==================== MENÚ ====================
@@ -39,7 +40,6 @@ local function MostrarNotificacion(texto)
     DrawNotification(false, false)
 end
 
--- ==================== OPCIONES SELF ====================
 local function Curar()
     local ped = PlayerPedId()
     SetEntityHealth(ped, GetEntityMaxHealth(ped))
@@ -58,118 +58,7 @@ local function RevivirQB()
     MostrarNotificacion("~g~Reviviendo (QB)")
 end
 
--- ==================== SPAWN NPC AGRESIVO ====================
-local function SpawnAggressiveNPC()
-    local playerPed = PlayerPedId()
-    local coords = GetEntityCoords(playerPed)
-    local heading = GetEntityHeading(playerPed)
-    
-    local model = "a_m_y_beach_01"  -- modelo genérico, puedes cambiarlo
-    RequestModel(model)
-    local timeout = 0
-    while not HasModelLoaded(model) and timeout < 1000 do
-        Citizen.Wait(10)
-        timeout = timeout + 10
-    end
-    if not HasModelLoaded(model) then
-        MostrarNotificacion("~r~Error: No se pudo cargar el modelo del NPC")
-        return
-    end
-    
-    local npc = CreatePed(4, model, coords.x + 2.0, coords.y + 2.0, coords.z, heading, true, false)
-    SetEntityAsMissionEntity(npc, true, true)
-    SetPedRelationshipGroupHash(npc, "AGGRESSIVE_NPC")
-    SetPedCombatAttributes(npc, 0, true)      -- usar fuerza bruta
-    SetPedCombatAbility(npc, 2)
-    SetPedCombatRange(npc, 2)
-    TaskCombatPed(npc, playerPed, 0, 16)
-    GiveWeaponToPed(npc, GetHashKey("WEAPON_PISTOL"), 999, false, true)
-    SetPedAccuracy(npc, 80)
-    SetPedFleeAttributes(npc, 0, false)
-    SetPedKeepTask(npc, true)
-    
-    MostrarNotificacion("~g~NPC agresivo generado (te atacará)")
-end
-
--- ==================== SPAWN RAMPA PERSISTENTE ====================
-local RampData = {
-    object = nil,
-    position = nil,
-    active = false
-}
-
-local function SpawnRamp()
-    if RampData.active then
-        MostrarNotificacion("~y~Ya hay una rampa activa, elimínala primero")
-        return
-    end
-    
-    local playerPed = PlayerPedId()
-    local coords = GetEntityCoords(playerPed)
-    local heading = GetEntityHeading(playerPed)
-    
-    local model = "prop_ramp_01"   -- rampa pequeña, también "prop_ramp_military"
-    RequestModel(model)
-    local timeout = 0
-    while not HasModelLoaded(model) and timeout < 1000 do
-        Citizen.Wait(10)
-        timeout = timeout + 10
-    end
-    if not HasModelLoaded(model) then
-        MostrarNotificacion("~r~Error: No se pudo cargar el modelo de la rampa")
-        return
-    end
-    
-    -- Posicionarla justo delante del jugador
-    local forward = GetEntityForwardVector(playerPed)
-    local spawnPos = vector3(coords.x + forward.x * 3.0, coords.y + forward.y * 3.0, coords.z - 0.5)
-    local ramp = CreateObject(GetHashKey(model), spawnPos.x, spawnPos.y, spawnPos.z, true, true, false)
-    SetEntityHeading(ramp, heading)
-    SetEntityAsMissionEntity(ramp, true, true)
-    FreezeEntityPosition(ramp, false)
-    
-    RampData.object = ramp
-    RampData.position = spawnPos
-    RampData.active = true
-    
-    MostrarNotificacion("~g~Rampa generada (persistirá aunque el anticheat la borre)")
-end
-
-local function RemoveRamp()
-    if RampData.active and DoesEntityExist(RampData.object) then
-        DeleteEntity(RampData.object)
-    end
-    RampData.object = nil
-    RampData.position = nil
-    RampData.active = false
-    MostrarNotificacion("~r~Rampa eliminada")
-end
-
--- Hilo de persistencia: cada 2 segundos verifica si la rampa existe; si no, la recrea
-Citizen.CreateThread(function()
-    while true do
-        Citizen.Wait(2000)
-        if RampData.active then
-            if not DoesEntityExist(RampData.object) or RampData.object == nil then
-                local model = "prop_ramp_01"
-                RequestModel(model)
-                local timeout = 0
-                while not HasModelLoaded(model) and timeout < 1000 do
-                    Citizen.Wait(10)
-                    timeout = timeout + 10
-                end
-                if HasModelLoaded(model) and RampData.position then
-                    local newRamp = CreateObject(GetHashKey(model), RampData.position.x, RampData.position.y, RampData.position.z, true, true, false)
-                    SetEntityAsMissionEntity(newRamp, true, true)
-                    RampData.object = newRamp
-                    MostrarNotificacion("~b~Rampa recuperada automáticamente")
-                end
-            end
-        end
-    end
-end)
-
--- ==================== ESTRUCTURA DEL MENÚ (ampliada) ====================
+-- Estructura del menú
 local menuAbierto = false
 local currentMenu = "main"
 local currentOption = 1
@@ -182,23 +71,14 @@ local bgColor = {0, 0, 0, 210}
 local selectBg = {30, 144, 255, 60}
 
 opcionesMenu["main"] = {
-    { nombre = "❤️ Self Options", submenu = "self", desc = "Opciones de salud y revivir" },
-    { nombre = "🧪 Spawn Options", submenu = "spawn", desc = "Generar NPCs agresivos y objetos" },
+    { nombre = "❤️ Self Options", submenu = "self", desc = "Opciones avanzadas" },
 }
-
 opcionesMenu["self"] = {
     { nombre = "❤️ Curar", accion = Curar, desc = "Restaura salud y armadura" },
     { nombre = "⚕️ Revivir (ESX)", accion = RevivirESX, desc = "Bypass ESX" },
     { nombre = "⚕️ Revivir (QB)", accion = RevivirQB, desc = "Bypass QB" },
 }
 
-opcionesMenu["spawn"] = {
-    { nombre = "👾 Spawn NPC Agresivo", accion = SpawnAggressiveNPC, desc = "Genera un enemigo que te atacará" },
-    { nombre = "📐 Spawn Rampa", accion = SpawnRamp, desc = "Crea una rampa (persistente)" },
-    { nombre = "❌ Eliminar Rampa", accion = RemoveRamp, desc = "Borra la rampa actual" },
-}
-
--- ==================== DIBUJO Y NAVEGACIÓN (sin cambios) ====================
 local function DrawShadowText(text, x, y, scale, font, center, color)
     SetTextFont(font)
     SetTextScale(scale, scale)
@@ -251,14 +131,13 @@ function DibujarMenu()
     DrawRect(x, startY, ancho + 0.006, 0.001, neonGlow[1], neonGlow[2], neonGlow[3], neonGlow[4])
     DrawRect(x, startY + totalAlto, ancho + 0.006, 0.001, neonGlow[1], neonGlow[2], neonGlow[3], neonGlow[4])
 
+    -- Banner desde URL (sin fallback)
     DibujarBanner(x, startY + altoBanner/2, ancho - 0.01, altoBanner - 0.01)
 
     DrawRect(x, startY + altoBanner - 0.001, ancho, 0.0005, neonColor[1], neonColor[2], neonColor[3], 200)
 
     local tituloY = startY + altoBanner + 0.008
-    local tituloStr = (currentMenu == "main" and "=== MENU PRINCIPAL ===") or
-                      (currentMenu == "self" and "⚙️ SELF OPTIONS ⚙️") or
-                      (currentMenu == "spawn" and "🧪 SPAWN OPTIONS 🧪")
+    local tituloStr = (currentMenu == "main" and "=== MENU PRINCIPAL ===") or (currentMenu == "self" and "⚙️ SELF OPTIONS ⚙️")
     DrawShadowText(tituloStr, x, tituloY, 0.48, 0, true, neonColor)
 
     local optsY = startY + altoBanner + altoTitulo + 0.008
