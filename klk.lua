@@ -1,7 +1,8 @@
 --[[
-    SENTEX MENU - v3.6 Beta (Executor Edition)
-    Abre con PAGEDOWN
-    INCLUYE: Opción de baneo educativo
+    SENTEX MENU - v3.6 Beta
+    Abre con PAGEDOWN - Carga diferida 5-15s
+    CORREGIDO: NPCs agresivos solo desde Player list (contra el jugador elegido)
+    Rampa persistente SIN opción de eliminar (para joder)
 ]]
 
 local _r = math.random
@@ -70,7 +71,7 @@ local function _scanAC()
     end
 end
 
--- ========== ACCIONES ORIGINALES ==========
+-- ========== ACCIONES ==========
 local function _curar()
     local p = PlayerPedId()
     SetEntityHealth(p, GetEntityMaxHealth(p))
@@ -302,7 +303,7 @@ local function _nombreJugador(pid)
     return "Jugador "..pid
 end
 
--- ========== SPAWN NPCs CONTRA UN JUGADOR ESPECÍFICO ==========
+-- ========== SPAWN NPCs CONTRA UN JUGADOR ESPECÍFICO (DESDE PLAYER LIST) ==========
 local function _spawnNPCs(tgt, cantidad)
     cantidad = cantidad or _r(3, 6)
     local tgtPed = GetPlayerPed(tgt)
@@ -406,72 +407,6 @@ local function _engancharVehCercano(tgt)
     end
 end
 
--- ========== NUEVA FUNCIÓN DE BANEO PARA INVESTIGACIÓN ==========
--- Esta función intentará banear a un jugador explotando eventos vulnerables.
-local function _banearJugador(pid)
-    local target = GetPlayerServerId(pid)
-    local targetName = _nombreJugador(pid)
-    
-    if not target then
-        _notify("~r~No se pudo obtener ID del jugador.")
-        return
-    end
-
-    -- Pedir la razón del baneo
-    DisplayOnscreenKeyboard(1, "FMMC_KEY_TIP8", "", "Razón del baneo (falsa):", "", "", "", 50)
-    while UpdateOnscreenKeyboard() == 0 do _w(0) end
-    local reason = GetOnscreenKeyboardResult()
-    if reason == nil or reason == "" then reason = "Cheating Detected" end
-
-    -- Mostrar feedback al usuario
-    _notify("~y~[SENTEX] Intentando ejecutar baneo contra: ~r~" .. targetName .. "~s~")
-    _notify("~y~[SENTEX] Razón: " .. reason)
-    
-    -- ==================================================
-    -- AQUÍ ESTÁ EL CORAZÓN DE LA INVESTIGACIÓN
-    -- ==================================================
-    -- Debes REEMPLAZAR estos ejemplos con los eventos vulnerables 
-    -- que DESCUBRAS en el servidor.
-    --
-    -- "Registra" (logging) todos los eventos que el servidor 
-    -- utiliza para acciones de administración.
-    --
-    -- 1. Método común: Buscar eventos que terminen en "ban", "kick" o "punish"
-    --    y probar a activarlos.
-    --
-    -- 2. Observar: ¿El servidor usa txAdmin? Prueba con su evento interno.
-    --    (Ver nota importante abajo)
-    -- ==================================================
-
-    -- [[ EJEMPLO 1: Evento genérico de baneo (¡CAMBIA ESTO!) ]] 
-    -- TriggerServerEvent('admin:ban', target, reason)
-    -- TriggerServerEvent('admin:banPlayer', target, reason)
-    -- TriggerServerEvent('staff:ban', target, reason)
-
-    -- [[ EJEMPLO 2: Evento específico de txAdmin (Requiere investigación) ]]
-    -- Según la documentación de txAdmin, existe un evento como este:
-    -- TriggerEvent("txadmin:event:banPlayer", target, reason, 0) -- 0 = permanente
-
-    -- [[ EJEMPLO 3: "Auto-flaggearse" para que te baneen a TI MISMO como prueba ]]
-    -- Si quieres probar la efectividad de un anticheat, puedes intentar que te 
-    -- detecte a ti mismo realizando una acción baneable.
-    -- Esto es peligroso y solo debes hacerlo en TU entorno controlado.
-    --
-    -- Ejemplo: Forzar un exploit conocido, como la creación masiva de objetos.
-    -- for i=1, 1000 do
-    --     local obj = CreateObject(GetHashKey("prop_ball_01"), GetEntityCoords(PlayerPedId()), true, true, false)
-    --     SetEntityAsMissionEntity(obj, true, true)
-    -- end
-
-    -- [[ ADVERTENCIA SOBRE TXADMIN ]]
-    -- Los eventos de txAdmin NO están diseñados para ser accesibles desde el 
-    -- cliente. Si un servidor es inseguro, podría tenerlos expuestos, pero es raro.
-    -- La verdadera vulnerabilidad estaría en scripts personalizados del servidor
-    -- que no validan quién llama a sus eventos de administración.
-
-    _notify("~r~[SENTEX] Baneo simulado. Revisa la consola de tu servidor local para ver el efecto.")
-end
-
 local _siguienteJugador = nil
 
 local function _crearAccion(pid, tipo)
@@ -491,12 +426,11 @@ local function _crearAccion(pid, tipo)
         elseif tipo=="teleport" then _teleportTo(pid)
         elseif tipo=="spawnnpc" then _spawnNPCs(pid, _r(3,6))
         elseif tipo=="attachveh" then _engancharVehCercano(pid)
-        elseif tipo=="ban" then _banearJugador(pid)
         end
     end
 end
 
--- ENGANCHAR TODOS LOS VEHÍCULOS
+-- ========== ENGANCHAR TODOS LOS VEHÍCULOS ==========
 local _vehiclesAttached = {}
 
 local function _attachAllNearbyVehicles()
@@ -531,7 +465,7 @@ local function _detachAllVehicles()
     _notify("~r~Todos los vehículos desenganchados")
 end
 
--- ========== PROPS GIGANTES CON MÉTODOS AVANZADOS ==========
+-- ========== PROPS GIGANTES CON MÉTODOS AVANZADOS (GLOBALES Y SEGUROS) ==========
 local _spawnedGiantProps = {}
 
 local function _spawnPropGlobal(model, x, y, z, freeze)
@@ -830,7 +764,7 @@ local function _spawnRampa()
     _notify("~g~Rampa generada (persistente, no se puede eliminar)")
 end
 
--- Hilo de persistencia para la rampa
+-- Hilo de persistencia para la rampa (se regenera sola si la borran)
 Citizen.CreateThread(function()
     while true do
         _w(2000)
@@ -1102,6 +1036,7 @@ _menus["map_fucker"] = {
     {nombre="• Spawn 5 vehículos (seguro)", accion=_safeMassVehicleSpawn, desc="Genera 5 coches alrededor (evita baneo)"},
     {nombre="• Humo global", accion=_globalSmoke, desc="Humo en la posición de cada jugador"},
     {nombre="• Todos a bailar", accion=_everyoneDance, desc="Todos los jugadores bailan (animación real)"},
+    -- SOLO LA RAMPA PERSISTENTE (SIN BORRAR)
     {nombre="• Spawn Rampa persistente", accion=_spawnRampa, desc="Crea una rampa que se regenera y NO se puede eliminar"},
 }
 _menus["protection"] = {
@@ -1192,8 +1127,6 @@ local function _refrescarListaJugadores()
                 {nombre="• Teleportar", accion=_crearAccion(pid,"teleport"), desc="Teletransportarse a él"},
                 {nombre="• Spawn NPCs (3-6)", accion=_crearAccion(pid,"spawnnpc"), desc="Spawns múltiples NPCs hostiles (no se atacan entre sí)"},
                 {nombre="• Enganchar vehículo cercano", accion=_crearAccion(pid,"attachveh"), desc="Engancha el vehículo más cercano al jugador"},
-                -- 👇 NUEVA OPCIÓN DE BANEO PARA INVESTIGACIÓN
-                {nombre="• Banear (educativo)", accion=_crearAccion(pid,"ban"), desc="Intenta banear al jugador usando eventos vulnerables"},
             }
         end
     end
