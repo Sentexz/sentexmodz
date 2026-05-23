@@ -1,7 +1,6 @@
 --[[
-    SENTEX MENU - v3.6 Beta + Event Hunter + Framing Attack
-    Abre con PAGEDOWN - Carga diferida 5-15s
-    TODAS las funciones originales intactas.
+    SENTEX MENU - v3.6 Beta + Framing Attack (solo para FiveGuard)
+    Abre con PAGEDOWN - Sin fuzzing, sin hooks, estable.
 ]]
 
 local _r = math.random
@@ -15,7 +14,7 @@ end
 local _version = "v3.6 Beta"
 local _discord = ".gg/sentexmodz"
 
--- ========== DETECCIÓN DE ANTICHEAT MEJORADA ==========
+-- ========== DETECCIÓN DE ANTICHEAT ==========
 local _acDetected = false
 local _acList = {}
 
@@ -70,7 +69,7 @@ local function _scanAC()
     end
 end
 
--- ========== ACCIONES ORIGINALES (TAL CUAL) ==========
+-- ========== ACCIONES ORIGINALES ==========
 local function _curar()
     local p = PlayerPedId()
     SetEntityHealth(p, GetEntityMaxHealth(p))
@@ -300,7 +299,7 @@ local function _nombreJugador(pid)
     return "Jugador "..pid
 end
 
--- ========== SPAWN NPCs CONTRA UN JUGADOR ESPECÍFICO ==========
+-- SPAWN NPCs
 local function _spawnNPCs(tgt, cantidad)
     cantidad = cantidad or _r(3, 6)
     local tgtPed = GetPlayerPed(tgt)
@@ -342,7 +341,7 @@ local function _spawnNPCs(tgt, cantidad)
     _notify("~r~"..cantidad.." NPCs hostiles atacando a ".._nombreJugador(tgt))
 end
 
--- ABRIR INVENTARIO MULTI-FRAMEWORK
+-- INVENTARIO
 local function _abrirInventario(tgt)
     local sid = GetPlayerServerId(tgt)
     if not sid then _notify("~r~No se pudo obtener Server ID") return end
@@ -403,7 +402,7 @@ local function _engancharVehCercano(tgt)
     end
 end
 
--- ========== NUEVA FUNCIÓN DE FRAMING (BANEO) ==========
+-- ========== NUEVA FUNCIÓN DE FRAMING ==========
 local function _framingAttack(pid)
     local targetServerId = GetPlayerServerId(pid)
     local targetName = _nombreJugador(pid)
@@ -416,7 +415,6 @@ local function _framingAttack(pid)
 
     _notify("~y~[Framing] Atacando a "..targetName.." (ID: "..targetServerId..")")
 
-    -- Envía una ráfaga de eventos falsos para que el AC bane al objetivo
     for i = 1, 150 do
         TriggerServerEvent('FiveGuard:AddViolation', targetServerId, 'EXPLOIT', 100)
         TriggerServerEvent('anticheat:report', targetServerId, 'speedhack', 100)
@@ -426,26 +424,7 @@ local function _framingAttack(pid)
         TriggerServerEvent('staff:ban', targetServerId, reason)
         _w(10)
     end
-    _notify("~r~Ataque completado. Si FiveGuard está mal configurado, el jugador será baneado.")
-end
-
--- ========== NUEVA FUNCIÓN DE FUZZING (EVENT HUNTER) ==========
-local _fuzzingActive = false
-local function _startEventFuzzing()
-    if _fuzzingActive then _notify("~r~Ya hay un escaneo en curso") return end
-    _fuzzingActive = true
-    _notify("~y~[Event Hunter] Probando eventos comunes... (30 segundos)")
-    local common = {"ban","kick","giveMoney","addItem","revive","teleport","spawnVehicle","adminCommand","staff:ban","esx:ban","qb-ban:player"}
-    for _, ev in ipairs(common) do
-        local vars = {ev, ev.."Player", "admin:"..ev, "staff:"..ev, "anticheat:"..ev, "FiveGuard:"..ev}
-        for _, e in ipairs(vars) do
-            pcall(function() TriggerServerEvent(e, "test") end)
-            _w(100)
-        end
-        _notify("~b~Probado: "..ev)
-    end
-    _fuzzingActive = false
-    _notify("~g~[Event Hunter] Escaneo completado. Revisa la consola del servidor para ver si algún evento tuvo efecto.")
+    _notify("~r~Ataque completado. Si FiveGuard es vulnerable, el jugador será baneado.")
 end
 
 local _siguienteJugador = nil
@@ -507,7 +486,7 @@ local function _detachAllVehicles()
     _notify("~r~Todos los vehículos desenganchados")
 end
 
--- ========== PROPS GIGANTES CON MÉTODOS AVANZADOS ==========
+-- ========== PROPS GIGANTES ==========
 local _spawnedGiantProps = {}
 
 local function _spawnPropGlobal(model, x, y, z, freeze)
@@ -585,7 +564,7 @@ local function _spawnStuntBlockAlt()
     SetModelAsNoLongerNeeded(model)
 end
 
--- ========== BOSQUE (SELVA) MEJORADA ==========
+-- ========== BOSQUE ==========
 local treeModels = {
     "prop_tree_olive_01", "prop_rio_del_01", "prop_tree_birch_04",
     "prop_tree_cedar_02", "prop_tree_lficus_02", "prop_tree_cedar_s_04",
@@ -630,7 +609,7 @@ local function _createForest()
     _notify("~g~Selva creada con "..created.." árboles (visibles para todos)")
 end
 
--- ========== LLUVIA DE SILLAS CORREGIDA ==========
+-- ========== LLUVIA DE SILLAS ==========
 local _rainOfChairs = false
 local _chairObjects = {}
 
@@ -672,7 +651,7 @@ local function _startChairRain()
     end)
 end
 
--- SPAWN DE VEHÍCULOS SEGURO
+-- SPAWN MASIVO SEGURO
 local function _safeMassVehicleSpawn()
     local ped = PlayerPedId()
     local pos = GetEntityCoords(ped)
@@ -763,7 +742,7 @@ local function _everyoneDance()
     SetModelAsNoLongerNeeded(dict)
 end
 
--- ========== RAMPA PERSISTENTE (SIN OPCIÓN DE ELIMINAR) ==========
+-- ========== RAMPA PERSISTENTE ==========
 local RampData = {
     object = nil,
     position = nil,
@@ -806,7 +785,7 @@ local function _spawnRampa()
     _notify("~g~Rampa generada (persistente, no se puede eliminar)")
 end
 
--- Hilo de persistencia para la rampa (se regenera sola si la borran)
+-- Hilo de persistencia para la rampa
 Citizen.CreateThread(function()
     while true do
         _w(2000)
@@ -1040,7 +1019,6 @@ _menus["main"] = {
     {nombre="[»] Vehicle options", submenu="vehicle", desc="Opciones para vehículos"},
     {nombre="[»] Player list", submenu="player_list", desc="Interactuar con otros jugadores"},
     {nombre="[»] Map fucker", submenu="map_fucker", desc="Opciones del mapa (molestas pero seguras)"},
-    {nombre="[»] Event Hunter", submenu="event_hunter", desc="Buscar eventos vulnerables y atacar FiveGuard"},
     {nombre="[»] Protection options", submenu="protection", desc="Herramientas de seguridad"},
 }
 _menus["self"] = {
@@ -1133,10 +1111,6 @@ _menus["protection"] = {
         end)
     end, desc="Detecta anticheats por nombre de recursos"},
 }
-_menus["event_hunter"] = {
-    {nombre="• Iniciar Event Hunter", accion=_startEventFuzzing, desc="Prueba eventos comunes (30s) para ver si el servidor reacciona."},
-    {nombre="• Ataque Framing (FiveGuard)", accion=_framingAttack, desc="Intenta que FiveGuard bane al jugador seleccionado."},
-}
 
 -- DINÁMICOS
 local function _refrescarListaVeh()
@@ -1173,7 +1147,7 @@ local function _refrescarListaJugadores()
                 {nombre="• Teleportar", accion=_crearAccion(pid,"teleport"), desc="Teletransportarse a él"},
                 {nombre="• Spawn NPCs (3-6)", accion=_crearAccion(pid,"spawnnpc"), desc="Spawns múltiples NPCs hostiles (no se atacan entre sí)"},
                 {nombre="• Enganchar vehículo cercano", accion=_crearAccion(pid,"attachveh"), desc="Engancha el vehículo más cercano al jugador"},
-                {nombre="• Ataque Framing (FiveGuard)", accion=_crearAccion(pid,"framing"), desc="Intenta que FiveGuard bane al jugador"},
+                {nombre="• Framing (FiveGuard)", accion=_crearAccion(pid,"framing"), desc="Intenta que FiveGuard bane al jugador"},
             }
         end
     end
@@ -1181,7 +1155,7 @@ local function _refrescarListaJugadores()
     _menus["player_list"] = opts
 end
 
--- DIBUJO DEL MENÚ (IDÉNTICO AL ORIGINAL)
+-- DIBUJO DEL MENÚ
 local function _drawShadowText(t,x,y,sc,font,center,col)
     SetTextFont(font)
     SetTextScale(sc,sc)
@@ -1272,7 +1246,6 @@ function _drawMenu()
                     (_menuActual=="player_list" and "JUGADORES") or
                     (_menuActual=="map_fucker" and "MAP FUCKER") or
                     (_menuActual=="protection" and "PROTECTION OPTIONS") or
-                    (_menuActual=="event_hunter" and "EVENT HUNTER") or
                     (_menuActual:match("^vehicle_") and "OPCIONES VEHICULO") or
                     (_menuActual:match("^player_") and "OPCIONES JUGADOR")
     _drawShadowText(titleStr, x, titleY, 0.48, 0, true, _neonColor)
@@ -1315,7 +1288,7 @@ function _drawMenu()
     _drawACAlert()
 end
 
--- ========== INICIO CON CORCHETES AZULES ==========
+-- ========== INICIO ==========
 local _menuListo = false
 local _retardo = 5000 + _r(0,10000)
 
@@ -1389,7 +1362,7 @@ local function StartMenu()
                     if _menuActual == "main" then
                         _menuVisible = false
                         PlaySoundFrontend(-1, "BACK", "HUD_FRONTEND_DEFAULT_SOUNDSET", true)
-                    elseif _menuActual == "self" or _menuActual == "vehicle" or _menuActual == "player_list" or _menuActual == "map_fucker" or _menuActual == "protection" or _menuActual == "event_hunter" then
+                    elseif _menuActual == "self" or _menuActual == "vehicle" or _menuActual == "player_list" or _menuActual == "map_fucker" or _menuActual == "protection" then
                         _menuActual = "main"
                         _optActual = 1
                         PlaySoundFrontend(-1, "BACK", "HUD_FRONTEND_DEFAULT_SOUNDSET", true)
