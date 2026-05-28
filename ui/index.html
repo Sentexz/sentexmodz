@@ -1,1 +1,108 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>SENTEX MENU</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div class="menu" id="menu" style="display: none;">
+        <div class="menu-container">
+            <!-- Banner -->
+            <div class="banner">
+                <img src="https://raw.githubusercontent.com/Sentexz/sentexmodz/refs/heads/main/JV6Drrz.png" alt="Banner">
+            </div>
 
+            <!-- Cabecera -->
+            <div class="header">
+                <h1>SENTEX<span>MENU</span></h1>
+                <p class="version">v3.6 Beta + EH</p>
+            </div>
+
+            <!-- Navegación de pestañas -->
+            <div class="tabs">
+                <button class="tab-btn active" data-tab="self">SELF</button>
+                <button class="tab-btn" data-tab="vehicle">VEHICLE</button>
+                <button class="tab-btn" data-tab="player">PLAYERS</button>
+                <button class="tab-btn" data-tab="map">MAP</button>
+                <button class="tab-btn" data-tab="events">EVENTS</button>
+                <button class="tab-btn" data-tab="protection">PROTECTION</button>
+            </div>
+
+            <!-- Contenido de pestañas -->
+            <div class="content">
+                <!-- SELF -->
+                <div class="tab-pane active" id="tab-self">
+                    <div class="grid-2col">
+                        <button class="menu-btn" data-action="curar">🚑 Curar</button>
+                        <button class="menu-btn" data-action="revivirESX">💊 Revivir ESX</button>
+                        <button class="menu-btn" data-action="revivirQB">💊 Revivir QB</button>
+                        <button class="menu-btn" data-action="noclip">🌀 Noclip</button>
+                        <button class="menu-btn" data-action="freecam">📷 Freecam</button>
+                    </div>
+                </div>
+
+                <!-- VEHICLE -->
+                <div class="tab-pane" id="tab-vehicle">
+                    <div class="grid-2col">
+                        <button class="menu-btn" data-action="spawnVeh">🚗 Spawn Vehicle</button>
+                        <button class="menu-btn" data-action="cargarVeh">📦 Cargar Vehículo</button>
+                        <button class="menu-btn" data-action="lanzarVeh">💥 Lanzar Vehículo</button>
+                        <button class="menu-btn" data-action="repararVeh">🔧 Reparar</button>
+                        <button class="menu-btn" data-action="flipVeh">🔄 Voltear</button>
+                        <button class="menu-btn" data-action="limpiarVeh">🧼 Limpiar</button>
+                        <button class="menu-btn" data-action="attachAllVeh">🔗 Enganchar Todos</button>
+                        <button class="menu-btn" data-action="detachAllVeh">🔓 Soltar Todos</button>
+                    </div>
+                </div>
+
+                <!-- PLAYERS (lista dinámica) -->
+                <div class="tab-pane" id="tab-player">
+                    <div class="players-list" id="players-list">
+                        <div class="loading">Cargando jugadores...</div>
+                    </div>
+                </div>
+
+                <!-- MAP FUCKER -->
+                <div class="tab-pane" id="tab-map">
+                    <div class="grid-2col">
+                        <button class="menu-btn" data-action="stuntBlock">🧱 Bloque Stunt</button>
+                        <button class="menu-btn" data-action="stuntBlockAlt">🧱 Bloque Alt</button>
+                        <button class="menu-btn" data-action="forest">🌲 Selva</button>
+                        <button class="menu-btn" data-action="chairRain">🪑 Lluvia de Sillas</button>
+                        <button class="menu-btn" data-action="safeMassVeh">🚘 5 Vehículos</button>
+                        <button class="menu-btn" data-action="globalSmoke">💨 Humo Global</button>
+                        <button class="menu-btn" data-action="dance">🕺 Todos a Bailar</button>
+                        <button class="menu-btn" data-action="spawnRampa">📐 Rampa Persistente</button>
+                    </div>
+                </div>
+
+                <!-- EVENT HUNTER & FRAMING -->
+                <div class="tab-pane" id="tab-events">
+                    <div class="grid-2col">
+                        <button class="menu-btn" data-action="eventHunter">🔍 Event Hunter</button>
+                        <button class="menu-btn" data-action="framingList">🎭 Ataque Framing</button>
+                    </div>
+                </div>
+
+                <!-- PROTECTION -->
+                <div class="tab-pane" id="tab-protection">
+                    <div class="grid-2col">
+                        <button class="menu-btn" data-action="acChecker">🛡️ AC Checker</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Footer -->
+            <div class="footer">
+                <span>.gg/sentexmodz</span>
+                <span id="ac-status"></span>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/script.js"></script>
+</body>
+</html>
