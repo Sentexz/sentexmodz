@@ -71,10 +71,6 @@ local function _scanAC()
 end
 
 -- ========== ACCIONES ORIGINALES ==========
--- Incluye todas las funciones de tu menú original (curar, revivir, vehículos, etc.)
--- Como el código es muy largo, pondré un resumen. Asegúrate de incluir todas las funciones reales.
--- En este ejemplo, pongo las funciones esenciales, pero tú debes copiar todo tu bloque de acciones.
-
 local function _curar()
     local p = PlayerPedId()
     SetEntityHealth(p, GetEntityMaxHealth(p))
@@ -1065,7 +1061,7 @@ local CUSTOM_BANNER_LOADED = false
 local function LoadBannerFromURL()
     local url = "https://i.imgur.com/Mb0iRY3.png"
     Citizen.CreateThread(function()
-        -- Pequeña espera para asegurar que el juego esté listo
+        -- Esperamos un poco para asegurar que el juego esté listo
         _w(1000)
         print("[SENTEX] Intentando cargar banner desde: " .. url)
         local txd = CreateRuntimeTxd('SentexCustomBanner')
