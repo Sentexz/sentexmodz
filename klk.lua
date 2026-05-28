@@ -1,6 +1,6 @@
 --[[
-    SENTEX MENU - Diseño premium rojo (completo, con todas las funciones)
-    Abre con PAGEDOWN - Todas las acciones originales.
+    SENTEX MENU v3.7 - Diseño premium rojo (sin iconos, sin desbordamiento)
+    Abre con PAGEDOWN - Todas las funciones originales.
 ]]
 
 local _r = math.random
@@ -11,7 +11,7 @@ local _notify = function(msg)
     DrawNotification(false, false)
 end
 
-local _version = "v3.6 Beta + EH"
+local _version = "v3.6 Beta + EH"   -- se mantiene por compatibilidad
 local _discord = ".gg/sentexmodz"
 
 -- ========== DETECCIÓN DE ANTICHEAT ==========
@@ -67,7 +67,7 @@ local function _scanAC()
     end
 end
 
--- ========== ACCIONES ORIGINALES (TODAS) ==========
+-- ========== ACCIONES ORIGINALES ==========
 local function _curar()
     local p = PlayerPedId()
     SetEntityHealth(p, GetEntityMaxHealth(p))
@@ -350,7 +350,7 @@ local function _nombreJugador(pid)
     return "Jugador "..pid
 end
 
--- NPCs hostiles (modo sigiloso)
+-- SPAWN NPCs hostiles (modo sigiloso)
 local _spawnedNPCs = {}
 local function _spawnNPCs(targetPid, cantidad)
     cantidad = cantidad or _r(3, 6)
@@ -740,7 +740,7 @@ Citizen.CreateThread(function()
     end
 end)
 
--- ========== MENÚ REDISEÑADO (sin iconos, título "SENTEXMODZ v3.7") ==========
+-- ========== MENÚ REDISEÑADO (sin iconos, con scroll) ==========
 local _menuVisible = false
 local _menuActual = "main"
 local _optActual = 1
@@ -783,10 +783,10 @@ end
 
 local function _drawItem(x, yCenter, w, opt, isSelected)
     -- Separador vertical
-    local sepX = x - w/2 + 0.025
+    local sepX = x - w/2 + 0.02
     DrawRect(sepX, yCenter, 0.001, 0.03, _separatorColor[1], _separatorColor[2], _separatorColor[3], _separatorColor[4])
 
-    -- Texto limpio
+    -- Texto limpio (sin símbolos originales)
     local cleanText = opt.nombre:gsub("[%[»%]•]", ""):gsub("^%s*", "")
     SetTextFont(0)
     SetTextScale(0.4,0.4)
@@ -794,7 +794,7 @@ local function _drawItem(x, yCenter, w, opt, isSelected)
     SetTextCentre(false)
     SetTextEntry("STRING")
     AddTextComponentString(cleanText)
-    DrawText(x - w/2 + 0.045, yCenter - 0.008)
+    DrawText(x - w/2 + 0.04, yCenter - 0.008)
 
     -- Flecha derecha
     SetTextFont(0)
@@ -827,7 +827,7 @@ function _drawMenu()
     local x = _posX
     local y = 0.2
     local headerH = 0.08
-    local optH = 0.042
+    local optH = 0.04
     local lineH = 0.032
     local padDesc = 0.005
 
