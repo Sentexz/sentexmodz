@@ -1,7 +1,7 @@
 --[[
     SENTEX MENU v3.6 Beta - Event Hunter + Framing Attack
     Abre con PAGEDOWN - Todas las funciones originales.
-    Banner cargado desde variable global _G.SUSANO_BANNER_BASE64.
+    Banner con espera activa (IsDuiAvailable) y fallback a gradiente.
 ]]
 
 local _r = math.random
@@ -14,39 +14,6 @@ end
 
 local _version = "v3.6 Beta + EH"
 local _discord = ".gg/sentexmodz"
-
--- ========== CARGAR BANNER DESDE BASE64 (PROPORCIONADO POR LOADER) ==========
-local CUSTOM_BANNER_TXD = nil
-local CUSTOM_BANNER_LOADED = false
-
-local function LoadBannerFromBase64()
-    local b64 = _G.SUSANO_BANNER_BASE64
-    if not b64 then
-        print("[SENTEX] No se encontró banner Base64. Usando gradiente.")
-        return
-    end
-    Citizen.CreateThread(function()
-        local dataUrl = "data:image/png;base64," .. b64
-        local txd = CreateRuntimeTxd("SentexCustomBanner")
-        local duiObj = CreateDui(dataUrl, 1152, 256)
-        Wait(2000)
-        local handle = GetDuiHandle(duiObj)
-        if handle and handle ~= 0 then
-            local texture = CreateRuntimeTextureFromDuiHandle(txd, "banner_texture", handle)
-            if texture then
-                CUSTOM_BANNER_TXD = "SentexCustomBanner"
-                CUSTOM_BANNER_LOADED = true
-                _notify("~g~Banner personalizado cargado (Base64).")
-                print("[SENTEX] Banner cargado correctamente.")
-            else
-                print("[SENTEX] Falló creación de textura.")
-            end
-        else
-            print("[SENTEX] Handle de DUI inválido.")
-        end
-    end)
-end
--- ==========================================================================
 
 -- ========== DETECCIÓN DE ANTICHEAT ==========
 local _acDetected = false
@@ -1087,28 +1054,56 @@ local _bannerTexto = "SENTEX MENU"
 local _bannerSubtexto = _version
 local _posX = 0.7
 
-local function _randomizarEstilos()
-    _neonColor = {_variarSutil(_baseR), _variarSutil(_baseG), _variarSutil(_baseB), 255}
-    _glowColor = {_variarSutil(0), _variarSutil(150), _variarSutil(255), 60}
-    _selectBg = {_variarSutil(30), _variarSutil(144), _variarSutil(255), 70}
-    _posX = 0.7 + (_r(-2,2)/100)
-    local banners = {"SENTEX MENU", "SENTEX PRO", "SX v3.6", "SENTEX EDITION"}
-    _bannerTexto = banners[_r(#banners)]
+-- Cargar banner desde Base64 con espera activa
+local CUSTOM_BANNER_TXD = nil
+local CUSTOM_BANNER_LOADED = false
+
+local function LoadBannerFromBase64()
+    local b64 = _G.SUSANO_BANNER_BASE64
+    if not b64 then
+        print("[SENTEX] No se encontró banner Base64. Usando gradiente.")
+        return
+    end
+    
+    Citizen.CreateThread(function()
+        local dataUrl = "data:image/png;base64," .. b64
+        local txd = CreateRuntimeTxd("SentexCustomBanner")
+        local duiObj = CreateDui(dataUrl, 1152, 256)
+        
+        if not duiObj then
+            print("[SENTEX] Falló la creación del DUI. Usando gradiente.")
+            return
+        end
+        
+        -- Esperar a que el DUI esté disponible (hasta 3 segundos)
+        local attempts = 0
+        local maxAttempts = 30  -- 30 * 100ms = 3 segundos
+        
+        while attempts < maxAttempts do
+            Wait(100)
+            attempts = attempts + 1
+            
+            if IsDuiAvailable(duiObj) then
+                local duiHandle = GetDuiHandle(duiObj)
+                if duiHandle and duiHandle ~= 0 then
+                    local texture = CreateRuntimeTextureFromDuiHandle(txd, "banner_texture", duiHandle)
+                    if texture then
+                        CUSTOM_BANNER_TXD = "SentexCustomBanner"
+                        CUSTOM_BANNER_LOADED = true
+                        _notify("~g~Banner personalizado cargado correctamente.")
+                        print("[SENTEX] Banner cargado tras " .. attempts .. " intentos.")
+                        return
+                    end
+                end
+            end
+        end
+        
+        print("[SENTEX] No se pudo cargar el banner después de esperar. Usando gradiente.")
+        _notify("~y~No se pudo cargar el banner. Usando gradiente.")
+    end)
 end
 
--- Función de texto con sombra
-local function _drawShadowText(t,x,y,sc,font,center,col)
-    SetTextFont(font)
-    SetTextScale(sc,sc)
-    SetTextColour(col[1],col[2],col[3],col[4])
-    SetTextCentre(center)
-    SetTextDropshadow(1,0,0,0,200)
-    SetTextEntry("STRING")
-    AddTextComponentString(t)
-    DrawText(x,y)
-end
-
--- Banner con fallback
+-- Banner con fallback (gradiente elegante)
 local function _drawBanner(x,y,w,h)
     if CUSTOM_BANNER_LOADED and CUSTOM_BANNER_TXD then
         DrawSprite(CUSTOM_BANNER_TXD, "banner_texture", x, y, w, h, 0.0, 255, 255, 255, 255)
@@ -1149,7 +1144,18 @@ local function _drawBanner(x,y,w,h)
     end
 end
 
--- Alerta anticheat
+-- Funciones de dibujo del menú (originales)
+local function _drawShadowText(t,x,y,sc,font,center,col)
+    SetTextFont(font)
+    SetTextScale(sc,sc)
+    SetTextColour(col[1],col[2],col[3],col[4])
+    SetTextCentre(center)
+    SetTextDropshadow(1,0,0,0,200)
+    SetTextEntry("STRING")
+    AddTextComponentString(t)
+    DrawText(x,y)
+end
+
 local function _drawACAlert()
     if _acDetected then
         SetTextFont(4)
@@ -1162,7 +1168,6 @@ local function _drawACAlert()
     end
 end
 
--- Barra de scroll
 local function _drawScrollbar(x, y, totalH, visibleCount, totalCount, offset)
     if totalCount <= visibleCount then return end
     local thumbHeight = (visibleCount / totalCount) * totalH
@@ -1186,6 +1191,15 @@ local function _updateScroll(totalOpts)
             _scrollOffset = totalOpts - _maxVisibleOptions
         end
     end
+end
+
+local function _randomizarEstilos()
+    _neonColor = {_variarSutil(_baseR), _variarSutil(_baseG), _variarSutil(_baseB), 255}
+    _glowColor = {_variarSutil(0), _variarSutil(150), _variarSutil(255), 60}
+    _selectBg = {_variarSutil(30), _variarSutil(144), _variarSutil(255), 70}
+    _posX = 0.7 + (_r(-2,2)/100)
+    local banners = {"SENTEX MENU", "SENTEX PRO", "SX v3.6", "SENTEX EDITION"}
+    _bannerTexto = banners[_r(#banners)]
 end
 
 function _drawMenu()
@@ -1275,10 +1289,6 @@ function _drawMenu()
     AddTextComponentString(counter)
     DrawText(x+w/2-0.02, startY+totalH-0.022)
 
-    SetTextFont(0)
-    SetTextScale(0.28,0.28)
-    SetTextColour(150,150,150,255)
-    SetTextCentre(false)
     SetTextEntry("STRING")
     AddTextComponentString(_discord)
     DrawText(x-w/2+0.005, startY+totalH-0.022)
