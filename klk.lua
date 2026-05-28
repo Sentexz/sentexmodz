@@ -1,7 +1,7 @@
 --[[
     SENTEX MENU v3.6 Beta - Event Hunter + Framing Attack
     Abre con PAGEDOWN - Todas las funciones originales.
-    Banner con reintentos y espera activa (fallback a gradiente).
+    Banner redimensionado desde Imgur (con reintentos).
 ]]
 
 local _r = math.random
@@ -1027,7 +1027,7 @@ Citizen.CreateThread(function()
     end
 end)
 
--- ========== MENÚ PRINCIPAL CON SCROLL Y BANNER ROBUSTO ==========
+-- ========== MENÚ PRINCIPAL CON SCROLL Y BANNER ==========
 local _menuVisible = false
 local _menuActual = "main"
 local _optActual = 1
@@ -1053,10 +1053,10 @@ local _selectBg = {30,144,255,70}
 local _bannerTexto = "SENTEX MENU"
 local _posX = 0.7
 
--- Variables para el banner con reintentos
+-- Cargar banner desde URL con reintentos
 local CUSTOM_BANNER_TXD = nil
 local CUSTOM_BANNER_LOADED = false
-local BANNER_URL = "https://raw.githubusercontent.com/Sentexz/sentexmodz/refs/heads/main/JV6Drrz.png"
+local BANNER_URL = "https://i.imgur.com/wRX0Y2q.png"
 local _bannerDui = nil
 local _bannerRetries = 0
 local MAX_RETRIES = 10
@@ -1076,7 +1076,7 @@ local function TryLoadBanner()
             local txd = CreateRuntimeTxd("SentexCustomBanner")
             _bannerDui = CreateDui(BANNER_URL, 1152, 256)
             if _bannerDui then
-                Wait(3000)  -- Esperamos que cargue
+                Wait(3000)
                 local handle = GetDuiHandle(_bannerDui)
                 if handle and handle ~= 0 then
                     CreateRuntimeTextureFromDuiHandle(txd, "banner_texture", handle)
@@ -1085,7 +1085,7 @@ local function TryLoadBanner()
                     CUSTOM_BANNER_LOADED = true
                     _notify("~g~Banner cargado correctamente (intento #" .. _bannerRetries .. ")")
                     print("[BANNER] Cargado exitosamente.")
-                    break
+                    return
                 end
             end
             print("[BANNER] Falló, reintentando en 2 segundos...")
@@ -1144,7 +1144,7 @@ local function _drawBanner(x,y,w,h)
     end
 end
 
--- Funciones de dibujo originales
+-- Función de texto con sombra
 local function _drawShadowText(t,x,y,sc,font,center,col)
     SetTextFont(font)
     SetTextScale(sc,sc)
