@@ -4,24 +4,225 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>SENTEX MENU</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="css/style.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            user-select: none;
+        }
+        body {
+            background: transparent;
+            font-family: 'Inter', 'Segoe UI', sans-serif;
+            overflow: hidden;
+        }
+        .menu {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: rgba(0, 0, 0, 0.75);
+            backdrop-filter: blur(8px);
+            z-index: 1000;
+        }
+        .menu-container {
+            width: 750px;
+            max-width: 90vw;
+            background: linear-gradient(145deg, #0f1219 0%, #0a0c12 100%);
+            border-radius: 20px;
+            border: 1px solid rgba(0, 200, 255, 0.3);
+            box-shadow: 0 20px 40px rgba(0,0,0,0.5), 0 0 20px rgba(0,200,255,0.2);
+            overflow: hidden;
+            animation: fadeIn 0.2s ease-out;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: scale(0.95); }
+            to { opacity: 1; transform: scale(1); }
+        }
+        .banner {
+            width: 100%;
+            height: 100px;
+            overflow: hidden;
+            background: #000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        .banner img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            object-position: center;
+        }
+        .header {
+            text-align: center;
+            padding: 20px 20px 10px;
+            background: linear-gradient(135deg, #0d1a2b 0%, #0a111f 100%);
+            border-bottom: 1px solid rgba(0,200,255,0.3);
+        }
+        .header h1 {
+            font-size: 32px;
+            font-weight: 800;
+            color: white;
+            letter-spacing: 2px;
+        }
+        .header h1 span {
+            color: #00c8ff;
+            text-shadow: 0 0 8px rgba(0,200,255,0.5);
+        }
+        .version {
+            font-size: 12px;
+            color: #aaa;
+            margin-top: 5px;
+        }
+        .tabs {
+            display: flex;
+            background: #0a0c12;
+            border-bottom: 1px solid rgba(0,200,255,0.2);
+            padding: 0 10px;
+        }
+        .tab-btn {
+            background: transparent;
+            border: none;
+            color: #ccc;
+            font-family: inherit;
+            font-weight: 600;
+            font-size: 13px;
+            padding: 12px 16px;
+            cursor: pointer;
+            transition: 0.2s;
+            letter-spacing: 1px;
+        }
+        .tab-btn:hover {
+            color: white;
+            background: rgba(0,200,255,0.1);
+        }
+        .tab-btn.active {
+            color: #00c8ff;
+            border-bottom: 2px solid #00c8ff;
+        }
+        .content {
+            padding: 20px;
+            max-height: 480px;
+            overflow-y: auto;
+        }
+        .tab-pane {
+            display: none;
+            animation: fadeIn 0.2s;
+        }
+        .tab-pane.active {
+            display: block;
+        }
+        .grid-2col {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px;
+        }
+        .menu-btn {
+            background: rgba(20,30,45,0.7);
+            border: 1px solid rgba(0,200,255,0.3);
+            color: #e0e0e0;
+            padding: 12px;
+            border-radius: 10px;
+            font-family: inherit;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: 0.15s;
+            text-align: left;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .menu-btn:hover {
+            background: rgba(0,200,255,0.2);
+            border-color: #00c8ff;
+            color: white;
+            transform: translateX(4px);
+        }
+        .players-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .player-item {
+            background: rgba(20,30,45,0.6);
+            border: 1px solid rgba(0,200,255,0.2);
+            border-radius: 10px;
+            padding: 10px 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            color: white;
+        }
+        .player-name {
+            font-weight: 600;
+        }
+        .player-actions {
+            display: flex;
+            gap: 8px;
+        }
+        .player-btn {
+            background: rgba(0,0,0,0.5);
+            border: none;
+            color: #00c8ff;
+            padding: 5px 10px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: 0.1s;
+        }
+        .player-btn:hover {
+            background: #00c8ff;
+            color: #0a0c12;
+        }
+        .loading {
+            text-align: center;
+            color: #aaa;
+            padding: 20px;
+        }
+        .footer {
+            padding: 12px 20px;
+            display: flex;
+            justify-content: space-between;
+            border-top: 1px solid rgba(0,200,255,0.2);
+            font-size: 11px;
+            color: #777;
+            background: #0a0c12;
+        }
+        .content::-webkit-scrollbar {
+            width: 5px;
+        }
+        .content::-webkit-scrollbar-track {
+            background: #1a1f2e;
+            border-radius: 10px;
+        }
+        .content::-webkit-scrollbar-thumb {
+            background: #00c8ff;
+            border-radius: 10px;
+        }
+        @media (max-width: 600px) {
+            .menu-container { width: 95vw; }
+            .grid-2col { grid-template-columns: 1fr; }
+            .tab-btn { padding: 10px 12px; font-size: 11px; }
+            .header h1 { font-size: 24px; }
+        }
+    </style>
 </head>
 <body>
     <div class="menu" id="menu" style="display: none;">
         <div class="menu-container">
-            <!-- Banner -->
             <div class="banner">
-                <img src="https://raw.githubusercontent.com/Sentexz/sentexmodz/refs/heads/main/JV6Drrz.png" alt="Banner">
+                <img src="https://raw.githubusercontent.com/Sentexz/sentexmodz/refs/heads/main/JV6Drrz.png" alt="Banner" onerror="this.style.display='none'">
             </div>
-
-            <!-- Cabecera -->
             <div class="header">
                 <h1>SENTEX<span>MENU</span></h1>
                 <p class="version">v3.6 Beta + EH</p>
             </div>
-
-            <!-- Navegación de pestañas -->
             <div class="tabs">
                 <button class="tab-btn active" data-tab="self">SELF</button>
                 <button class="tab-btn" data-tab="vehicle">VEHICLE</button>
@@ -30,10 +231,7 @@
                 <button class="tab-btn" data-tab="events">EVENTS</button>
                 <button class="tab-btn" data-tab="protection">PROTECTION</button>
             </div>
-
-            <!-- Contenido de pestañas -->
             <div class="content">
-                <!-- SELF -->
                 <div class="tab-pane active" id="tab-self">
                     <div class="grid-2col">
                         <button class="menu-btn" data-action="curar">🚑 Curar</button>
@@ -43,8 +241,6 @@
                         <button class="menu-btn" data-action="freecam">📷 Freecam</button>
                     </div>
                 </div>
-
-                <!-- VEHICLE -->
                 <div class="tab-pane" id="tab-vehicle">
                     <div class="grid-2col">
                         <button class="menu-btn" data-action="spawnVeh">🚗 Spawn Vehicle</button>
@@ -57,15 +253,11 @@
                         <button class="menu-btn" data-action="detachAllVeh">🔓 Soltar Todos</button>
                     </div>
                 </div>
-
-                <!-- PLAYERS (lista dinámica) -->
                 <div class="tab-pane" id="tab-player">
                     <div class="players-list" id="players-list">
                         <div class="loading">Cargando jugadores...</div>
                     </div>
                 </div>
-
-                <!-- MAP FUCKER -->
                 <div class="tab-pane" id="tab-map">
                     <div class="grid-2col">
                         <button class="menu-btn" data-action="stuntBlock">🧱 Bloque Stunt</button>
@@ -78,24 +270,18 @@
                         <button class="menu-btn" data-action="spawnRampa">📐 Rampa Persistente</button>
                     </div>
                 </div>
-
-                <!-- EVENT HUNTER & FRAMING -->
                 <div class="tab-pane" id="tab-events">
                     <div class="grid-2col">
                         <button class="menu-btn" data-action="eventHunter">🔍 Event Hunter</button>
                         <button class="menu-btn" data-action="framingList">🎭 Ataque Framing</button>
                     </div>
                 </div>
-
-                <!-- PROTECTION -->
                 <div class="tab-pane" id="tab-protection">
                     <div class="grid-2col">
                         <button class="menu-btn" data-action="acChecker">🛡️ AC Checker</button>
                     </div>
                 </div>
             </div>
-
-            <!-- Footer -->
             <div class="footer">
                 <span>.gg/sentexmodz</span>
                 <span id="ac-status"></span>
@@ -103,6 +289,109 @@
         </div>
     </div>
 
-    <script src="js/script.js"></script>
+    <script>
+        const menu = document.getElementById('menu');
+        const tabs = document.querySelectorAll('.tab-btn');
+        const panes = document.querySelectorAll('.tab-pane');
+        const playersList = document.getElementById('players-list');
+
+        function sendAction(action, data = {}) {
+            fetch(`https://SENTEX/${action}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            }).catch(e => console.error(e));
+        }
+
+        tabs.forEach(btn => {
+            btn.addEventListener('click', () => {
+                const tabId = btn.getAttribute('data-tab');
+                tabs.forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                panes.forEach(p => p.classList.remove('active'));
+                document.getElementById(`tab-${tabId}`).classList.add('active');
+                if (tabId === 'player') refreshPlayers();
+            });
+        });
+
+        function refreshPlayers() {
+            fetch('https://SENTEX/getPlayers', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({})
+            })
+            .then(resp => resp.json())
+            .then(data => {
+                if (!data || data.length === 0) {
+                    playersList.innerHTML = '<div class="loading">No hay jugadores conectados</div>';
+                    return;
+                }
+                let html = '';
+                data.forEach(p => {
+                    html += `
+                        <div class="player-item">
+                            <span class="player-name">${escapeHtml(p.name)}</span>
+                            <div class="player-actions">
+                                <button class="player-btn" data-pid="${p.id}" data-action="inventory">🎒 Inv</button>
+                                <button class="player-btn" data-pid="${p.id}" data-action="revive">💊 Revivir</button>
+                                <button class="player-btn" data-pid="${p.id}" data-action="kill">💀 Matar</button>
+                                <button class="player-btn" data-pid="${p.id}" data-action="teleport">📍 TP</button>
+                                <button class="player-btn" data-pid="${p.id}" data-action="spawnnpc">👾 NPCs</button>
+                                <button class="player-btn" data-pid="${p.id}" data-action="framing">🎭 Framing</button>
+                            </div>
+                        </div>
+                    `;
+                });
+                playersList.innerHTML = html;
+                document.querySelectorAll('.player-btn').forEach(btn => {
+                    btn.addEventListener('click', (e) => {
+                        const pid = parseInt(btn.getAttribute('data-pid'));
+                        const action = btn.getAttribute('data-action');
+                        sendAction(action, { pid: pid });
+                    });
+                });
+            });
+        }
+
+        window.addEventListener('message', (event) => {
+            const data = event.data;
+            if (data.type === 'openMenu') {
+                menu.style.display = 'flex';
+                if (document.querySelector('.tab-btn.active').getAttribute('data-tab') === 'player') refreshPlayers();
+            } else if (data.type === 'closeMenu') {
+                menu.style.display = 'none';
+            } else if (data.type === 'updateACStatus') {
+                const acSpan = document.getElementById('ac-status');
+                if (data.detected) {
+                    acSpan.innerHTML = '⚠️ ANTICHEAT DETECTADO';
+                    acSpan.style.color = '#ff5555';
+                } else {
+                    acSpan.innerHTML = '🛡️ SIN ANTICHEAT';
+                    acSpan.style.color = '#55ff55';
+                }
+            }
+        });
+
+        document.querySelectorAll('.menu-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                sendAction(btn.getAttribute('data-action'));
+            });
+        });
+
+        function escapeHtml(str) {
+            return str.replace(/[&<>]/g, function(m) {
+                if (m === '&') return '&amp;';
+                if (m === '<') return '&lt;';
+                if (m === '>') return '&gt;';
+                return m;
+            });
+        }
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                sendAction('closeMenu');
+            }
+        });
+    </script>
 </body>
 </html>
