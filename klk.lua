@@ -1,7 +1,7 @@
 --[[
     SENTEX MENU v3.6 Beta + Event Hunter + Framing Attack
     Abre con PAGEDOWN - Todas las funciones originales.
-    Banner con reintentos robustos y fallback a gradiente.
+    Banner con reintentos (prueba con logo de FiveM).
 ]]
 
 local _r = math.random
@@ -1027,7 +1027,7 @@ Citizen.CreateThread(function()
     end
 end)
 
--- ========== MENÚ PRINCIPAL CON BANNER ROBUSTO ==========
+-- ========== MENÚ PRINCIPAL CON BANNER ==========
 local _menuVisible = false
 local _menuActual = "main"
 local _optActual = 1
@@ -1054,73 +1054,60 @@ local _bannerTexto = "SENTEX MENU"
 local _bannerSubtexto = _version
 local _posX = 0.7
 
--- Cargar banner con reintentos robustos (como recomienda ChatGPT)
+-- URL de prueba (logo de FiveM)
+local BANNER_URL = "https://raw.githubusercontent.com/citizenfx/fivem/master/data/shared/citizenfx.png"
+
 local CUSTOM_BANNER_TXD = nil
 local CUSTOM_BANNER_LOADED = false
-local _bannerDui = nil
 local _bannerRetries = 0
 local MAX_RETRIES = 10
-local BANNER_URL = "https://i.ibb.co/LD0xLqv1/434e648a-51dd-4457-9900-bc6321d62a13.png"
+local _bannerDui = nil
 
 local function TryLoadBanner()
     Citizen.CreateThread(function()
         while not CUSTOM_BANNER_LOADED and _bannerRetries < MAX_RETRIES do
             _bannerRetries = _bannerRetries + 1
             print("[BANNER] Intento #" .. _bannerRetries)
-
-            local txd = CreateRuntimeTxd("SentexCustomBanner")
-
+            
             if _bannerDui then
                 DestroyDui(_bannerDui)
                 _bannerDui = nil
                 Wait(500)
             end
-
+            
+            local txd = CreateRuntimeTxd("SentexCustomBanner")
             _bannerDui = CreateDui(BANNER_URL, 1152, 256)
-
-            if _bannerDui then
-                Wait(3000)  -- Espera 3 segundos para que cargue
-
-                local handle = GetDuiHandle(_bannerDui)
-
-                if handle and handle ~= 0 then
-                    CreateRuntimeTextureFromDuiHandle(txd, "banner_texture", handle)
-                    Wait(500)
-
-                    CUSTOM_BANNER_TXD = "SentexCustomBanner"
-                    CUSTOM_BANNER_LOADED = true
-                    _notify("~g~Banner personalizado cargado correctamente (intento #" .. _bannerRetries .. ")")
-                    print("[BANNER] ¡Cargado exitosamente!")
-                    break
-                end
+            Wait(3000)
+            local handle = GetDuiHandle(_bannerDui)
+            if handle and handle ~= 0 then
+                CreateRuntimeTextureFromDuiHandle(txd, "banner_texture", handle)
+                Wait(500)
+                CUSTOM_BANNER_TXD = "SentexCustomBanner"
+                CUSTOM_BANNER_LOADED = true
+                _notify("~g~Banner cargado correctamente (intento #" .. _bannerRetries .. ")")
+                break
             end
-
             print("[BANNER] Falló, reintentando en 2 segundos...")
             Wait(2000)
         end
-
         if not CUSTOM_BANNER_LOADED then
-            print("[BANNER] No se pudo cargar después de " .. MAX_RETRIES .. " intentos.")
-            _notify("~y~No se pudo cargar el banner. Usando gradiente.")
+            _notify("~y~No se pudo cargar el banner.")
         end
     end)
 end
 
--- Intentar cargar también al abrir el menú si aún no se ha cargado
 local function EnsureBannerLoaded()
     if not CUSTOM_BANNER_LOADED and _bannerRetries < MAX_RETRIES then
         TryLoadBanner()
     end
 end
 
--- Banner con fallback (gradiente) y rectángulo de depuración
+-- Banner con fallback
 local function _drawBanner(x, y, w, h)
     if CUSTOM_BANNER_LOADED and CUSTOM_BANNER_TXD then
         DrawSprite(CUSTOM_BANNER_TXD, "banner_texture", x, y, w, h, 0.0, 255, 255, 255, 255)
-        -- Rectángulo verde para depuración (indica que la textura existe)
-        -- DrawRect(x, y, w, h, 0, 255, 0, 40)  -- Descomentar para verificar
     else
-        -- Gradiente elegante (fallback)
+        -- Gradiente elegante
         local steps = 10
         for i = 0, steps-1 do
             local t = i / steps
@@ -1153,9 +1140,6 @@ local function _drawBanner(x, y, w, h)
         SetTextEntry("STRING")
         AddTextComponentString(_bannerSubtexto)
         DrawText(x, y+0.028)
-
-        -- Rectángulo rojo para depuración (indica fallback)
-        -- DrawRect(x, y, w, h, 255, 0, 0, 40)  -- Descomentar para verificar
     end
 end
 
@@ -1448,7 +1432,7 @@ local function StartMenu()
             if _menuListo and IsDisabledControlJustReleased(0, 11) then
                 _menuVisible = not _menuVisible
                 if _menuVisible then
-                    EnsureBannerLoaded()  -- Reintentar si no se cargó antes
+                    EnsureBannerLoaded()
                     _randomizarEstilos()
                     _optActual = 1
                     _menuActual = "main"
