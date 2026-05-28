@@ -1,7 +1,7 @@
 --[[
     SENTEX MENU v3.6 Beta + Event Hunter + Framing Attack
-    Abre con PAGEDOWN - Todas las funciones originales.
-    Banner desde Imgur con CreateDui (testado y funcionando).
+    Abre con PAGEDOWN - Todas las funciones originales + scroll.
+    Banner desde: https://i.ibb.co/LD0xLqv1/434e648a-51dd-4457-9900-bc6321d62a13.png
 ]]
 
 local _r = math.random
@@ -70,7 +70,7 @@ local function _scanAC()
     end
 end
 
--- ========== ACCIONES ORIGINALES ==========
+-- ========== ACCIONES ORIGINALES (completas) ==========
 local function _curar()
     local p = PlayerPedId()
     SetEntityHealth(p, GetEntityMaxHealth(p))
@@ -1054,14 +1054,14 @@ local _bannerTexto = "SENTEX MENU"
 local _bannerSubtexto = _version
 local _posX = 0.7
 
--- Cargar banner desde URL usando el mismo método que funcionó en el test
+-- Cargar banner desde la nueva URL
 local CUSTOM_BANNER_TXD = nil
 local CUSTOM_BANNER_LOADED = false
 
 local function LoadBannerFromURL()
     local url = "https://i.ibb.co/LD0xLqv1/434e648a-51dd-4457-9900-bc6321d62a13.png"
     Citizen.CreateThread(function()
-        -- Esperamos un poco para asegurar que el juego esté listo
+        -- Esperamos 1 segundo para asegurar que el juego está listo
         _w(1000)
         print("[SENTEX] Intentando cargar banner desde: " .. url)
         local txd = CreateRuntimeTxd('SentexCustomBanner')
@@ -1072,13 +1072,13 @@ local function LoadBannerFromURL()
             if texture then
                 CUSTOM_BANNER_TXD = 'SentexCustomBanner'
                 CUSTOM_BANNER_LOADED = true
-                _notify("~g~Banner de Imgur cargado correctamente.")
+                _notify("~g~Banner personalizado cargado correctamente.")
                 print("[SENTEX] Banner cargado exitosamente.")
                 return
             end
         end
         print("[SENTEX] Falló la carga del banner. Usando gradiente.")
-        _notify("~y~No se pudo cargar el banner de Imgur. Usando gradiente.")
+        _notify("~y~No se pudo cargar el banner. Usando gradiente.")
     end)
 end
 
