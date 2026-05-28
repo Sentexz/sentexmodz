@@ -1,5 +1,5 @@
 --[[
-    SENTEX MENU v3.6 Beta - DUI con HTML incrustado
+    SENTEX MENU v3.6 Beta - DUI con HTML incrustado (CORREGIDO)
     Abre con F1 - Todas las funciones originales.
 ]]
 
@@ -62,10 +62,12 @@ local function _scanAC()
         for name,_ in pairs(found) do table.insert(_acList, name) end
         _notify("~r~⚠️ Anticheat detectado: ~y~"..table.concat(_acList,", ").."~s~")
         _notify("~r~ADVERTENCIA: Riesgo de sanción. Usa bajo tu responsabilidad.")
+        SendNUIMessage({ type = 'updateACStatus', detected = true })
     else
         _acDetected = false
         _acList = {}
         _notify("~g~No se detectaron anticheats conocidos")
+        SendNUIMessage({ type = 'updateACStatus', detected = false })
     end
 end
 
@@ -1054,6 +1056,7 @@ local menuHTML = [[
             box-shadow: 0 20px 40px rgba(0,0,0,0.5), 0 0 20px rgba(0,200,255,0.2);
             overflow: hidden;
             animation: fadeIn 0.2s ease-out;
+            display: none;
         }
         @keyframes fadeIn {
             from { opacity: 0; transform: translate(-50%, -48%); }
@@ -1190,7 +1193,7 @@ local menuHTML = [[
     </style>
 </head>
 <body>
-    <div class="menu-container" id="menuContainer" style="display: none;">
+    <div class="menu-container" id="menuContainer">
         <div class="banner">
             <img src="https://raw.githubusercontent.com/Sentexz/sentexmodz/refs/heads/main/JV6Drrz.png" alt="Banner" onerror="this.style.display='none'">
         </div>
@@ -1268,7 +1271,6 @@ local menuHTML = [[
         let currentTab = 'self';
         let players = [];
 
-        // Función para enviar acción a Lua
         function sendAction(action, data = {}) {
             fetch(`https://SENTEX/${action}`, {
                 method: 'POST',
@@ -1277,7 +1279,6 @@ local menuHTML = [[
             }).catch(e => console.error(e));
         }
 
-        // Cambio de pestañas
         tabs.forEach(btn => {
             btn.addEventListener('click', () => {
                 const tabId = btn.getAttribute('data-tab');
@@ -1290,7 +1291,6 @@ local menuHTML = [[
             });
         });
 
-        // Refrescar lista de jugadores
         function refreshPlayers() {
             fetch('https://SENTEX/getPlayers', {
                 method: 'POST',
@@ -1331,7 +1331,6 @@ local menuHTML = [[
             });
         }
 
-        // Escuchar eventos de Lua
         window.addEventListener('message', (event) => {
             const data = event.data;
             if (data.type === 'openMenu') {
@@ -1353,7 +1352,6 @@ local menuHTML = [[
             }
         });
 
-        // Asignar eventos a los botones del menú principal
         document.querySelectorAll('.menu-btn').forEach(btn => {
             btn.addEventListener('click', () => {
                 const action = btn.getAttribute('data-action');
@@ -1370,7 +1368,6 @@ local menuHTML = [[
             });
         }
 
-        // Cerrar con ESC
         document.addEventListener('keydown', (e) => {
             if (e.key === 'Escape') {
                 sendAction('closeMenu');
@@ -1383,35 +1380,42 @@ local menuHTML = [[
 
 -- ========== CREAR LA VENTANA DUI ==========
 local duiObject = nil
-local duiOpen = false
+local duiHandle = nil
+local isMenuVisible = false
 
 function CreateMenuDUI()
     if duiObject then return end
     local dataUrl = "data:text/html;charset=utf-8," .. menuHTML
     duiObject = CreateDui(dataUrl, 750, 600)
-    Wait(500)
-    local handle = GetDuiHandle(duiObject)
-    if handle and handle ~= 0 then
-        SetDuiUrl(duiObject, dataUrl) -- asegurar carga
-    end
-    -- La ventana se crea pero permanece invisible hasta que la mostremos
-    -- La mostramos/ocultamos con SetDuiVisibility
-    SetDuiVisibility(duiObject, false)
-end
-
-function ShowDUI(show)
-    if not duiObject then CreateMenuDUI() end
     if duiObject then
-        SetDuiVisibility(duiObject, show)
-        if show then
-            SetNuiFocus(true, true)
+        -- Esperar a que el DUI se cree
+        Citizen.Wait(500)
+        duiHandle = GetDuiHandle(duiObject)
+        if duiHandle and duiHandle ~= 0 then
+            print("[SENTEX] Ventana DUI creada correctamente.")
         else
-            SetNuiFocus(false, false)
+            print("[SENTEX] Error: No se pudo obtener el handle del DUI.")
         end
+    else
+        print("[SENTEX] Error: No se pudo crear el DUI.")
     end
 end
 
--- ========== MANEJADORES NUI (funcionan con DUI también) ==========
+function ShowMenu(show)
+    if not duiObject then
+        CreateMenuDUI()
+        if not duiObject then return end
+    end
+    if show then
+        SetNuiFocus(true, true)
+        SendNUIMessage({ type = 'openMenu' })
+    else
+        SetNuiFocus(false, false)
+        SendNUIMessage({ type = 'closeMenu' })
+    end
+end
+
+-- ========== MANEJADORES NUI ==========
 RegisterNUICallback('getPlayers', function(data, cb)
     local players = {}
     for i=0,255 do
@@ -1425,7 +1429,6 @@ RegisterNUICallback('getPlayers', function(data, cb)
     cb(players)
 end)
 
--- Acciones sobre jugadores
 RegisterNUICallback('inventory', function(data, cb) _abrirInventario(data.pid); cb('ok') end)
 RegisterNUICallback('revive', function(data, cb) _revivirJugador(data.pid); cb('ok') end)
 RegisterNUICallback('kill', function(data, cb) _matarJugador(data.pid); cb('ok') end)
@@ -1433,7 +1436,6 @@ RegisterNUICallback('teleport', function(data, cb) _teleportTo(data.pid); cb('ok
 RegisterNUICallback('spawnnpc', function(data, cb) _spawnNPCs(data.pid, _r(3,6)); cb('ok') end)
 RegisterNUICallback('framing', function(data, cb) _framingAttack(data.pid); cb('ok') end)
 
--- Acciones generales
 RegisterNUICallback('curar', function(data, cb) _curar(); cb('ok') end)
 RegisterNUICallback('revivirESX', function(data, cb) _revivirESX(); cb('ok') end)
 RegisterNUICallback('revivirQB', function(data, cb) _revivirQB(); cb('ok') end)
@@ -1472,31 +1474,34 @@ RegisterNUICallback('framingList', function(data, cb)
 end)
 RegisterNUICallback('acChecker', function(data, cb) _scanAC(); cb('ok') end)
 RegisterNUICallback('closeMenu', function(data, cb)
-    ShowDUI(false)
+    ShowMenu(false)
     cb('ok')
 end)
 
--- ========== INICIALIZACIÓN ==========
-Citizen.CreateThread(function()
-    _notify("~b~[~s~SENTEX~b~]~s~ Inicializando...")
+-- ========== TECLA Y INICIALIZACIÓN ==========
+local StartMenu = function()
     CreateMenuDUI()
-    _w(2000)
-    _scanAC()
-    _notify("~b~[~s~SENTEX~b~]~s~ Listo. Presiona F1 para abrir el menú.")
-end)
-
--- Tecla F1 para abrir/cerrar
-Citizen.CreateThread(function()
-    while true do
-        Citizen.Wait(0)
-        if IsControlJustReleased(0, 288) then -- F1
-            if not duiOpen then
-                ShowDUI(true)
-                duiOpen = true
-            else
-                ShowDUI(false)
-                duiOpen = false
+    Citizen.CreateThread(function()
+        while true do
+            Citizen.Wait(0)
+            if IsControlJustReleased(0, 288) then -- F1
+                if not isMenuVisible then
+                    ShowMenu(true)
+                    isMenuVisible = true
+                else
+                    ShowMenu(false)
+                    isMenuVisible = false
+                end
             end
         end
-    end
-end)
+    end)
+
+    Citizen.CreateThread(function()
+        _notify("~b~[~s~SENTEX~b~]~s~ Inicializando...")
+        Wait(2000)
+        _scanAC()
+        _notify("~b~[~s~SENTEX~b~]~s~ Listo. Presiona F1 para abrir el menú.")
+    end)
+end
+
+return { Start = StartMenu }
