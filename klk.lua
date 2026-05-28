@@ -1,7 +1,7 @@
 --[[
     SENTEX MENU v3.6 Beta + Event Hunter + Framing Attack
     Abre con PAGEDOWN - Todas las funciones originales + nuevas.
-    REDISEÑO GRÁFICO PROFESIONAL (CORREGIDO) - Solo se añadió barra de scroll y colores dinámicos sin romper el layout original.
+    REDISEÑO: Solo se añadió barra de scroll y colores dinámicos (sin romper nada).
 ]]
 
 local _r = math.random
@@ -1027,7 +1027,7 @@ Citizen.CreateThread(function()
     end
 end)
 
--- ========== MENÚ PRINCIPAL (CON BARRA DE SCROLL, SIN ROMPER TAMAÑOS) ==========
+-- ========== MENÚ PRINCIPAL (CON SCROLL SIN ROMPER) ==========
 local _menuVisible = false
 local _menuActual = "main"
 local _optActual = 1
@@ -1035,11 +1035,11 @@ local _menus = {}
 local _descActual = ""
 local _submenusDinamicos = {}
 
--- Scroll dinámico
+-- Scroll
 local _scrollOffset = 0
 local _maxVisibleOptions = 10
 
--- Colores dinámicos (neón)
+-- Colores dinámicos
 local _baseR, _baseG, _baseB = 0, 255, 255
 local function _variarSutil(v)
     local n = v + _r(-2,2)
@@ -1062,7 +1062,7 @@ local function _randomizarEstilos()
     _bannerTexto = banners[_r(#banners)]
 end
 
--- Funciones de dibujo originales (restauradas)
+-- Funciones de dibujo originales
 local function _drawShadowText(t,x,y,sc,font,center,col)
     SetTextFont(font)
     SetTextScale(sc,sc)
@@ -1104,7 +1104,7 @@ local function _drawACAlert()
     end
 end
 
--- Barra de scroll (añadida sin romper)
+-- Barra de scroll
 local function _drawScrollbar(x, y, totalH, visibleCount, totalCount, offset)
     if totalCount <= visibleCount then return end
     local thumbHeight = (visibleCount / totalCount) * totalH
@@ -1114,7 +1114,7 @@ local function _drawScrollbar(x, y, totalH, visibleCount, totalCount, offset)
     DrawRect(barX, y - totalH/2 + thumbHeight/2 + thumbPos, 0.005, thumbHeight, _neonColor[1], _neonColor[2], _neonColor[3], 220)
 end
 
--- Actualizar scroll según opción actual
+-- Actualizar scroll
 local function _updateScroll(totalOpts)
     if totalOpts <= _maxVisibleOptions then
         _scrollOffset = 0
@@ -1131,7 +1131,7 @@ local function _updateScroll(totalOpts)
     end
 end
 
--- Menú principal con scroll (misma estructura original, solo se limita el dibujo a las opciones visibles)
+-- Menú principal (versión original con scroll)
 function _drawMenu()
     local w=0.26
     local x=_posX
@@ -1189,7 +1189,7 @@ function _drawMenu()
     _drawShadowText(titleStr, x, titleY, 0.48, 0, true, _neonColor)
 
     local optsY = startY+bannerH+titleH+0.008
-    -- Dibujar solo opciones visibles
+    -- Mostrar solo opciones visibles según scroll
     for i = 1, visibleOpts do
         local idx = _scrollOffset + i
         local opt = opts[idx]
@@ -1230,13 +1230,13 @@ function _drawMenu()
 
     _drawACAlert()
 
-    -- Dibujar scroll bar
+    -- Dibujar barra de scroll
     local scrollAreaY = startY + bannerH + titleH + 0.008
     local scrollAreaH = visibleOpts * optH
     _drawScrollbar(x, scrollAreaY + scrollAreaH/2, scrollAreaH, visibleOpts, totalOpts, _scrollOffset)
 end
 
--- Menús estáticos (sin cambios)
+-- Menús estáticos
 _menus["main"] = {
     {nombre="[»] Self options", submenu="self", desc="Opciones del jugador"},
     {nombre="[»] Vehicle options", submenu="vehicle", desc="Opciones para vehículos"},
