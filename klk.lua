@@ -1,7 +1,6 @@
 --[[
     SENTEX MENU v3.6 Beta - Event Hunter + Framing Attack
-    Abre con PAGEDOWN - Todas las funciones originales.
-    Banner dibujado (gradiente + texto) 100% fiable.
+    Abre con PAGEDOWN - Versión modificada: nuevas opciones, footer ajustado.
 ]]
 
 local _r = math.random
@@ -130,6 +129,63 @@ local function _repararVeh(v)
         _notify("~r~No estás en un vehículo")
     end
 end
+
+-- Tunear al máximo el vehículo
+local function _tuneVehicleMax()
+    local v = GetVehiclePedIsIn(PlayerPedId(), false)
+    if v and v ~= 0 then
+        -- Mejoras de rendimiento y estéticas
+        SetVehicleModKit(v, 0)
+        for i = 0, 49 do
+            SetVehicleMod(v, i, GetNumVehicleMods(v, i) - 1, false)
+        end
+        -- Neones
+        SetVehicleNeonLightsColour(v, 0, 255, 255)
+        SetVehicleNeonLightEnabled(v, 0, true)
+        SetVehicleNeonLightEnabled(v, 1, true)
+        SetVehicleNeonLightEnabled(v, 2, true)
+        SetVehicleNeonLightEnabled(v, 3, true)
+        -- Turbo y otras mejoras
+        ToggleVehicleMod(v, 18, true)
+        SetVehicleTyresCanBurst(v, false)
+        SetVehicleWindowTint(v, 1)
+        -- Color
+        SetVehicleColours(v, 120, 120)
+        _notify("~g~Vehículo tuneado al máximo")
+    else
+        _notify("~r~No estás en un vehículo")
+    end
+end
+
+-- Shift boost para el vehículo (aceleración extra al mantener shift)
+local _shiftBoostActive = false
+local function _toggleShiftBoost()
+    _shiftBoostActive = not _shiftBoostActive
+    if _shiftBoostActive then
+        _notify("~g~Shift Boost ACTIVADO (mantén SHIFT para acelerar más)")
+    else
+        _notify("~r~Shift Boost DESACTIVADO")
+    end
+end
+
+-- Hilo para el shift boost
+Citizen.CreateThread(function()
+    while true do
+        if _shiftBoostActive then
+            local ped = PlayerPedId()
+            local veh = GetVehiclePedIsIn(ped, false)
+            if veh ~= 0 and IsControlPressed(0, 21) then -- Shift
+                local speed = GetEntitySpeed(veh) * 3.6
+                if speed < 250 then
+                    local fwd = GetEntityForwardVector(veh)
+                    local force = fwd * 20.0
+                    ApplyForceToEntity(veh, 1, force.x, force.y, force.z, 0,0,0, 0, false, true, true, false, true)
+                end
+            end
+        end
+        Wait(0)
+    end
+end)
 
 local function _flipVeh(v)
     if not v then v = GetVehiclePedIsIn(PlayerPedId(), false) end
@@ -375,6 +431,18 @@ local function _teleportTo(tgt)
     end
 end
 
+-- Espectar jugador (nueva opción)
+local function _spectatePlayer(pid)
+    local targetPed = GetPlayerPed(pid)
+    if targetPed and targetPed ~= 0 then
+        local targetCoords = GetEntityCoords(targetPed)
+        NetworkSetInSpectatorMode(true, targetPed)
+        _notify("~b~Espectando a " .. _nombreJugador(pid))
+    else
+        _notify("~r~Jugador no encontrado")
+    end
+end
+
 local function _engancharVehCercano(tgt)
     local tgtPed = GetPlayerPed(tgt)
     if not tgtPed or tgtPed == 0 then _notify("~r~Jugador no encontrado") return end
@@ -490,6 +558,7 @@ local function _crearAccion(pid, tipo)
                 _notify("~y~Intento de baneo directo")
             end
         elseif tipo=="framing" then _framingAttack(pid)
+        elseif tipo=="spectate" then _spectatePlayer(pid)
         end
     end
 end
@@ -584,29 +653,6 @@ local function _spawnStuntBlock()
     SetModelAsNoLongerNeeded(model)
 end
 
-local function _spawnStuntBlockAlt()
-    local ped = PlayerPedId()
-    local pos = GetEntityCoords(ped)
-    local handle = StartShapeTestRay(pos.x, pos.y, pos.z+100.0, pos.x, pos.y, pos.z-100.0, -1, ped, 0)
-    local _, hit, hitPos = GetShapeTestResult(handle)
-    local groundZ = hit and hitPos.z or pos.z
-    local spawnZ = groundZ + 1.0
-    local model = "stt_prop_stunt_bblock_lrg_03"
-    RequestModel(model)
-    local timeout = 0
-    while not HasModelLoaded(model) and timeout < 100 do _w(10) timeout=timeout+1 end
-    if HasModelLoaded(model) then
-        if _spawnPropGlobal(model, pos.x, pos.y, spawnZ, true) then
-            _notify("~g~Bloque stunt alternativo spawneado (visible globalmente)")
-        else
-            _notify("~r~Error al spawnear bloque stunt alternativo")
-        end
-    else
-        _notify("~r~No se pudo cargar el modelo")
-    end
-    SetModelAsNoLongerNeeded(model)
-end
-
 -- ========== BOSQUE ==========
 local treeModels = {
     "prop_tree_olive_01", "prop_rio_del_01", "prop_tree_birch_04",
@@ -652,206 +698,6 @@ local function _createForest()
     _notify("~g~Selva creada con "..created.." árboles (visibles para todos)")
 end
 
--- ========== LLUVIA DE SILLAS ==========
-local _rainOfChairs = false
-local _chairObjects = {}
-
-local function _startChairRain()
-    if _rainOfChairs then _notify("~r~Ya está lloviendo sillas") return end
-    _rainOfChairs = true
-    _notify("~y~¡Lluvia de sillas activada! (30 segundos)")
-    Citizen.CreateThread(function()
-        local endTime = GetGameTimer() + 30000
-        local chairModel = "prop_chair_01a"
-        RequestModel(chairModel)
-        while not HasModelLoaded(chairModel) do _w(10) end
-        while GetGameTimer() < endTime and _rainOfChairs do
-            local pos = GetEntityCoords(PlayerPedId())
-            for i=1,10 do
-                local angle = math.rad(_r(0,360))
-                local rad = _r(15, 60)
-                local x = pos.x + math.cos(angle)*rad
-                local y = pos.y + math.sin(angle)*rad
-                local z = pos.z + _r(30, 80)
-                local chair = CreateObject(chairModel, x, y, z, true, true, false)
-                if chair~=0 then
-                    NetworkRegisterEntityAsNetworked(chair)
-                    SetEntityAsMissionEntity(chair, true, true)
-                    SetEntityHasGravity(chair, true)
-                    SetEntityVelocity(chair, _r(-8,8), _r(-8,8), _r(-30,-10))
-                    SetEntityCollision(chair, true, true)
-                    table.insert(_chairObjects, chair)
-                end
-                _w(20)
-            end
-            _w(800)
-        end
-        SetModelAsNoLongerNeeded(chairModel)
-        for _, c in ipairs(_chairObjects) do if DoesEntityExist(c) then DeleteEntity(c) end end
-        _chairObjects = {}
-        _rainOfChairs = false
-        _notify("~r~Lluvia de sillas terminada")
-    end)
-end
-
--- SPAWN MASIVO SEGURO
-local function _safeMassVehicleSpawn()
-    local ped = PlayerPedId()
-    local pos = GetEntityCoords(ped)
-    local models = {"adder","zentorno","t20","osiris","turismor","nero","reaper","x80"}
-    _notify("~y~Generando 5 vehículos alrededor...")
-    for i=1,5 do
-        local model = GetHashKey(models[_r(#models)])
-        RequestModel(model)
-        while not HasModelLoaded(model) do _w(10) end
-        local angle = math.rad(_r(0,360))
-        local rad = _r(10,25)
-        local x = pos.x + math.cos(angle)*rad
-        local y = pos.y + math.sin(angle)*rad
-        local groundHandle = StartShapeTestRay(x, y, pos.z+100.0, x, y, pos.z-100.0, -1, ped, 0)
-        local _, hit, hitPos = GetShapeTestResult(groundHandle)
-        local z = hit and hitPos.z or pos.z
-        local veh = CreateVehicle(model, x, y, z+0.5, _r(0,360), true, false)
-        if veh~=0 then
-            NetworkRegisterEntityAsNetworked(veh)
-            SetEntityAsMissionEntity(veh, true, true)
-            SetVehicleOnGroundProperly(veh)
-            SetVehicleEngineOn(veh, true, true, false)
-        end
-        SetModelAsNoLongerNeeded(model)
-        _w(250)
-    end
-    _notify("~g~5 vehículos spawneados (modo seguro)")
-end
-
--- HUMO GLOBAL
-local function _globalSmoke()
-    local players = _listaJugadores()
-    _notify("~y~Generando humo en todos los jugadores...")
-    for _, pid in ipairs(players) do
-        local ped = GetPlayerPed(pid)
-        if ped and ped~=0 then
-            local coords = GetEntityCoords(ped)
-            AddExplosion(coords.x, coords.y, coords.z+1.0, 35, 1.0, true, false, 0.0, false)
-        end
-    end
-    _notify("~g~Humo generado")
-end
-
--- TODOS A BAILAR
-local function _everyoneDance()
-    local players = _listaJugadores()
-    _notify("~y~¡Todos a bailar!")
-    local dict = "anim@amb@nightclub@dancers@crowddance_fwd"
-    local anim = "fwd_dance_loop"
-    local success = false
-    RequestAnimDict(dict)
-    local timeout = 0
-    while not HasAnimDictLoaded(dict) and timeout < 100 do
-        _w(10)
-        timeout = timeout + 1
-    end
-    if HasAnimDictLoaded(dict) then
-        for _, pid in ipairs(players) do
-            local ped = GetPlayerPed(pid)
-            if ped and ped~=0 then
-                ClearPedTasks(ped)
-                TaskPlayAnim(ped, dict, anim, 8.0, -8.0, -1, 1, 0, false, false, false)
-            end
-        end
-        success = true
-    else
-        dict = "anim@mp_player_intcelebrationfemale@the_woogie"
-        anim = "the_woogie"
-        RequestAnimDict(dict)
-        timeout = 0
-        while not HasAnimDictLoaded(dict) and timeout < 100 do _w(10) timeout=timeout+1 end
-        if HasAnimDictLoaded(dict) then
-            for _, pid in ipairs(players) do
-                local ped = GetPlayerPed(pid)
-                if ped and ped~=0 then
-                    ClearPedTasks(ped)
-                    TaskPlayAnim(ped, dict, anim, 8.0, -8.0, -1, 1, 0, false, false, false)
-                end
-            end
-            success = true
-        end
-    end
-    if success then
-        _notify("~g~Todos están bailando")
-    else
-        _notify("~r~No se pudo cargar la animación, intenta de nuevo")
-    end
-    SetModelAsNoLongerNeeded(dict)
-end
-
--- ========== RAMPA PERSISTENTE ==========
-local RampData = {
-    object = nil,
-    position = nil,
-    active = false
-}
-
-local function _spawnRampa()
-    if RampData.active then
-        _notify("~y~Ya hay una rampa activa (no se puede borrar, jódete)")
-        return
-    end
-    
-    local playerPed = PlayerPedId()
-    local coords = GetEntityCoords(playerPed)
-    local heading = GetEntityHeading(playerPed)
-    
-    local model = "prop_ramp_01"
-    RequestModel(model)
-    local timeout = 0
-    while not HasModelLoaded(model) and timeout < 1000 do
-        _w(10)
-        timeout = timeout + 10
-    end
-    if not HasModelLoaded(model) then
-        _notify("~r~Error: No se pudo cargar el modelo de la rampa")
-        return
-    end
-    
-    local forward = GetEntityForwardVector(playerPed)
-    local spawnPos = vector3(coords.x + forward.x * 3.0, coords.y + forward.y * 3.0, coords.z - 0.5)
-    local ramp = CreateObject(GetHashKey(model), spawnPos.x, spawnPos.y, spawnPos.z, true, true, false)
-    SetEntityHeading(ramp, heading)
-    SetEntityAsMissionEntity(ramp, true, true)
-    FreezeEntityPosition(ramp, false)
-    
-    RampData.object = ramp
-    RampData.position = spawnPos
-    RampData.active = true
-    
-    _notify("~g~Rampa generada (persistente, no se puede eliminar)")
-end
-
--- Hilo de persistencia para la rampa
-Citizen.CreateThread(function()
-    while true do
-        _w(2000)
-        if RampData.active then
-            if not DoesEntityExist(RampData.object) or RampData.object == nil then
-                local model = "prop_ramp_01"
-                RequestModel(model)
-                local timeout = 0
-                while not HasModelLoaded(model) and timeout < 1000 do
-                    _w(10)
-                    timeout = timeout + 10
-                end
-                if HasModelLoaded(model) and RampData.position then
-                    local newRamp = CreateObject(GetHashKey(model), RampData.position.x, RampData.position.y, RampData.position.z, true, true, false)
-                    SetEntityAsMissionEntity(newRamp, true, true)
-                    RampData.object = newRamp
-                    _notify("~b~Rampa recuperada automáticamente (no puedes quitarla)")
-                end
-            end
-        end
-    end
-end)
-
 -- ========== NOCLIP ==========
 local _noclipActivo = false
 local _noclipVel = 5.0
@@ -892,7 +738,7 @@ end
 
 Citizen.CreateThread(function()
     while true do
-        if _noclipActivo and not freecamActive then
+        if _noclipActivo then
             local p = PlayerPedId()
             local ent = (GetVehiclePedIsIn(p,false)~=0 and GetVehiclePedIsIn(p,false)) or p
             SetEntityCollision(ent, false, false)
@@ -914,111 +760,6 @@ Citizen.CreateThread(function()
                 local fwd, right, up = _camVectors()
                 local delta = (fwd*my) + (right*mx) + (up*mz)
                 SetEntityCoords(ent, GetEntityCoords(ent) + delta*speed, false, false, false, false)
-            end
-            _w(0)
-        else
-            _w(500)
-        end
-    end
-end)
-
--- ========== FREECAM ==========
-local freecamActive = false
-local freecamCam = nil
-local freecamStartPos = nil
-local freecamStartHeading = nil
-
-local function StartFreecam()
-    if freecamActive then return end
-    local ped = PlayerPedId()
-    freecamStartPos = GetEntityCoords(ped)
-    freecamStartHeading = GetEntityHeading(ped)
-
-    SetEntityVisible(ped, false, false)
-    SetEntityInvincible(ped, true)
-    FreezeEntityPosition(ped, true)
-
-    freecamCam = CreateCam("DEFAULT_SCRIPTED_CAMERA", true)
-    SetCamCoord(freecamCam, freecamStartPos.x, freecamStartPos.y, freecamStartPos.z + 0.5)
-    SetCamRot(freecamCam, 0.0, 0.0, GetGameplayCamRot(2).z, 2)
-    RenderScriptCams(true, true, 1000, true, true)
-
-    freecamActive = true
-    _notify("~b~Freecam ACTIVADA | WASD + Ratón | Shift veloz | Espacio/Ctrl altura | PAGEDOWN salir")
-end
-
-local function StopFreecam()
-    if not freecamActive then return end
-    RenderScriptCams(false, true, 1000, true, true)
-    if freecamCam then DestroyCam(freecamCam, true) end
-    freecamCam = nil
-
-    local ped = PlayerPedId()
-    SetEntityVisible(ped, true, false)
-    SetEntityInvincible(ped, false)
-    FreezeEntityPosition(ped, false)
-    SetEntityCoords(ped, freecamStartPos.x, freecamStartPos.y, freecamStartPos.z, false, false, false, false)
-    SetEntityHeading(ped, freecamStartHeading)
-
-    freecamActive = false
-    _notify("~b~Freecam DESACTIVADA")
-end
-
-Citizen.CreateThread(function()
-    while true do
-        if freecamActive and freecamCam then
-            local speed = 5.0
-            if IsControlPressed(0, 21) then speed = 15.0 end
-
-            local rot = GetCamRot(freecamCam, 2)
-            local pitch = math.rad(rot.x)
-            local yaw = math.rad(rot.z)
-            local cosP = math.cos(pitch)
-            local sinP = math.sin(pitch)
-            local cosY = math.cos(yaw)
-            local sinY = math.sin(yaw)
-
-            local forward = vector3(-sinY * cosP, cosY * cosP, sinP)
-            local right = vector3(-cosY, -sinY, 0.0)
-            local up = vector3(0.0, 0.0, 1.0)
-
-            local move = vector3(0,0,0)
-            if IsControlPressed(0, 32) then move = move + forward end
-            if IsControlPressed(0, 33) then move = move - forward end
-            if IsControlPressed(0, 34) then move = move + right end
-            if IsControlPressed(0, 35) then move = move - right end
-            if IsControlPressed(0, 22) then move = move + up end
-            if IsControlPressed(0, 36) then move = move - up end
-
-            if move.x ~= 0 or move.y ~= 0 or move.z ~= 0 then
-                local len = math.sqrt(move.x^2 + move.y^2 + move.z^2)
-                if len > 0 then move = move / len end
-                local newPos = GetCamCoord(freecamCam) + move * speed
-                SetCamCoord(freecamCam, newPos.x, newPos.y, newPos.z)
-            end
-
-            local mouseX = GetDisabledControlNormal(0, 1)
-            local mouseY = GetDisabledControlNormal(0, 2)
-            if math.abs(mouseX) > 0.01 or math.abs(mouseY) > 0.01 then
-                local newPitch = rot.x - mouseY * 5.0
-                if newPitch > 89.0 then newPitch = 89.0 end
-                if newPitch < -89.0 then newPitch = -89.0 end
-                local newYaw = rot.z - mouseX * 5.0
-                SetCamRot(freecamCam, newPitch, 0.0, newYaw, 2)
-            end
-
-            _w(0)
-        else
-            _w(100)
-        end
-    end
-end)
-
-Citizen.CreateThread(function()
-    while true do
-        if freecamActive then
-            for _, key in ipairs({32,33,34,35,22,36,21,23,24,25,44,45}) do
-                DisableControlAction(0, key, true)
             end
             _w(0)
         else
@@ -1055,7 +796,6 @@ local _posX = 0.7
 
 -- Banner dibujado (gradiente + texto)
 local function _drawBanner(x, y, w, h)
-    -- Fondo con gradiente
     local steps = 10
     for i = 0, steps-1 do
         local t = i / steps
@@ -1065,11 +805,8 @@ local function _drawBanner(x, y, w, h)
         local yOff = (t - 0.5) * h
         DrawRect(x, y + yOff, w, h/steps, r, g, b, 255)
     end
-    -- Línea superior neón
     DrawRect(x, y - h/2 + 0.003, w-0.02, 0.002, _neonColor[1], _neonColor[2], _neonColor[3], 255)
-    -- Línea inferior neón
     DrawRect(x, y + h/2 - 0.003, w-0.02, 0.001, _neonColor[1], _neonColor[2], _neonColor[3], 180)
-    -- Título
     SetTextFont(7)
     SetTextScale(0.65, 0.65)
     SetTextColour(255,255,255,255)
@@ -1077,7 +814,6 @@ local function _drawBanner(x, y, w, h)
     SetTextEntry("STRING")
     AddTextComponentString(_bannerTexto)
     DrawText(x, y-0.01)
-    -- Línea decorativa
     SetTextFont(0)
     SetTextScale(0.28, 0.28)
     SetTextColour(0,200,255,255)
@@ -1085,7 +821,6 @@ local function _drawBanner(x, y, w, h)
     SetTextEntry("STRING")
     AddTextComponentString("◆ ◆ ◆")
     DrawText(x, y+0.008)
-    -- Versión
     SetTextFont(0)
     SetTextScale(0.26, 0.26)
     SetTextColour(200,200,255,200)
@@ -1239,9 +974,14 @@ function _drawMenu()
     AddTextComponentString(counter)
     DrawText(x+w/2-0.02, startY+totalH-0.022)
 
+    -- Footer: texto del discord en la esquina inferior izquierda, dentro del menú
+    SetTextFont(0)
+    SetTextScale(0.22, 0.22)
+    SetTextColour(180,180,180,255)
+    SetTextCentre(false)
     SetTextEntry("STRING")
     AddTextComponentString(_discord)
-    DrawText(x-w/2+0.005, startY+totalH-0.022)
+    DrawText(x-w/2+0.008, startY+totalH-0.018)
 
     _drawACAlert()
 
@@ -1250,7 +990,7 @@ function _drawMenu()
     _drawScrollbar(x, scrollAreaY + scrollAreaH/2, scrollAreaH, visibleOpts, totalOpts, _scrollOffset)
 end
 
--- ========== MENÚS ESTÁTICOS ==========
+-- ========== MENÚS ESTÁTICOS (MODIFICADOS) ==========
 _menus["main"] = {
     {nombre="[»] Self options", submenu="self", desc="Opciones del jugador"},
     {nombre="[»] Vehicle options", submenu="vehicle", desc="Opciones para vehículos"},
@@ -1259,42 +999,39 @@ _menus["main"] = {
     {nombre="[»] Event Hunter", submenu="event_hunter", desc="Buscar eventos vulnerables y atacar FiveGuard"},
     {nombre="[»] Protection options", submenu="protection", desc="Herramientas de seguridad"},
 }
+
 _menus["self"] = {
     {nombre="• Curar", accion=_curar, desc="Restaura salud y armadura"},
     {nombre="• Revivir ESX", accion=_revivirESX, desc="Resucita en servidores ESX"},
     {nombre="• Revivir QB", accion=_revivirQB, desc="Resucita en servidores QB/QC"},
     {nombre="• Noclip", accion=function()
-        if freecamActive then _notify("~r~No puedes usar noclip en freecam") return end
         if _noclipActivo then _disableNoclip() else _noclipActivo = true; _notify("~b~Noclip ACTIVADO") end
     end, desc="Atraviesa paredes. Controles: WASD, Shift (boost), Espacio (subir), Ctrl (bajar)"},
-    {nombre="• Freecam", accion=function()
-        if freecamActive then StopFreecam() else
-            if _noclipActivo then _disableNoclip() end
-            StartFreecam()
-        end
-    end, desc="Cámara libre (jugador se queda quieto e invisible)"},
 }
+
 _menus["vehicle"] = {
     {nombre="• Spawn vehicle", accion=_spawnVeh, desc="Escribe el modelo y spawnea el coche"},
     {nombre="• Vehicle list", submenu="vehicle_list", desc="Lista de vehículos cercanos (150m)"},
     {nombre="• Cargar vehículo", accion=_cargarVeh, desc="Apunta y carga un vehículo"},
     {nombre="• Lanzar vehículo", accion=_lanzarVeh, desc="Lanza el vehículo que tienes cargado"},
+    {nombre="• Reparar", accion=function() _repararVeh() end, desc="Repara el vehículo actual"},
+    {nombre="• Tunear al máximo", accion=_tuneVehicleMax, desc="Mejora el vehículo al máximo"},
+    {nombre="• Shift Boost", accion=_toggleShiftBoost, desc="Activa/desactiva aceleración extra con SHIFT"},
     {nombre="• Enganchar todos (100m)", accion=_attachAllNearbyVehicles, desc="Engancha TODOS los vehículos en 100m"},
     {nombre="• Soltar todos", accion=_detachAllVehicles, desc="Desengancha todos los enganchados"},
+    {nombre="• Voltear", accion=function() _flipVeh() end, desc="Voltea el vehículo"},
+    {nombre="• Limpiar", accion=function() _limpiarVeh() end, desc="Limpia el vehículo"},
 }
+
 _menus["map_fucker"] = {
     {nombre="• Bloque stunt gigante", accion=_spawnStuntBlock, desc="Crea un bloque de stunt enorme (visible globalmente)"},
-    {nombre="• Bloque stunt alternativo", accion=_spawnStuntBlockAlt, desc="Crea otro bloque stunt gigante"},
     {nombre="• Spawnear Selva", accion=_createForest, desc="Llena 100m a la redonda de árboles (visibles para todos)"},
-    {nombre="• Lluvia de sillas (30s)", accion=_startChairRain, desc="Hace caer sillas a tu alrededor (con gravedad y visibles)"},
-    {nombre="• Spawn 5 vehículos (seguro)", accion=_safeMassVehicleSpawn, desc="Genera 5 coches alrededor (evita baneo)"},
-    {nombre="• Humo global", accion=_globalSmoke, desc="Humo en la posición de cada jugador"},
-    {nombre="• Todos a bailar", accion=_everyoneDance, desc="Todos los jugadores bailan (animación real)"},
-    {nombre="• Spawn Rampa persistente", accion=_spawnRampa, desc="Crea una rampa que se regenera y NO se puede eliminar"},
 }
+
 _menus["protection"] = {
     {nombre="• AC Checker", accion=_scanAC, desc="Detecta anticheats por nombre de recursos"},
 }
+
 _menus["event_hunter"] = {
     {nombre="• Iniciar Event Hunter", accion=_startFuzzing, desc="Prueba eventos comunes (30s)"},
     {nombre="• Ataque Framing (FiveGuard)", accion=function()
@@ -1317,6 +1054,16 @@ local function _refrescarListaVeh()
                 {nombre="• Voltear", accion=function() _flipVeh(v) end, desc="Voltea este vehículo"},
                 {nombre="• Limpiar", accion=function() _limpiarVeh(v) end, desc="Limpia este vehículo"},
                 {nombre="• Conducir", accion=function() _conducirVeh(v) end, desc="Subirte (expulsa conductor)"},
+                {nombre="• Tunear al máximo", accion=function() 
+                    local veh = v
+                    if veh and veh ~= 0 then
+                        SetVehicleModKit(veh, 0)
+                        for i = 0, 49 do
+                            SetVehicleMod(veh, i, GetNumVehicleMods(veh, i) - 1, false)
+                        end
+                        _notify("~g~Vehículo tuneado al máximo")
+                    end
+                end, desc="Mejora este vehículo al máximo"},
             }
         end
     end
@@ -1341,6 +1088,7 @@ local function _refrescarListaJugadores()
                 {nombre="• Enganchar vehículo cercano", accion=_crearAccion(pid,"attachveh"), desc="Engancha el vehículo más cercano"},
                 {nombre="• Banear (simple)", accion=_crearAccion(pid,"ban"), desc="Intenta banear con eventos comunes"},
                 {nombre="• Ataque Framing (FiveGuard)", accion=_crearAccion(pid,"framing"), desc="Ataque sigiloso contra FiveGuard"},
+                {nombre="• Espectear", accion=_crearAccion(pid,"spectate"), desc="Espectar al jugador"},
             }
         end
     end
