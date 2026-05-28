@@ -1,7 +1,7 @@
 --[[
-    SENTEX MENU v3.6 Beta - Event Hunter + Framing Attack
+    SENTEX MENU v3.6 Beta - NUI VERSION COMPLETA
     Abre con PAGEDOWN - Todas las funciones originales.
-    Banner cargado desde URL directa (GitHub raw).
+    Interfaz web alojada en GitHub Pages.
 ]]
 
 local _r = math.random
@@ -63,10 +63,12 @@ local function _scanAC()
         for name,_ in pairs(found) do table.insert(_acList, name) end
         _notify("~r~⚠️ Anticheat detectado: ~y~"..table.concat(_acList,", ").."~s~")
         _notify("~r~ADVERTENCIA: Riesgo de sanción. Usa bajo tu responsabilidad.")
+        SendNUIMessage({ type = 'updateACStatus', detected = true })
     else
         _acDetected = false
         _acList = {}
         _notify("~g~No se detectaron anticheats conocidos")
+        SendNUIMessage({ type = 'updateACStatus', detected = false })
     end
 end
 
@@ -1027,468 +1029,131 @@ Citizen.CreateThread(function()
     end
 end)
 
--- ========== MENÚ PRINCIPAL ==========
-local _menuVisible = false
-local _menuActual = "main"
-local _optActual = 1
-local _menus = {}
-local _descActual = ""
-local _submenusDinamicos = {}
+-- ========== NUI CONTROL ==========
+local isMenuOpen = false
 
--- Scroll
-local _scrollOffset = 0
-local _maxVisibleOptions = 10
-
--- Colores dinámicos
-local _baseR, _baseG, _baseB = 0, 200, 255
-local function _variarSutil(v)
-    local n = v + _r(-2,2)
-    if n<0 then n=0 elseif n>255 then n=255 end
-    return n
+function openMenu()
+    if not isMenuOpen then
+        SetNuiFocus(true, true)
+        SendNUIMessage({ type = 'openMenu' })
+        isMenuOpen = true
+    end
 end
-local _neonColor = {_baseR, _baseG, _baseB, 255}
-local _glowColor = {0, 150, 255, 60}
-local _bgColor = {0,0,0,220}
-local _selectBg = {30,144,255,70}
-local _bannerTexto = "SENTEX MENU"
-local _bannerSubtexto = _version
-local _posX = 0.7
 
--- Cargar banner desde URL directa (GitHub raw)
-local CUSTOM_BANNER_TXD = nil
-local CUSTOM_BANNER_LOADED = false
-local BANNER_URL = "https://raw.githubusercontent.com/Sentexz/sentexmodz/refs/heads/main/JV6Drrz.png"
+function closeMenu()
+    if isMenuOpen then
+        SetNuiFocus(false, false)
+        SendNUIMessage({ type = 'closeMenu' })
+        isMenuOpen = false
+    end
+end
 
-local function LoadBannerFromURL()
-    Citizen.CreateThread(function()
-        local txd = CreateRuntimeTxd("SentexCustomBanner")
-        local duiObj = CreateDui(BANNER_URL, 1152, 256)
-        if duiObj then
-            Wait(500)
-            local handle = GetDuiHandle(duiObj)
-            if handle and handle ~= 0 then
-                local texture = CreateRuntimeTextureFromDuiHandle(txd, "banner_texture", handle)
-                if texture then
-                    CUSTOM_BANNER_TXD = "SentexCustomBanner"
-                    CUSTOM_BANNER_LOADED = true
-                    _notify("~g~Banner personalizado cargado correctamente.")
-                    print("[SENTEX] Banner cargado desde URL.")
-                    return
-                end
+-- ========== MANEJADORES NUI ==========
+-- Obtener lista de jugadores
+RegisterNUICallback('getPlayers', function(data, cb)
+    local players = {}
+    for i=0,255 do
+        if NetworkIsPlayerActive(i) then
+            local ped = GetPlayerPed(i)
+            if ped and ped ~= 0 then
+                table.insert(players, { id = i, name = GetPlayerName(i) })
             end
         end
-        print("[SENTEX] No se pudo cargar el banner. Usando gradiente.")
-        _notify("~y~No se pudo cargar el banner. Usando gradiente.")
-    end)
-end
-
--- Función de dibujo del banner (gradiente de fallback)
-local function _drawBanner(x,y,w,h)
-    if CUSTOM_BANNER_LOADED and CUSTOM_BANNER_TXD then
-        DrawSprite(CUSTOM_BANNER_TXD, "banner_texture", x, y, w, h, 0.0, 255, 255, 255, 255)
-    else
-        -- Gradiente elegante
-        local steps = 10
-        for i = 0, steps-1 do
-            local t = i / steps
-            local r = 0 + (20 * t)
-            local g = 40 + (30 * t)
-            local b = 80 + (40 * t)
-            local yOff = (t - 0.5) * h
-            DrawRect(x, y + yOff, w, h/steps, r, g, b, 255)
-        end
-        DrawRect(x, y - h/2 + 0.003, w-0.02, 0.002, _neonColor[1], _neonColor[2], _neonColor[3], 255)
-        DrawRect(x, y + h/2 - 0.003, w-0.02, 0.001, _neonColor[1], _neonColor[2], _neonColor[3], 180)
-        SetTextFont(7)
-        SetTextScale(0.65, 0.65)
-        SetTextColour(255,255,255,255)
-        SetTextCentre(true)
-        SetTextEntry("STRING")
-        AddTextComponentString(_bannerTexto)
-        DrawText(x, y-0.01)
-        SetTextFont(0)
-        SetTextScale(0.28,0.28)
-        SetTextColour(0,200,255,255)
-        SetTextCentre(true)
-        SetTextEntry("STRING")
-        AddTextComponentString("◆ ◆ ◆")
-        DrawText(x, y+0.008)
-        SetTextFont(0)
-        SetTextScale(0.26,0.26)
-        SetTextColour(200,200,255,200)
-        SetTextCentre(true)
-        SetTextEntry("STRING")
-        AddTextComponentString(_bannerSubtexto)
-        DrawText(x, y+0.028)
     end
-end
-
--- Función de texto con sombra
-local function _drawShadowText(t,x,y,sc,font,center,col)
-    SetTextFont(font)
-    SetTextScale(sc,sc)
-    SetTextColour(col[1],col[2],col[3],col[4])
-    SetTextCentre(center)
-    SetTextDropshadow(1,0,0,0,200)
-    SetTextEntry("STRING")
-    AddTextComponentString(t)
-    DrawText(x,y)
-end
-
--- Alerta anticheat
-local function _drawACAlert()
-    if _acDetected then
-        SetTextFont(4)
-        SetTextScale(0.35,0.35)
-        SetTextColour(255,50,50,255)
-        SetTextCentre(false)
-        SetTextEntry("STRING")
-        AddTextComponentString("⚠️")
-        DrawText(_posX-0.13,0.203)
-    end
-end
-
--- Barra de scroll
-local function _drawScrollbar(x, y, totalH, visibleCount, totalCount, offset)
-    if totalCount <= visibleCount then return end
-    local thumbHeight = (visibleCount / totalCount) * totalH
-    local thumbPos = (offset / (totalCount - visibleCount)) * (totalH - thumbHeight)
-    local barX = x + 0.125
-    DrawRect(barX, y, 0.005, totalH, 30, 30, 30, 180)
-    DrawRect(barX, y - totalH/2 + thumbHeight/2 + thumbPos, 0.005, thumbHeight, _neonColor[1], _neonColor[2], _neonColor[3], 220)
-end
-
--- Actualizar scroll
-local function _updateScroll(totalOpts)
-    if totalOpts <= _maxVisibleOptions then
-        _scrollOffset = 0
-    else
-        if _optActual < _scrollOffset + 1 then
-            _scrollOffset = _optActual - 1
-        elseif _optActual > _scrollOffset + _maxVisibleOptions then
-            _scrollOffset = _optActual - _maxVisibleOptions
-        end
-        if _scrollOffset < 0 then _scrollOffset = 0 end
-        if _scrollOffset > totalOpts - _maxVisibleOptions then
-            _scrollOffset = totalOpts - _maxVisibleOptions
-        end
-    end
-end
-
--- Aleatorizar colores
-local function _randomizarEstilos()
-    _neonColor = {_variarSutil(_baseR), _variarSutil(_baseG), _variarSutil(_baseB), 255}
-    _glowColor = {_variarSutil(0), _variarSutil(150), _variarSutil(255), 60}
-    _selectBg = {_variarSutil(30), _variarSutil(144), _variarSutil(255), 70}
-    _posX = 0.7 + (_r(-2,2)/100)
-    local banners = {"SENTEX MENU", "SENTEX PRO", "SX v3.6", "SENTEX EDITION"}
-    _bannerTexto = banners[_r(#banners)]
-end
-
--- Menú principal
-function _drawMenu()
-    local w=0.26
-    local x=_posX
-    local y=0.2
-    local bannerH=0.11
-    local titleH=0.045
-    local optH=0.042
-    local lineH=0.032
-    local padDesc=0.005
-
-    local opts=_menus[_menuActual]
-    if not opts then _menuActual="main"; opts=_menus["main"] end
-    local totalOpts = #opts
-    _updateScroll(totalOpts)
-    local visibleOpts = math.min(totalOpts - _scrollOffset, _maxVisibleOptions)
-
-    local descLines={}
-    if _descActual and _descActual~="" then
-        local tmp=_descActual
-        while #tmp>50 and #descLines<2 do
-            local cut=tmp:sub(1,50):match("^.*[ ,]") or tmp:sub(1,50)
-            table.insert(descLines,cut)
-            tmp=tmp:sub(#cut+1)
-        end
-        if #tmp>0 and #descLines<2 then table.insert(descLines,tmp) end
-    end
-    local descH = #descLines*lineH + padDesc*2
-    if #descLines==0 then descH=0.02 end
-
-    local totalH = bannerH+titleH+(visibleOpts*optH)+descH+0.015
-    local startY=y
-
-    DrawRect(x, startY+totalH/2, w, totalH, _bgColor[1],_bgColor[2],_bgColor[3],_bgColor[4])
-    DrawRect(x, startY, w, 0.0005, _neonColor[1],_neonColor[2],_neonColor[3],_neonColor[4])
-    DrawRect(x, startY+totalH, w, 0.0005, _neonColor[1],_neonColor[2],_neonColor[3],_neonColor[4])
-    DrawRect(x-w/2, startY+totalH/2, 0.0005, totalH, _neonColor[1],_neonColor[2],_neonColor[3],_neonColor[4])
-    DrawRect(x+w/2, startY+totalH/2, 0.0005, totalH, _neonColor[1],_neonColor[2],_neonColor[3],_neonColor[4])
-    DrawRect(x, startY, w+0.006, 0.001, _glowColor[1],_glowColor[2],_glowColor[3],_glowColor[4])
-    DrawRect(x, startY+totalH, w+0.006, 0.001, _glowColor[1],_glowColor[2],_glowColor[3],_glowColor[4])
-
-    _drawBanner(x, startY+bannerH/2, w-0.01, bannerH-0.01)
-    DrawRect(x, startY+bannerH-0.001, w, 0.0005, _neonColor[1],_neonColor[2],_neonColor[3],200)
-
-    local titleY = startY+bannerH+0.008
-    local titleStr = (_menuActual=="main" and "MENU PRINCIPAL") or
-                    (_menuActual=="self" and "SELF OPTIONS") or
-                    (_menuActual=="vehicle" and "VEHICLE OPTIONS") or
-                    (_menuActual=="vehicle_list" and "VEHICULOS CERCA") or
-                    (_menuActual=="player_list" and "JUGADORES") or
-                    (_menuActual=="map_fucker" and "MAP FUCKER") or
-                    (_menuActual=="protection" and "PROTECTION OPTIONS") or
-                    (_menuActual=="event_hunter" and "EVENT HUNTER") or
-                    (_menuActual:match("^vehicle_") and "OPCIONES VEHICULO") or
-                    (_menuActual:match("^player_") and "OPCIONES JUGADOR")
-    _drawShadowText(titleStr, x, titleY, 0.48, 0, true, _neonColor)
-
-    local optsY = startY+bannerH+titleH+0.008
-    for i = 1, visibleOpts do
-        local idx = _scrollOffset + i
-        local opt = opts[idx]
-        if opt then
-            local yOff = optsY+(i-1)*optH
-            local color = (idx==_optActual) and _neonColor or {200,200,200,255}
-            if idx==_optActual then
-                DrawRect(x, yOff+optH/2-0.005, w-0.01, optH-0.005, _selectBg[1],_selectBg[2],_selectBg[3],_selectBg[4])
-            end
-            local display = opt.nombre
-            _drawShadowText(display, x-w/2+0.02, yOff, 0.4, 0, false, color)
-            if idx==_optActual then _descActual = (opt.desc or "Selecciona una opción") .. " " end
-        end
-    end
-
-    local descY = startY+bannerH+titleH+(visibleOpts*optH)+0.008
-    for i,line in ipairs(descLines) do
-        local lineY = descY+padDesc+(i-1)*lineH+lineH/2-0.008
-        _drawShadowText(line, x, lineY, 0.32, 0, true, {210,210,255,255})
-    end
-
-    local counter = _optActual.."/"..totalOpts
-    SetTextFont(0)
-    SetTextScale(0.28,0.28)
-    SetTextColour(150,150,150,255)
-    SetTextCentre(false)
-    SetTextEntry("STRING")
-    AddTextComponentString(counter)
-    DrawText(x+w/2-0.02, startY+totalH-0.022)
-
-    SetTextEntry("STRING")
-    AddTextComponentString(_discord)
-    DrawText(x-w/2+0.005, startY+totalH-0.022)
-
-    _drawACAlert()
-
-    local scrollAreaY = startY + bannerH + titleH + 0.008
-    local scrollAreaH = visibleOpts * optH
-    _drawScrollbar(x, scrollAreaY + scrollAreaH/2, scrollAreaH, visibleOpts, totalOpts, _scrollOffset)
-end
-
--- ========== MENÚS ESTÁTICOS ==========
-_menus["main"] = {
-    {nombre="[»] Self options", submenu="self", desc="Opciones del jugador"},
-    {nombre="[»] Vehicle options", submenu="vehicle", desc="Opciones para vehículos"},
-    {nombre="[»] Player list", submenu="player_list", desc="Interactuar con otros jugadores"},
-    {nombre="[»] Map fucker", submenu="map_fucker", desc="Opciones del mapa (molestas pero seguras)"},
-    {nombre="[»] Event Hunter", submenu="event_hunter", desc="Buscar eventos vulnerables y atacar FiveGuard"},
-    {nombre="[»] Protection options", submenu="protection", desc="Herramientas de seguridad"},
-}
-_menus["self"] = {
-    {nombre="• Curar", accion=_curar, desc="Restaura salud y armadura"},
-    {nombre="• Revivir ESX", accion=_revivirESX, desc="Resucita en servidores ESX"},
-    {nombre="• Revivir QB", accion=_revivirQB, desc="Resucita en servidores QB/QC"},
-    {nombre="• Noclip", accion=function()
-        if freecamActive then _notify("~r~No puedes usar noclip en freecam") return end
-        if _noclipActivo then _disableNoclip() else _noclipActivo = true; _notify("~b~Noclip ACTIVADO") end
-    end, desc="Atraviesa paredes. Controles: WASD, Shift (boost), Espacio (subir), Ctrl (bajar)"},
-    {nombre="• Freecam", accion=function()
-        if freecamActive then StopFreecam() else
-            if _noclipActivo then _disableNoclip() end
-            StartFreecam()
-        end
-    end, desc="Cámara libre (jugador se queda quieto e invisible)"},
-}
-_menus["vehicle"] = {
-    {nombre="• Spawn vehicle", accion=_spawnVeh, desc="Escribe el modelo y spawnea el coche"},
-    {nombre="• Vehicle list", submenu="vehicle_list", desc="Lista de vehículos cercanos (150m)"},
-    {nombre="• Cargar vehículo", accion=_cargarVeh, desc="Apunta y carga un vehículo"},
-    {nombre="• Lanzar vehículo", accion=_lanzarVeh, desc="Lanza el vehículo que tienes cargado"},
-    {nombre="• Enganchar todos (100m)", accion=_attachAllNearbyVehicles, desc="Engancha TODOS los vehículos en 100m"},
-    {nombre="• Soltar todos", accion=_detachAllVehicles, desc="Desengancha todos los enganchados"},
-}
-_menus["map_fucker"] = {
-    {nombre="• Bloque stunt gigante", accion=_spawnStuntBlock, desc="Crea un bloque de stunt enorme (visible globalmente)"},
-    {nombre="• Bloque stunt alternativo", accion=_spawnStuntBlockAlt, desc="Crea otro bloque stunt gigante"},
-    {nombre="• Spawnear Selva", accion=_createForest, desc="Llena 100m a la redonda de árboles (visibles para todos)"},
-    {nombre="• Lluvia de sillas (30s)", accion=_startChairRain, desc="Hace caer sillas a tu alrededor (con gravedad y visibles)"},
-    {nombre="• Spawn 5 vehículos (seguro)", accion=_safeMassVehicleSpawn, desc="Genera 5 coches alrededor (evita baneo)"},
-    {nombre="• Humo global", accion=_globalSmoke, desc="Humo en la posición de cada jugador"},
-    {nombre="• Todos a bailar", accion=_everyoneDance, desc="Todos los jugadores bailan (animación real)"},
-    {nombre="• Spawn Rampa persistente", accion=_spawnRampa, desc="Crea una rampa que se regenera y NO se puede eliminar"},
-}
-_menus["protection"] = {
-    {nombre="• AC Checker", accion=_scanAC, desc="Detecta anticheats por nombre de recursos"},
-}
-_menus["event_hunter"] = {
-    {nombre="• Iniciar Event Hunter", accion=_startFuzzing, desc="Prueba eventos comunes (30s)"},
-    {nombre="• Ataque Framing (FiveGuard)", accion=function()
-        _notify("~y~Selecciona un jugador desde Player List")
-        _menuActual = "player_list"
-        _optActual = 1
-    end, desc="Abre la lista de jugadores para elegir objetivo"},
-}
-
--- ========== DINÁMICOS ==========
-local function _refrescarListaVeh()
-    local vehs = _vehiculosCercanos()
-    local opts = {}
-    for i,v in ipairs(vehs) do
-        local dname = _nombreVeh(v)
-        opts[i] = {nombre="• "..dname, submenu="vehicle_"..tostring(v), desc="Opciones para "..dname, vehicle=v}
-        if not _submenusDinamicos["vehicle_"..tostring(v)] then
-            _submenusDinamicos["vehicle_"..tostring(v)] = {
-                {nombre="• Reparar", accion=function() _repararVeh(v) end, desc="Repara este vehículo"},
-                {nombre="• Voltear", accion=function() _flipVeh(v) end, desc="Voltea este vehículo"},
-                {nombre="• Limpiar", accion=function() _limpiarVeh(v) end, desc="Limpia este vehículo"},
-                {nombre="• Conducir", accion=function() _conducirVeh(v) end, desc="Subirte (expulsa conductor)"},
-            }
-        end
-    end
-    if #opts==0 then opts={{nombre="• No hay vehículos cerca", accion=nil, desc="Acércate"}} end
-    _menus["vehicle_list"] = opts
-end
-
-local function _refrescarListaJugadores()
-    local players = _listaJugadores()
-    local opts = {}
-    for i,pid in ipairs(players) do
-        local name = _nombreJugador(pid)
-        opts[i] = {nombre="• "..name, submenu="player_"..tostring(pid), desc="Opciones para "..name, player=pid}
-        if not _submenusDinamicos["player_"..tostring(pid)] then
-            _submenusDinamicos["player_"..tostring(pid)] = {
-                {nombre="• Abrir inventario", accion=_crearAccion(pid,"inventory"), desc="Abre inventario (multi-framework)"},
-                {nombre="• Revivir", accion=_crearAccion(pid,"revive"), desc="Intenta revivir (multi-framework)"},
-                {nombre="• Matar", accion=_crearAccion(pid,"kill"), desc="Mata al jugador"},
-                {nombre="• Seguir", accion=_crearAccion(pid,"follow"), desc="Sigue al jugador"},
-                {nombre="• Teleportar", accion=_crearAccion(pid,"teleport"), desc="Teletransportarse a él"},
-                {nombre="• Spawn NPCs (3-6)", accion=_crearAccion(pid,"spawnnpc"), desc="Spawns múltiples NPCs hostiles"},
-                {nombre="• Enganchar vehículo cercano", accion=_crearAccion(pid,"attachveh"), desc="Engancha el vehículo más cercano"},
-                {nombre="• Banear (simple)", accion=_crearAccion(pid,"ban"), desc="Intenta banear con eventos comunes"},
-                {nombre="• Ataque Framing (FiveGuard)", accion=_crearAccion(pid,"framing"), desc="Ataque sigiloso contra FiveGuard"},
-            }
-        end
-    end
-    if #opts==0 then opts={{nombre="• No hay jugadores", accion=nil, desc="Espera"}} end
-    _menus["player_list"] = opts
-end
-
--- ========== INICIALIZACIÓN ==========
-local _menuListo = false
-local _retardo = 5000 + _r(0,10000)
-
-Citizen.CreateThread(function()
-    _notify("~b~[~s~SENTEX~b~]~s~ Inicializando módulos...")
-    _w(1500)
-    _notify("~b~[~s~SENTEX~b~]~s~ Cargando banner...")
-    LoadBannerFromURL()
-    _w(1000)
-    _notify("~b~[~s~SENTEX~b~]~s~ Estableciendo conexión con la API del juego...")
-    _w(_retardo - 2500)
-    _menuListo = true
-    _scanAC()
-    _notify("~b~[~s~SENTEX~b~]~s~ Sistema listo. Presiona PAGEDOWN para abrir el menú.")
+    cb(players)
 end)
 
-local function StartMenu()
-    Citizen.CreateThread(function()
-        while true do
-            _w(0)
-            if _menuListo and IsDisabledControlJustReleased(0, 11) then
-                _menuVisible = not _menuVisible
-                if _menuVisible then
-                    _randomizarEstilos()
-                    _optActual = 1
-                    _menuActual = "main"
-                    _scrollOffset = 0
-                    PlaySoundFrontend(-1, "SELECT", "HUD_FRONTEND_DEFAULT_SOUNDSET", true)
-                    _notify("~b~[~s~SENTEX~b~]~s~ Menú abierto.")
-                else
-                    PlaySoundFrontend(-1, "BACK", "HUD_FRONTEND_DEFAULT_SOUNDSET", true)
-                    _notify("~b~[~s~SENTEX~b~]~s~ Menú cerrado.")
-                end
-                _w(200)
-            end
+-- Acciones sobre jugadores
+RegisterNUICallback('inventory', function(data, cb)
+    local pid = data.pid
+    _abrirInventario(pid)
+    cb('ok')
+end)
 
-            if _menuVisible and _menuListo then
-                if _menuActual == "vehicle_list" then _refrescarListaVeh()
-                elseif _menuActual == "player_list" then _refrescarListaJugadores() end
+RegisterNUICallback('revive', function(data, cb)
+    local pid = data.pid
+    _revivirJugador(pid)
+    cb('ok')
+end)
 
-                if _menuActual:match("^vehicle_") and not _menus[_menuActual] then
-                    if _submenusDinamicos[_menuActual] then _menus[_menuActual] = _submenusDinamicos[_menuActual]
-                    else _menuActual = "vehicle_list" end
-                elseif _menuActual:match("^player_") and not _menus[_menuActual] then
-                    if _submenusDinamicos[_menuActual] then _menus[_menuActual] = _submenusDinamicos[_menuActual]
-                    else _menuActual = "player_list" end
-                end
+RegisterNUICallback('kill', function(data, cb)
+    local pid = data.pid
+    _matarJugador(pid)
+    cb('ok')
+end)
 
-                _drawMenu()
-                local maxOpt = #_menus[_menuActual]
+RegisterNUICallback('teleport', function(data, cb)
+    local pid = data.pid
+    _teleportTo(pid)
+    cb('ok')
+end)
 
-                if IsDisabledControlJustReleased(0, 172) then
-                    _optActual = _optActual - 1
-                    if _optActual < 1 then _optActual = maxOpt end
-                    PlaySoundFrontend(-1, "NAV_UP_DOWN", "HUD_FRONTEND_DEFAULT_SOUNDSET", true)
-                elseif IsDisabledControlJustReleased(0, 173) then
-                    _optActual = _optActual + 1
-                    if _optActual > maxOpt then _optActual = 1 end
-                    PlaySoundFrontend(-1, "NAV_UP_DOWN", "HUD_FRONTEND_DEFAULT_SOUNDSET", true)
-                elseif IsDisabledControlJustReleased(0, 191) then
-                    local sel = _menus[_menuActual][_optActual]
-                    if sel then
-                        PlaySoundFrontend(-1, "SELECT", "HUD_FRONTEND_DEFAULT_SOUNDSET", true)
-                        if sel.submenu then
-                            _menuActual = sel.submenu
-                            _optActual = 1
-                            _scrollOffset = 0
-                        elseif sel.accion then
-                            local ok, err = pcall(sel.accion)
-                            if not ok then _notify("~b~[~s~SENTEX~b~]~s~ Error: "..tostring(err)) end
-                        end
-                    end
-                elseif IsDisabledControlJustReleased(0, 177) then
-                    if _menuActual == "main" then
-                        _menuVisible = false
-                        PlaySoundFrontend(-1, "BACK", "HUD_FRONTEND_DEFAULT_SOUNDSET", true)
-                    elseif _menuActual == "self" or _menuActual == "vehicle" or _menuActual == "player_list" or _menuActual == "map_fucker" or _menuActual == "protection" or _menuActual == "event_hunter" then
-                        _menuActual = "main"
-                        _optActual = 1
-                        _scrollOffset = 0
-                        PlaySoundFrontend(-1, "BACK", "HUD_FRONTEND_DEFAULT_SOUNDSET", true)
-                    elseif _menuActual == "vehicle_list" then
-                        _menuActual = "vehicle"
-                        _optActual = 1
-                        _scrollOffset = 0
-                        PlaySoundFrontend(-1, "BACK", "HUD_FRONTEND_DEFAULT_SOUNDSET", true)
-                    elseif _menuActual:match("^vehicle_") then
-                        _menuActual = "vehicle_list"
-                        _optActual = 1
-                        _scrollOffset = 0
-                        PlaySoundFrontend(-1, "BACK", "HUD_FRONTEND_DEFAULT_SOUNDSET", true)
-                    elseif _menuActual:match("^player_") then
-                        _menuActual = "player_list"
-                        _optActual = 1
-                        _scrollOffset = 0
-                        PlaySoundFrontend(-1, "BACK", "HUD_FRONTEND_DEFAULT_SOUNDSET", true)
-                    else
-                        _menuActual = "main"
-                        _optActual = 1
-                        _scrollOffset = 0
-                        PlaySoundFrontend(-1, "BACK", "HUD_FRONTEND_DEFAULT_SOUNDSET", true)
-                    end
-                end
-            end
+RegisterNUICallback('spawnnpc', function(data, cb)
+    local pid = data.pid
+    _spawnNPCs(pid, _r(3,6))
+    cb('ok')
+end)
+
+RegisterNUICallback('framing', function(data, cb)
+    local pid = data.pid
+    _framingAttack(pid)
+    cb('ok')
+end)
+
+-- Acciones generales (self/vehicle/map)
+RegisterNUICallback('curar', function(data, cb) _curar(); cb('ok') end)
+RegisterNUICallback('revivirESX', function(data, cb) _revivirESX(); cb('ok') end)
+RegisterNUICallback('revivirQB', function(data, cb) _revivirQB(); cb('ok') end)
+RegisterNUICallback('noclip', function(data, cb)
+    if freecamActive then _notify("~r~No puedes usar noclip en freecam") cb('ok') return end
+    if _noclipActivo then _disableNoclip() else _noclipActivo = true; _notify("~b~Noclip ACTIVADO") end
+    cb('ok')
+end)
+RegisterNUICallback('freecam', function(data, cb)
+    if freecamActive then StopFreecam() else
+        if _noclipActivo then _disableNoclip() end
+        StartFreecam()
+    end
+    cb('ok')
+end)
+RegisterNUICallback('spawnVeh', function(data, cb) _spawnVeh(); cb('ok') end)
+RegisterNUICallback('cargarVeh', function(data, cb) _cargarVeh(); cb('ok') end)
+RegisterNUICallback('lanzarVeh', function(data, cb) _lanzarVeh(); cb('ok') end)
+RegisterNUICallback('repararVeh', function(data, cb) _repararVeh(); cb('ok') end)
+RegisterNUICallback('flipVeh', function(data, cb) _flipVeh(); cb('ok') end)
+RegisterNUICallback('limpiarVeh', function(data, cb) _limpiarVeh(); cb('ok') end)
+RegisterNUICallback('attachAllVeh', function(data, cb) _attachAllNearbyVehicles(); cb('ok') end)
+RegisterNUICallback('detachAllVeh', function(data, cb) _detachAllVehicles(); cb('ok') end)
+RegisterNUICallback('stuntBlock', function(data, cb) _spawnStuntBlock(); cb('ok') end)
+RegisterNUICallback('stuntBlockAlt', function(data, cb) _spawnStuntBlockAlt(); cb('ok') end)
+RegisterNUICallback('forest', function(data, cb) _createForest(); cb('ok') end)
+RegisterNUICallback('chairRain', function(data, cb) _startChairRain(); cb('ok') end)
+RegisterNUICallback('safeMassVeh', function(data, cb) _safeMassVehicleSpawn(); cb('ok') end)
+RegisterNUICallback('globalSmoke', function(data, cb) _globalSmoke(); cb('ok') end)
+RegisterNUICallback('dance', function(data, cb) _everyoneDance(); cb('ok') end)
+RegisterNUICallback('spawnRampa', function(data, cb) _spawnRampa(); cb('ok') end)
+RegisterNUICallback('eventHunter', function(data, cb) _startFuzzing(); cb('ok') end)
+RegisterNUICallback('framingList', function(data, cb)
+    _notify("~y~Selecciona un jugador desde la pestaña PLAYERS")
+    cb('ok')
+end)
+RegisterNUICallback('acChecker', function(data, cb) _scanAC(); cb('ok') end)
+RegisterNUICallback('closeMenu', function(data, cb) closeMenu(); cb('ok') end)
+
+-- ========== INICIALIZACIÓN ==========
+Citizen.CreateThread(function()
+    _notify("~b~[~s~SENTEX~b~]~s~ Inicializando...")
+    _w(2000)
+    _scanAC()
+    _notify("~b~[~s~SENTEX~b~]~s~ Listo. PAGEDOWN para abrir.")
+end)
+
+-- Tecla PAGEDOWN
+Citizen.CreateThread(function()
+    while true do
+        Citizen.Wait(0)
+        if IsControlJustReleased(0, 11) then
+            if not isMenuOpen then openMenu() else closeMenu() end
         end
-    end)
-end
-
-return { Start = StartMenu }
+    end
+end)
