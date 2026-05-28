@@ -1,6 +1,6 @@
 --[[
     SENTEX MENU v3.6 Beta - Event Hunter + Framing Attack
-    Abre con PAGEDOWN - Versión definitiva con banner dibujado.
+    Abre con PAGEDOWN - Banner limpio y NPCs persistentes.
 ]]
 
 local _r = math.random
@@ -353,7 +353,8 @@ local function _nombreJugador(pid)
     return "Jugador "..pid
 end
 
--- SPAWN NPCs hostiles (versión corregida, sin CreateRelationshipGroup)
+-- SPAWN NPCs hostiles persistentes
+local _spawnedNPCs = {}
 local function _spawnNPCs(tgt, cantidad)
     cantidad = cantidad or _r(3, 6)
     local tgtPed = GetPlayerPed(tgt)
@@ -361,6 +362,11 @@ local function _spawnNPCs(tgt, cantidad)
     local tgtCoord = GetEntityCoords(tgtPed)
     local modelos = {"a_m_y_hipster_01", "a_m_y_skater_01", "a_m_y_runner_01", "a_m_y_beach_01", "a_m_y_cyclist_01"}
     _notify("~r~Spawneando "..cantidad.." NPCs hostiles contra ".._nombreJugador(tgt))
+    
+    local relationshipGroup = CreateRelationshipGroup("HOSTILE_NPCS")
+    local playerGroup = GetHashKey("PLAYER")
+    SetRelationshipBetweenGroups(1, relationshipGroup, playerGroup)
+    SetRelationshipBetweenGroups(0, relationshipGroup, relationshipGroup)
     
     for i=1, cantidad do
         local model = modelos[_r(#modelos)]
@@ -372,15 +378,17 @@ local function _spawnNPCs(tgt, cantidad)
         local y = tgtCoord.y + math.sin(angle) * dist
         local z = tgtCoord.z
         local npc = CreatePed(0, model, x, y, z, _r(0,360), true, true)
+        SetPedRelationshipGroupHash(npc, relationshipGroup)
         SetPedCombatAttributes(npc, 0, true)
         SetPedCombatAbility(npc, 100)
         SetPedAccuracy(npc, 70)
-        SetPedArmour(npc, 50)
+        SetPedArmour(npc, 100)
         SetPedCanRagdoll(npc, true)
-        GiveWeaponToPed(npc, GetHashKey("WEAPON_PISTOL"), 999, true, true)
+        GiveWeaponToPed(npc, GetHashKey("WEAPON_ASSAULTRIFLE"), 999, true, true)
         SetPedInfiniteAmmo(npc, true)
-        TaskCombatPed(npc, tgtPed, 0, 16)
         SetEntityAsMissionEntity(npc, true, true)
+        TaskCombatPed(npc, tgtPed, 0, 16)
+        table.insert(_spawnedNPCs, npc)
         SetModelAsNoLongerNeeded(model)
         _w(_r(200, 500))
     end
@@ -755,7 +763,7 @@ Citizen.CreateThread(function()
     end
 end)
 
--- ========== MENÚ PRINCIPAL CON SCROLL Y BANNER DIBUJADO ==========
+-- ========== MENÚ PRINCIPAL CON BANNER LIMPIO ==========
 local _menuVisible = false
 local _menuActual = "main"
 local _optActual = 1
@@ -778,43 +786,33 @@ local _neonColor = {_baseR, _baseG, _baseB, 255}
 local _glowColor = {0, 150, 255, 60}
 local _bgColor = {0,0,0,220}
 local _selectBg = {30,144,255,70}
-local _bannerTexto = "SENTEX MENU"
+local _bannerTexto = "SENTEXMODZ"
 local _posX = 0.7
 
--- Banner dibujado (gradiente + texto)
+-- Banner limpio con solo texto
 local function _drawBanner(x, y, w, h)
-    local steps = 10
-    for i = 0, steps-1 do
-        local t = i / steps
-        local r = 0 + (20 * t)
-        local g = 40 + (30 * t)
-        local b = 80 + (40 * t)
-        local yOff = (t - 0.5) * h
-        DrawRect(x, y + yOff, w, h/steps, r, g, b, 255)
-    end
+    -- Fondo negro semitransparente para el banner
+    DrawRect(x, y, w, h, 0, 0, 0, 200)
+    -- Línea superior neón
     DrawRect(x, y - h/2 + 0.003, w-0.02, 0.002, _neonColor[1], _neonColor[2], _neonColor[3], 255)
+    -- Línea inferior neón
     DrawRect(x, y + h/2 - 0.003, w-0.02, 0.001, _neonColor[1], _neonColor[2], _neonColor[3], 180)
+    -- Texto del banner
     SetTextFont(7)
-    SetTextScale(0.65, 0.65)
+    SetTextScale(0.55, 0.55)
     SetTextColour(255,255,255,255)
     SetTextCentre(true)
     SetTextEntry("STRING")
     AddTextComponentString(_bannerTexto)
-    DrawText(x, y-0.01)
-    SetTextFont(0)
-    SetTextScale(0.28, 0.28)
-    SetTextColour(0,200,255,255)
-    SetTextCentre(true)
-    SetTextEntry("STRING")
-    AddTextComponentString("◆ ◆ ◆")
-    DrawText(x, y+0.008)
+    DrawText(x, y-0.008)
+    -- Versión abajo
     SetTextFont(0)
     SetTextScale(0.26, 0.26)
     SetTextColour(200,200,255,200)
     SetTextCentre(true)
     SetTextEntry("STRING")
     AddTextComponentString(_version)
-    DrawText(x, y+0.028)
+    DrawText(x, y+0.022)
 end
 
 local function _drawShadowText(t,x,y,sc,font,center,col)
@@ -870,7 +868,7 @@ local function _randomizarEstilos()
     _glowColor = {_variarSutil(0), _variarSutil(150), _variarSutil(255), 60}
     _selectBg = {_variarSutil(30), _variarSutil(144), _variarSutil(255), 70}
     _posX = 0.7 + (_r(-2,2)/100)
-    local banners = {"SENTEX MENU", "SENTEX PRO", "SX v3.6", "SENTEX EDITION"}
+    local banners = {"SENTEXMODZ", "SENTEX", "SXMODZ", "SENTEX MODZ"}
     _bannerTexto = banners[_r(#banners)]
 end
 
@@ -961,7 +959,7 @@ function _drawMenu()
     AddTextComponentString(counter)
     DrawText(x+w/2-0.02, startY+totalH-0.022)
 
-    -- Footer: texto del discord en la esquina inferior izquierda, dentro del menú
+    -- Footer
     SetTextFont(0)
     SetTextScale(0.22, 0.22)
     SetTextColour(180,180,180,255)
@@ -982,8 +980,8 @@ _menus["main"] = {
     {nombre="[»] Self options", submenu="self", desc="Opciones del jugador"},
     {nombre="[»] Vehicle options", submenu="vehicle", desc="Opciones para vehículos"},
     {nombre="[»] Player list", submenu="player_list", desc="Interactuar con otros jugadores"},
-    {nombre="[»] Map fucker", submenu="map_fucker", desc="Opciones del mapa (molestas pero seguras)"},
-    {nombre="[»] Event Hunter", submenu="event_hunter", desc="Buscar eventos vulnerables y atacar FiveGuard"},
+    {nombre="[»] Map fucker", submenu="map_fucker", desc="Opciones del mapa"},
+    {nombre="[»] Event Hunter", submenu="event_hunter", desc="Buscar eventos vulnerables"},
     {nombre="[»] Protection options", submenu="protection", desc="Herramientas de seguridad"},
 }
 
@@ -1011,8 +1009,8 @@ _menus["vehicle"] = {
 }
 
 _menus["map_fucker"] = {
-    {nombre="• Bloque stunt gigante", accion=_spawnStuntBlock, desc="Crea un bloque de stunt enorme (visible globalmente)"},
-    {nombre="• Spawnear Selva", accion=_createForest, desc="Llena 100m a la redonda de árboles (visibles para todos)"},
+    {nombre="• Bloque stunt gigante", accion=_spawnStuntBlock, desc="Crea un bloque de stunt enorme"},
+    {nombre="• Spawnear Selva", accion=_createForest, desc="Llena 100m a la redonda de árboles"},
 }
 
 _menus["protection"] = {
