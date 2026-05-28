@@ -1,6 +1,6 @@
 --[[
-    SENTEX MENU - Diseño premium rojo (solo interfaz, funciones intactas)
-    Abre con PAGEDOWN - Todas las opciones originales.
+    SENTEX MENU - Diseño premium rojo (iconos, separador, flecha)
+    Abre con PAGEDOWN - Todas las funciones originales intactas.
 ]]
 
 local _r = math.random
@@ -349,52 +349,34 @@ local function _nombreJugador(pid)
     return "Jugador "..pid
 end
 
--- ========== NPCs hostiles (modo sigiloso) ==========
+-- NPCs hostiles (modo sigiloso)
 local _spawnedNPCs = {}
-
 local function _spawnNPCs(targetPid, cantidad)
     cantidad = cantidad or _r(3, 6)
     local targetPed = GetPlayerPed(targetPid)
-    if not targetPed or targetPed == 0 then
-        _notify("~r~Jugador no encontrado")
-        return
-    end
+    if not targetPed or targetPed == 0 then _notify("~r~Jugador no encontrado") return end
     local targetCoords = GetEntityCoords(targetPed)
-    local modelos = {
-        "a_m_y_hipster_01", "a_m_y_skater_01", "a_m_y_runner_01",
-        "a_m_y_beach_01", "a_m_y_cyclist_01", "a_m_y_business_01",
-        "a_m_y_breakdance_01", "a_m_y_roadcyc_01"
-    }
+    local modelos = {"a_m_y_hipster_01", "a_m_y_skater_01", "a_m_y_runner_01", "a_m_y_beach_01", "a_m_y_cyclist_01", "a_m_y_business_01", "a_m_y_breakdance_01", "a_m_y_roadcyc_01"}
     _notify("~r~Spawneando "..cantidad.." NPCs hostiles (modo sigiloso)")
-
     Citizen.CreateThread(function()
         for i = 1, cantidad do
             local model = modelos[_r(#modelos)]
             RequestModel(model)
             local timeout = 0
-            while not HasModelLoaded(model) and timeout < 100 do
-                _w(10)
-                timeout = timeout + 1
-            end
-            if not HasModelLoaded(model) then
-                _notify("~r~Error cargando modelo")
-                return
-            end
-
-            local angle = math.rad(_r(0, 360))
-            local dist = _r(8, 20)
-            local x = targetCoords.x + math.cos(angle) * dist
-            local y = targetCoords.y + math.sin(angle) * dist
+            while not HasModelLoaded(model) and timeout < 100 do _w(10) timeout=timeout+1 end
+            if not HasModelLoaded(model) then _notify("~r~Error cargando modelo") return end
+            local angle = math.rad(_r(0,360))
+            local dist = _r(8,20)
+            local x = targetCoords.x + math.cos(angle)*dist
+            local y = targetCoords.y + math.sin(angle)*dist
             local z = targetCoords.z
-
             local npc = CreatePed(0, model, x, y, z, _r(0,360), true, false)
             if npc and npc ~= 0 then
-                Citizen.Wait(_r(100, 300))
+                Citizen.Wait(_r(100,300))
                 NetworkRegisterEntityAsNetworked(npc)
                 SetNetworkIdExistsOnAllMachines(NetworkGetNetworkIdFromEntity(npc), true)
                 SetEntityAsMissionEntity(npc, true, true)
                 SetEntityInvincible(npc, false)
-                SetEntityProofs(npc, false, false, false, false, false, false, false, false)
                 SetPedCombatAttributes(npc, 0, true)
                 SetPedCombatAttributes(npc, 1, true)
                 SetPedCombatAttributes(npc, 2, true)
@@ -412,7 +394,7 @@ local function _spawnNPCs(targetPid, cantidad)
                 table.insert(_spawnedNPCs, npc)
             end
             SetModelAsNoLongerNeeded(model)
-            Citizen.Wait(_r(200, 800))
+            Citizen.Wait(_r(200,800))
         end
         _notify("~r~"..cantidad.." NPCs hostiles atacando a ".._nombreJugador(targetPid))
     end)
@@ -430,10 +412,7 @@ end
 
 local function _matarJugador(tgt)
     local tgtPed = GetPlayerPed(tgt)
-    if tgtPed and tgtPed~=0 then
-        SetEntityHealth(tgtPed, 0)
-        _notify("~r~Jugador eliminado")
-    end
+    if tgtPed and tgtPed~=0 then SetEntityHealth(tgtPed, 0); _notify("~r~Jugador eliminado") end
 end
 
 local function _teleportTo(tgt)
@@ -481,7 +460,7 @@ local function _engancharVehCercano(tgt)
             local t=0
             while not NetworkHasControlOfEntity(closestVeh) and t<20 do _w(50) t=t+1 end
         end
-        AttachEntityToEntity(closestVeh, tgtPed, GetPedBoneIndex(tgtPed, 60309), 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, true, true, false, false, 2, true)
+        AttachEntityToEntity(closestVeh, tgtPed, GetPedBoneIndex(tgtPed, 60309), 0.0,0.0,0.0,0.0,0.0,0.0, true, true, false, false, 2, true)
         _notify("~g~Vehículo enganchado al jugador")
     else
         _notify("~r~No hay vehículos cerca del jugador")
@@ -498,17 +477,14 @@ local _eventsToFuzz = {
     "FiveGuard:Ban", "anticheat:ban", "giveMoney", "addMoney", "giveItem", "revive",
     "teleport", "spawnVehicle"
 }
-
 local function _startFuzzing()
     if _fuzzingActive then _notify("~r~Ya hay escaneo") return end
     _fuzzingActive = true
     _foundEvents = {}
     _notify("~y~[Event Hunter] Fuzzing... 30s")
-    local total = 0
     for _, ev in ipairs(_eventsToFuzz) do
         for _, suffix in ipairs({"", "Player", "Command", "admin:", "staff:"}) do
             local fullEv = suffix .. ev
-            total = total + 1
             pcall(function() TriggerServerEvent(fullEv, "test_".._r(1,999)) end)
             _w(50)
         end
@@ -522,30 +498,22 @@ local function _framingAttack(pid)
     local targetId = GetPlayerServerId(pid)
     if not targetId then _notify("~r~Error ID") return end
     local targetName = _nombreJugador(pid)
-
     _notify("~y~[Framing] Atacando a "..targetName)
-
     local logs = {"qb-log:server:CreateLog", "esx_logs:addLog", "anticheat:addViolation", "FiveGuard:SendLog"}
     for _, ev in ipairs(logs) do
-        for _=1,3 do
-            pcall(function() TriggerServerEvent(ev, "Suspicious activity from "..targetName, "HIGH", "CHEAT") end)
-            _w(50)
-        end
+        for _=1,3 do pcall(function() TriggerServerEvent(ev, "Suspicious activity from "..targetName, "HIGH", "CHEAT") end); _w(50) end
     end
-
     local violations = {"FiveGuard:AddViolation", "anticheat:report", "anticheat:godmode", "anticheat:teleport_hack"}
-    for i=1, 100 do
+    for i=1,100 do
         local ev = violations[_r(#violations)]
         pcall(function() TriggerServerEvent(ev, targetId, "EXPLOIT", 100) end)
         _w(_r(5,20))
     end
-
     local bans = {"admin:ban", "staff:ban", "esx:ban", "qb-ban:player", "FiveGuard:Ban"}
     for _, ev in ipairs(bans) do
         pcall(function() TriggerServerEvent(ev, targetId, "Cheating detected") end)
         _w(30)
     end
-
     _notify("~r~Ataque completado. Si FiveGuard es vulnerable, el jugador será baneado.")
 end
 
@@ -580,7 +548,6 @@ local function _crearAccion(pid, tipo)
 end
 
 local _vehiclesAttached = {}
-
 local function _attachAllNearbyVehicles()
     local ped = PlayerPedId()
     local myVeh = GetVehiclePedIsIn(ped, false)
@@ -614,13 +581,9 @@ local function _detachAllVehicles()
 end
 
 local _spawnedGiantProps = {}
-
 local function _spawnPropGlobal(model, x, y, z, freeze)
-    local prop = nil
-    prop = CreateObject(GetHashKey(model), x, y, z, true, true, false)
-    if not prop or prop == 0 then
-        prop = CreateObjectNoOffset(GetHashKey(model), x, y, z, true, true, false)
-    end
+    local prop = CreateObject(GetHashKey(model), x, y, z, true, true, false)
+    if not prop or prop == 0 then prop = CreateObjectNoOffset(GetHashKey(model), x, y, z, true, true, false) end
     if prop and prop ~= 0 then
         NetworkRegisterEntityAsNetworked(prop)
         local netId = NetworkGetNetworkIdFromEntity(prop)
@@ -628,14 +591,10 @@ local function _spawnPropGlobal(model, x, y, z, freeze)
         SetNetworkIdCanMigrate(netId, true)
         SetEntityAsMissionEntity(prop, true, true)
         SetEntityLoadCollisionFlag(prop, true)
-        if freeze then
-            FreezeEntityPosition(prop, true)
-        end
+        if freeze then FreezeEntityPosition(prop, true) end
         if _acDetected then
             Citizen.CreateThread(function()
-                _w(100)
-                SetEntityHeading(prop, _r(0,360))
-                SetEntityAlpha(prop, 255, false)
+                _w(100); SetEntityHeading(prop, _r(0,360)); SetEntityAlpha(prop, 255, false)
             end)
         end
         table.insert(_spawnedGiantProps, prop)
@@ -667,13 +626,8 @@ local function _spawnStuntBlock()
     SetModelAsNoLongerNeeded(model)
 end
 
-local treeModels = {
-    "prop_tree_olive_01", "prop_rio_del_01", "prop_tree_birch_04",
-    "prop_tree_cedar_02", "prop_tree_lficus_02", "prop_tree_cedar_s_04",
-    "prop_rus_olive", "prop_tree_birch_02"
-}
+local treeModels = {"prop_tree_olive_01", "prop_rio_del_01", "prop_tree_birch_04", "prop_tree_cedar_02", "prop_tree_lficus_02", "prop_tree_cedar_s_04", "prop_rus_olive", "prop_tree_birch_02"}
 local _spawnedTrees = {}
-
 local function _createForest()
     local ped = PlayerPedId()
     local center = GetEntityCoords(ped)
@@ -682,10 +636,10 @@ local function _createForest()
     _notify("~y~Creando selva... (~w~"..count.." árboles~y~)")
     local created = 0
     for i = 1, count do
-        local angle = math.rad(_r(0, 360))
+        local angle = math.rad(_r(0,360))
         local dist = _r(0, radius)
-        local x = center.x + math.cos(angle) * dist
-        local y = center.y + math.sin(angle) * dist
+        local x = center.x + math.cos(angle)*dist
+        local y = center.y + math.sin(angle)*dist
         local groundHandle = StartShapeTestRay(x, y, center.z+100.0, x, y, center.z-100.0, -1, ped, 0)
         local _, hit, hitPos = GetShapeTestResult(groundHandle)
         if hit then
@@ -706,7 +660,7 @@ local function _createForest()
                 SetModelAsNoLongerNeeded(modelName)
             end
         end
-        if i % 50 == 0 then _w(0) end
+        if i%50==0 then _w(0) end
     end
     _notify("~g~Selva creada con "..created.." árboles (visibles para todos)")
 end
@@ -715,7 +669,6 @@ end
 local _noclipActivo = false
 local _noclipVel = 5.0
 local _boostMult = 3.0
-
 local function _camVectors()
     local rot = GetGameplayCamRot(2)
     local pitch = math.rad(rot.x)
@@ -724,7 +677,6 @@ local function _camVectors()
     local cosY, sinY = math.cos(yaw), math.sin(yaw)
     return vector3(-sinY*cosP, cosY*cosP, sinP), vector3(-cosY, -sinY, 0), vector3(0,0,1)
 end
-
 local function _fixPlayerPosition()
     local ped = PlayerPedId()
     local coords = GetEntityCoords(ped)
@@ -735,7 +687,6 @@ local function _fixPlayerPosition()
         SetEntityCoords(ped, coords.x, coords.y, newZ, false, false, false, false)
     end
 end
-
 local function _disableNoclip()
     if not _noclipActivo then return end
     local ped = PlayerPedId()
@@ -748,7 +699,6 @@ local function _disableNoclip()
     _noclipActivo = false
     _notify("~r~Noclip DESACTIVADO (posición corregida)")
 end
-
 Citizen.CreateThread(function()
     while true do
         if _noclipActivo then
@@ -781,7 +731,7 @@ Citizen.CreateThread(function()
     end
 end)
 
--- ========== MENÚ REDISEÑADO (estilo premium rojo, iconos, flechas) ==========
+-- ========== MENÚ REDISEÑADO (premium rojo) ==========
 local _menuVisible = false
 local _menuActual = "main"
 local _optActual = 1
@@ -792,15 +742,14 @@ local _submenusDinamicos = {}
 local _scrollOffset = 0
 local _maxVisibleOptions = 12
 
--- Colores premium (rojo)
-local _headerColor = {225, 17, 79, 255}      -- rojo intenso #e1114f
-local _selectionColor = {225, 17, 79, 220}   -- mismo rojo para selección
-local _bgColor = {10, 10, 10, 210}            -- negro translúcido premium
-local _textColor = {255, 255, 255, 255}
+-- Colores premium
+local _headerColor = {225, 17, 79, 255}      -- rojo #e1114f
+local _selectionColor = {225, 17, 79, 220}
+local _bgColor = {10, 10, 10, 210}
 local _separatorColor = {80, 80, 90, 100}
-local _arrowColor = {255, 255, 255, 200}
+local _posX = 0.82  -- posición en pantalla (derecha)
 
--- Iconos para cada tipo de opción (se asignarán según la palabra clave)
+-- Iconos según texto
 local function getIconForOption(text)
     text = text:lower()
     if text:find("curar") or text:find("revivir") then return "💊"
@@ -830,10 +779,6 @@ local function getIconForOption(text)
     end
 end
 
--- Posición X del menú (centrado a la derecha)
-local _posX = 0.82
-
--- Funciones de dibujo
 local function _drawShadowText(t,x,y,sc,font,center,col)
     SetTextFont(font)
     SetTextScale(sc,sc)
@@ -846,26 +791,24 @@ local function _drawShadowText(t,x,y,sc,font,center,col)
 end
 
 local function _drawBanner(x, y, w, h)
-    -- Header rojo intenso
+    -- Header rojo
     DrawRect(x, y, w, h, _headerColor[1], _headerColor[2], _headerColor[3], _headerColor[4])
-    -- Texto centrado en mayúsculas
     SetTextFont(1)
-    SetTextScale(0.45, 0.45)
-    SetTextColour(255, 255, 255, 255)
+    SetTextScale(0.48,0.48)
+    SetTextColour(255,255,255,255)
     SetTextCentre(true)
     SetTextEntry("STRING")
     AddTextComponentString("ADMIN MENU")
     DrawText(x, y-0.005)
-    -- Línea separadora fina debajo del header (rojo oscuro translúcido)
+    -- Línea separadora
     DrawRect(x, y + h/2 - 0.008, w-0.02, 0.001, 150, 10, 30, 150)
 end
 
 local function _drawItem(x, y, w, opt, isSelected)
-    -- Ícono
     local icon = getIconForOption(opt.nombre)
     SetTextFont(0)
-    SetTextScale(0.42, 0.42)
-    SetTextColour(255, 255, 255, 255)
+    SetTextScale(0.42,0.42)
+    SetTextColour(255,255,255,255)
     SetTextCentre(false)
     SetTextEntry("STRING")
     AddTextComponentString(icon)
@@ -875,11 +818,11 @@ local function _drawItem(x, y, w, opt, isSelected)
     local sepX = x - w/2 + 0.05
     DrawRect(sepX, y, 0.001, 0.028, _separatorColor[1], _separatorColor[2], _separatorColor[3], _separatorColor[4])
 
-    -- Texto de la opción (sin símbolos originales)
+    -- Texto limpio
     local cleanText = opt.nombre:gsub("[%[»%]•]", ""):gsub("^%s*", "")
     SetTextFont(0)
-    SetTextScale(0.4, 0.4)
-    SetTextColour(255, 255, 255, 255)
+    SetTextScale(0.4,0.4)
+    SetTextColour(255,255,255,255)
     SetTextCentre(false)
     SetTextEntry("STRING")
     AddTextComponentString(cleanText)
@@ -887,20 +830,36 @@ local function _drawItem(x, y, w, opt, isSelected)
 
     -- Flecha derecha
     SetTextFont(0)
-    SetTextScale(0.45, 0.45)
-    SetTextColour(200, 200, 200, 200)
+    SetTextScale(0.45,0.45)
+    SetTextColour(200,200,200,200)
     SetTextCentre(false)
     SetTextEntry("STRING")
     AddTextComponentString("→")
     DrawText(x + w/2 - 0.03, y + 0.005)
 end
 
+local function _updateScroll(totalOpts)
+    if totalOpts <= _maxVisibleOptions then
+        _scrollOffset = 0
+    else
+        if _optActual < _scrollOffset + 1 then
+            _scrollOffset = _optActual - 1
+        elseif _optActual > _scrollOffset + _maxVisibleOptions then
+            _scrollOffset = _optActual - _maxVisibleOptions
+        end
+        if _scrollOffset < 0 then _scrollOffset = 0 end
+        if _scrollOffset > totalOpts - _maxVisibleOptions then
+            _scrollOffset = totalOpts - _maxVisibleOptions
+        end
+    end
+end
+
 function _drawMenu()
-    local w = 0.23          -- ancho del panel (~330-360px en 1920x1080)
+    local w = 0.23
     local x = _posX
     local y = 0.2
-    local headerH = 0.08    -- altura del header rojo
-    local optH = 0.045      -- altura cada opción (compacta)
+    local headerH = 0.08
+    local optH = 0.045
     local lineH = 0.032
     local padDesc = 0.005
 
@@ -926,29 +885,11 @@ function _drawMenu()
     local totalH = headerH + (visibleOpts * optH) + descH + 0.015
     local startY = y
 
-    -- Fondo del panel principal (negro translúcido con bordes redondeados)
+    -- Fondo principal
     DrawRect(x, startY + totalH/2, w, totalH, _bgColor[1], _bgColor[2], _bgColor[3], _bgColor[4])
-    -- Bordes redondeados simulados con rectángulos pequeños
-    DrawRect(x - w/2 + 0.008, startY + 0.008, 0.008, 0.008, _bgColor[1], _bgColor[2], _bgColor[3], _bgColor[4])
-    DrawRect(x + w/2 - 0.008, startY + 0.008, 0.008, 0.008, _bgColor[1], _bgColor[2], _bgColor[3], _bgColor[4])
-    DrawRect(x - w/2 + 0.008, startY + totalH - 0.008, 0.008, 0.008, _bgColor[1], _bgColor[2], _bgColor[3], _bgColor[4])
-    DrawRect(x + w/2 - 0.008, startY + totalH - 0.008, 0.008, 0.008, _bgColor[1], _bgColor[2], _bgColor[3], _bgColor[4])
+    -- Header
+    _drawBanner(x, startY + headerH/2, w, headerH)
 
-    -- Header rojo (borde redondeado arriba)
-    DrawRect(x, startY + headerH/2, w, headerH, _headerColor[1], _headerColor[2], _headerColor[3], _headerColor[4])
-    -- Texto del header
-    SetTextFont(1)
-    SetTextScale(0.48, 0.48)
-    SetTextColour(255, 255, 255, 255)
-    SetTextCentre(true)
-    SetTextEntry("STRING")
-    AddTextComponentString("ADMIN MENU")
-    DrawText(x, startY + headerH/2 - 0.003)
-
-    -- Línea separadora debajo del header
-    DrawRect(x, startY + headerH - 0.004, w-0.02, 0.001, 150, 10, 30, 150)
-
-    -- Lista de opciones
     local optsY = startY + headerH + 0.008
     for i = 1, visibleOpts do
         local idx = _scrollOffset + i
@@ -957,34 +898,32 @@ function _drawMenu()
             local yOff = optsY + (i-1) * optH
             local isSelected = (idx == _optActual)
             if isSelected then
-                -- Fondo de selección rojo con margen lateral
+                -- Fondo de selección rojo con margen
                 DrawRect(x, yOff + optH/2 - 0.002, w-0.02, optH-0.004, _selectionColor[1], _selectionColor[2], _selectionColor[3], _selectionColor[4])
             end
             _drawItem(x, yOff + optH/2 - 0.001, w, opt, isSelected)
-            if isSelected then
-                _descActual = (opt.desc or "Selecciona una opción") .. " "
-            end
+            if isSelected then _descActual = (opt.desc or "Selecciona una opción") .. " " end
         end
     end
 
     -- Descripción
     local descY = startY + headerH + (visibleOpts * optH) + 0.008
     for i, line in ipairs(descLines) do
-        local lineY = descY + padDesc + (i-1) * lineH + lineH/2 - 0.008
+        local lineY = descY + padDesc + (i-1)*lineH + lineH/2 - 0.008
         SetTextFont(0)
-        SetTextScale(0.3, 0.3)
-        SetTextColour(200, 200, 210, 255)
+        SetTextScale(0.3,0.3)
+        SetTextColour(200,200,210,255)
         SetTextCentre(true)
         SetTextEntry("STRING")
         AddTextComponentString(line)
         DrawText(x, lineY)
     end
 
-    -- Contador y footer
+    -- Contador
     local counter = _optActual .. "/" .. totalOpts
     SetTextFont(0)
-    SetTextScale(0.25, 0.25)
-    SetTextColour(150, 150, 160, 255)
+    SetTextScale(0.25,0.25)
+    SetTextColour(150,150,160,255)
     SetTextCentre(false)
     SetTextEntry("STRING")
     AddTextComponentString(counter)
@@ -998,94 +937,73 @@ function _drawMenu()
     -- Alerta anticheat
     if _acDetected then
         SetTextFont(4)
-        SetTextScale(0.35, 0.35)
-        SetTextColour(255, 80, 80, 255)
+        SetTextScale(0.35,0.35)
+        SetTextColour(255,80,80,255)
         SetTextCentre(false)
         SetTextEntry("STRING")
         AddTextComponentString("⚠️")
         DrawText(x - w/2 - 0.02, startY + 0.01)
     end
 
-    -- Scrollbar (si es necesario)
+    -- Scrollbar
     if totalOpts > _maxVisibleOptions then
         local scrollAreaY = startY + headerH + 0.008
         local scrollAreaH = visibleOpts * optH
         local thumbHeight = (visibleOpts / totalOpts) * scrollAreaH
         local thumbPos = (_scrollOffset / (totalOpts - visibleOpts)) * (scrollAreaH - thumbHeight)
         local barX = x + w/2 - 0.008
-        DrawRect(barX, scrollAreaY + scrollAreaH/2, 0.003, scrollAreaH, 40, 40, 50, 180)
+        DrawRect(barX, scrollAreaY + scrollAreaH/2, 0.003, scrollAreaH, 40,40,50,180)
         DrawRect(barX, scrollAreaY + thumbHeight/2 + thumbPos, 0.003, thumbHeight, _headerColor[1], _headerColor[2], _headerColor[3], 220)
     end
 end
 
-local function _updateScroll(totalOpts)
-    if totalOpts <= _maxVisibleOptions then
-        _scrollOffset = 0
-    else
-        if _optActual < _scrollOffset + 1 then
-            _scrollOffset = _optActual - 1
-        elseif _optActual > _scrollOffset + _maxVisibleOptions then
-            _scrollOffset = _optActual - _maxVisibleOptions
-        end
-        if _scrollOffset < 0 then _scrollOffset = 0 end
-        if _scrollOffset > totalOpts - _maxVisibleOptions then
-            _scrollOffset = totalOpts - _maxVisibleOptions
-        end
-    end
-end
-
--- ========== MENÚS ESTÁTICOS (exactamente los que ya tenías) ==========
+-- ========== MENÚS ESTÁTICOS ==========
 _menus["main"] = {
     {nombre="[»] Self options", submenu="self", desc="Opciones del jugador"},
     {nombre="[»] Vehicle options", submenu="vehicle", desc="Opciones para vehículos"},
     {nombre="[»] Player list", submenu="player_list", desc="Interactuar con otros jugadores"},
-    {nombre="[»] Map fucker", submenu="map_fucker", desc="Opciones del mapa (molestas pero seguras)"},
-    {nombre="[»] Event Hunter", submenu="event_hunter", desc="Buscar eventos vulnerables y atacar FiveGuard"},
+    {nombre="[»] Map fucker", submenu="map_fucker", desc="Opciones del mapa"},
+    {nombre="[»] Event Hunter", submenu="event_hunter", desc="Event Hunter y Framing"},
     {nombre="[»] Protection options", submenu="protection", desc="Herramientas de seguridad"},
 }
-
 _menus["self"] = {
     {nombre="• Curar", accion=_curar, desc="Restaura salud y armadura"},
     {nombre="• Revivir ESX", accion=_revivirESX, desc="Resucita en servidores ESX"},
     {nombre="• Revivir QB", accion=_revivirQB, desc="Resucita en servidores QB/QC"},
     {nombre="• Noclip", accion=function()
         if _noclipActivo then _disableNoclip() else _noclipActivo = true; _notify("~b~Noclip ACTIVADO") end
-    end, desc="Atraviesa paredes. Controles: WASD, Shift (boost), Espacio (subir), Ctrl (bajar)"},
+    end, desc="Atraviesa paredes. WASD, Shift (boost), Espacio/Ctrl"},
 }
-
 _menus["vehicle"] = {
-    {nombre="• Spawn vehicle", accion=_spawnVeh, desc="Escribe el modelo y spawnea el coche"},
-    {nombre="• Vehicle list", submenu="vehicle_list", desc="Lista de vehículos cercanos (150m)"},
+    {nombre="• Spawn vehicle", accion=_spawnVeh, desc="Escribe modelo y spawnea"},
+    {nombre="• Vehicle list", submenu="vehicle_list", desc="Vehículos cercanos (150m)"},
     {nombre="• Cargar vehículo", accion=_cargarVeh, desc="Apunta y carga un vehículo"},
-    {nombre="• Lanzar vehículo", accion=_lanzarVeh, desc="Lanza el vehículo que tienes cargado"},
-    {nombre="• Reparar", accion=function() _repararVeh() end, desc="Repara el vehículo actual"},
-    {nombre="• Tunear al máximo", accion=function() _tuneVehicleMax() end, desc="Mejora el vehículo al máximo"},
-    {nombre="• Shift Boost", accion=_toggleShiftBoost, desc="Activa/desactiva aceleración extra con SHIFT"},
-    {nombre="• Enganchar todos (100m)", accion=_attachAllNearbyVehicles, desc="Engancha TODOS los vehículos en 100m"},
-    {nombre="• Soltar todos", accion=_detachAllVehicles, desc="Desengancha todos los enganchados"},
+    {nombre="• Lanzar vehículo", accion=_lanzarVeh, desc="Lanza el cargado"},
+    {nombre="• Reparar", accion=function() _repararVeh() end, desc="Repara tu vehículo"},
+    {nombre="• Tunear al máximo", accion=function() _tuneVehicleMax() end, desc="Mejora completa"},
+    {nombre="• Shift Boost", accion=_toggleShiftBoost, desc="Aceleración extra con SHIFT"},
+    {nombre="• Enganchar todos (100m)", accion=_attachAllNearbyVehicles, desc="Engancha todos"},
+    {nombre="• Soltar todos", accion=_detachAllVehicles, desc="Desengancha todos"},
     {nombre="• Voltear", accion=function() _flipVeh() end, desc="Voltea el vehículo"},
     {nombre="• Limpiar", accion=function() _limpiarVeh() end, desc="Limpia el vehículo"},
 }
-
 _menus["map_fucker"] = {
-    {nombre="• Bloque stunt gigante", accion=_spawnStuntBlock, desc="Crea un bloque de stunt enorme (visible globalmente)"},
-    {nombre="• Spawnear Selva", accion=_createForest, desc="Llena 100m a la redonda de árboles (visibles para todos)"},
+    {nombre="• Bloque stunt gigante", accion=_spawnStuntBlock, desc="Crea bloque enorme"},
+    {nombre="• Spawnear Selva", accion=_createForest, desc="Crea bosque de árboles"},
 }
-
 _menus["protection"] = {
-    {nombre="• AC Checker", accion=_scanAC, desc="Detecta anticheats por nombre de recursos"},
+    {nombre="• AC Checker", accion=_scanAC, desc="Detecta anticheats conocidos"},
 }
-
 _menus["event_hunter"] = {
-    {nombre="• Iniciar Event Hunter", accion=_startFuzzing, desc="Prueba eventos comunes (30s)"},
+    {nombre="• Iniciar Event Hunter", accion=_startFuzzing, desc="Prueba eventos comunes"},
     {nombre="• Ataque Framing (FiveGuard)", accion=function()
-        _notify("~y~Selecciona un jugador desde Player List")
+        _notify("~y~Selecciona jugador desde Player List")
         _menuActual = "player_list"
         _optActual = 1
-    end, desc="Abre la lista de jugadores para elegir objetivo"},
+    end, desc="Abre lista de jugadores"},
 }
 
--- ========== DINÁMICOS (mismos que antes) ==========
+-- Dinámicos
 local function _refrescarListaVeh()
     local vehs = _vehiculosCercanos()
     local opts = {}
@@ -1094,11 +1012,11 @@ local function _refrescarListaVeh()
         opts[i] = {nombre="• "..dname, submenu="vehicle_"..tostring(v), desc="Opciones para "..dname, vehicle=v}
         if not _submenusDinamicos["vehicle_"..tostring(v)] then
             _submenusDinamicos["vehicle_"..tostring(v)] = {
-                {nombre="• Reparar", accion=function() _repararVeh(v) end, desc="Repara este vehículo"},
-                {nombre="• Voltear", accion=function() _flipVeh(v) end, desc="Voltea este vehículo"},
-                {nombre="• Limpiar", accion=function() _limpiarVeh(v) end, desc="Limpia este vehículo"},
+                {nombre="• Reparar", accion=function() _repararVeh(v) end, desc="Repara"},
+                {nombre="• Voltear", accion=function() _flipVeh(v) end, desc="Voltea"},
+                {nombre="• Limpiar", accion=function() _limpiarVeh(v) end, desc="Limpia"},
                 {nombre="• Conducir", accion=function() _conducirVeh(v) end, desc="Subirte (expulsa conductor)"},
-                {nombre="• Tunear al máximo", accion=function() _tuneVehicleMax(v) end, desc="Mejora este vehículo al máximo"},
+                {nombre="• Tunear al máximo", accion=function() _tuneVehicleMax(v) end, desc="Mejora al máximo"},
             }
         end
     end
@@ -1114,15 +1032,15 @@ local function _refrescarListaJugadores()
         opts[i] = {nombre="• "..name, submenu="player_"..tostring(pid), desc="Opciones para "..name, player=pid}
         if not _submenusDinamicos["player_"..tostring(pid)] then
             _submenusDinamicos["player_"..tostring(pid)] = {
-                {nombre="• Abrir inventario", accion=_crearAccion(pid,"inventory"), desc="Abre inventario (multi-framework)"},
-                {nombre="• Revivir", accion=_crearAccion(pid,"revive"), desc="Intenta revivir (multi-framework)"},
+                {nombre="• Abrir inventario", accion=_crearAccion(pid,"inventory"), desc="Abre inventario"},
+                {nombre="• Revivir", accion=_crearAccion(pid,"revive"), desc="Intenta revivir"},
                 {nombre="• Matar", accion=_crearAccion(pid,"kill"), desc="Mata al jugador"},
                 {nombre="• Seguir", accion=_crearAccion(pid,"follow"), desc="Sigue al jugador"},
-                {nombre="• Teleportar", accion=_crearAccion(pid,"teleport"), desc="Teletransportarse a él"},
-                {nombre="• Spawn NPCs (3-6)", accion=_crearAccion(pid,"spawnnpc"), desc="Spawns NPCs hostiles (modo sigiloso)"},
-                {nombre="• Enganchar vehículo cercano", accion=_crearAccion(pid,"attachveh"), desc="Engancha el vehículo más cercano"},
-                {nombre="• Banear (simple)", accion=_crearAccion(pid,"ban"), desc="Intenta banear con eventos comunes"},
-                {nombre="• Ataque Framing (FiveGuard)", accion=_crearAccion(pid,"framing"), desc="Ataque sigiloso contra FiveGuard"},
+                {nombre="• Teleportar", accion=_crearAccion(pid,"teleport"), desc="Teletransportarse"},
+                {nombre="• Spawn NPCs (3-6)", accion=_crearAccion(pid,"spawnnpc"), desc="NPCs hostiles"},
+                {nombre="• Enganchar vehículo cercano", accion=_crearAccion(pid,"attachveh"), desc="Engancha vehículo"},
+                {nombre="• Banear (simple)", accion=_crearAccion(pid,"ban"), desc="Intenta banear"},
+                {nombre="• Ataque Framing", accion=_crearAccion(pid,"framing"), desc="Contra FiveGuard"},
                 {nombre="• Espectear", accion=_crearAccion(pid,"spectate"), desc="Espectar al jugador"},
             }
         end
@@ -1145,7 +1063,6 @@ Citizen.CreateThread(function()
     _notify("~b~[~s~SENTEX~b~]~s~ Sistema listo. Presiona PAGEDOWN para abrir el menú.")
 end)
 
--- Control de teclado PAGEDOWN
 local function StartMenu()
     Citizen.CreateThread(function()
         while true do
