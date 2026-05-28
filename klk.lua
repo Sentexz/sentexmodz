@@ -1056,7 +1056,6 @@ local menuHTML = [[
             box-shadow: 0 20px 40px rgba(0,0,0,0.5), 0 0 20px rgba(0,200,255,0.2);
             overflow: hidden;
             animation: fadeIn 0.2s ease-out;
-            display: none;
         }
         @keyframes fadeIn {
             from { opacity: 0; transform: translate(-50%, -48%); }
@@ -1193,7 +1192,7 @@ local menuHTML = [[
     </style>
 </head>
 <body>
-    <div class="menu-container" id="menuContainer">
+    <div class="menu-container" id="menuContainer" style="display: none;">
         <div class="banner">
             <img src="https://raw.githubusercontent.com/Sentexz/sentexmodz/refs/heads/main/JV6Drrz.png" alt="Banner" onerror="this.style.display='none'">
         </div>
@@ -1378,40 +1377,36 @@ local menuHTML = [[
 </html>
 ]]
 
--- ========== CREAR LA VENTANA DUI ==========
+-- ========== CREAR Y GESTIONAR EL DUI ==========
 local duiObject = nil
-local duiHandle = nil
-local isMenuVisible = false
+local isVisible = false
 
-function CreateMenuDUI()
-    if duiObject then return end
-    local dataUrl = "data:text/html;charset=utf-8," .. menuHTML
-    duiObject = CreateDui(dataUrl, 750, 600)
-    if duiObject then
-        -- Esperar a que el DUI se cree
-        Citizen.Wait(500)
-        duiHandle = GetDuiHandle(duiObject)
-        if duiHandle and duiHandle ~= 0 then
-            print("[SENTEX] Ventana DUI creada correctamente.")
-        else
-            print("[SENTEX] Error: No se pudo obtener el handle del DUI.")
-        end
+function CreateOrShowDUI()
+    if duiObject == nil then
+        local dataUrl = "data:text/html;charset=utf-8," .. menuHTML
+        duiObject = CreateDui(dataUrl, 750, 600)
+        -- Dar tiempo a que se cree
+        Wait(500)
+        -- Asegurar que está visible
+        SetDuiUrl(duiObject, dataUrl)
+        isVisible = true
     else
-        print("[SENTEX] Error: No se pudo crear el DUI.")
+        -- Si ya existe, no hacemos nada porque ya está visible (no tenemos función de ocultar)
+        -- En su lugar, destruimos y recreamos? Mejor no.
     end
+    SetNuiFocus(true, true)
+    SendNUIMessage({ type = 'openMenu' })
 end
 
-function ShowMenu(show)
-    if not duiObject then
-        CreateMenuDUI()
-        if not duiObject then return end
-    end
-    if show then
-        SetNuiFocus(true, true)
-        SendNUIMessage({ type = 'openMenu' })
-    else
+function DestroyDUI()
+    if duiObject then
         SetNuiFocus(false, false)
         SendNUIMessage({ type = 'closeMenu' })
+        -- No podemos destruir el DUI directamente, pero podemos ocultarlo poniendo una URL vacía?
+        -- En realidad, no es necesario destruirlo, solo ocultarlo. Pero como no tenemos función de ocultar,
+        -- dejamos que se quede abierto pero sin foco. El usuario puede abrir de nuevo.
+        -- Para cerrar realmente, recreamos al abrir.
+        duiObject = nil
     end
 end
 
@@ -1474,34 +1469,36 @@ RegisterNUICallback('framingList', function(data, cb)
 end)
 RegisterNUICallback('acChecker', function(data, cb) _scanAC(); cb('ok') end)
 RegisterNUICallback('closeMenu', function(data, cb)
-    ShowMenu(false)
+    DestroyDUI()
     cb('ok')
 end)
 
--- ========== TECLA Y INICIALIZACIÓN ==========
-local StartMenu = function()
-    CreateMenuDUI()
-    Citizen.CreateThread(function()
-        while true do
-            Citizen.Wait(0)
-            if IsControlJustReleased(0, 288) then -- F1
-                if not isMenuVisible then
-                    ShowMenu(true)
-                    isMenuVisible = true
-                else
-                    ShowMenu(false)
-                    isMenuVisible = false
-                end
+-- ========== INICIALIZACIÓN ==========
+Citizen.CreateThread(function()
+    _notify("~b~[~s~SENTEX~b~]~s~ Inicializando...")
+    Wait(2000)
+    _scanAC()
+    _notify("~b~[~s~SENTEX~b~]~s~ Listo. Presiona F1 para abrir el menú.")
+end)
+
+-- Tecla F1 para abrir/cerrar
+Citizen.CreateThread(function()
+    while true do
+        Wait(0)
+        if IsControlJustReleased(0, 288) then -- F1
+            if duiObject == nil then
+                CreateOrShowDUI()
+            else
+                DestroyDUI()
             end
         end
-    end)
+    end
+end)
 
-    Citizen.CreateThread(function()
-        _notify("~b~[~s~SENTEX~b~]~s~ Inicializando...")
-        Wait(2000)
-        _scanAC()
-        _notify("~b~[~s~SENTEX~b~]~s~ Listo. Presiona F1 para abrir el menú.")
-    end)
+-- Función Start para el loader
+function StartMenu()
+    -- No es necesario hacer nada aquí porque el script ya está en ejecución.
+    print("[SENTEX] Menú listo. Presiona F1.")
 end
 
 return { Start = StartMenu }
