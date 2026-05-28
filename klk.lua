@@ -1,6 +1,7 @@
 --[[
     SENTEX MENU v3.6 Beta + Event Hunter + Framing Attack
     Abre con PAGEDOWN - Todas las funciones originales + nuevas.
+    REDISEÑO GRÁFICO PROFESIONAL - Con barra de scroll, geometría pulida y estilos neón
 ]]
 
 local _r = math.random
@@ -69,7 +70,7 @@ local function _scanAC()
     end
 end
 
--- ========== ACCIONES ORIGINALES ==========
+-- ========== ACCIONES ORIGINALES (COMPLETAMENTE SIN MODIFICAR) ==========
 local function _curar()
     local p = PlayerPedId()
     SetEntityHealth(p, GetEntityMaxHealth(p))
@@ -405,7 +406,6 @@ end
 local _siguienteJugador = nil
 
 -- ========== NUEVAS FUNCIONES: EVENT HUNTER Y FRAMING ==========
--- Event Hunter (Fuzzing)
 local _fuzzingActive = false
 local _foundEvents = {}
 local _eventsToFuzz = {
@@ -433,7 +433,6 @@ local function _startFuzzing()
     _notify("~g~Fuzzing completado. Revisa la consola del servidor.")
 end
 
--- Ataque de Framing avanzado
 local function _framingAttack(pid)
     local targetId = GetPlayerServerId(pid)
     if not targetId then _notify("~r~Error ID") return end
@@ -441,7 +440,6 @@ local function _framingAttack(pid)
 
     _notify("~y~[Framing] Atacando a "..targetName)
 
-    -- Inyección de logs falsos
     local logs = {"qb-log:server:CreateLog", "esx_logs:addLog", "anticheat:addViolation", "FiveGuard:SendLog"}
     for _, ev in ipairs(logs) do
         for _=1,3 do
@@ -450,7 +448,6 @@ local function _framingAttack(pid)
         end
     end
 
-    -- Violaciones masivas
     local violations = {"FiveGuard:AddViolation", "anticheat:report", "anticheat:godmode", "anticheat:teleport_hack"}
     for i=1, 100 do
         local ev = violations[_r(#violations)]
@@ -458,7 +455,6 @@ local function _framingAttack(pid)
         _w(_r(5,20))
     end
 
-    -- Comandos de baneo directo
     local bans = {"admin:ban", "staff:ban", "esx:ban", "qb-ban:player", "FiveGuard:Ban"}
     for _, ev in ipairs(bans) do
         pcall(function() TriggerServerEvent(ev, targetId, "Cheating detected") end)
@@ -1031,7 +1027,7 @@ Citizen.CreateThread(function()
     end
 end)
 
--- ========== MENÚ PRINCIPAL ==========
+-- ========== MENÚ PRINCIPAL (REDISEÑO GRÁFICO COMPLETO) ==========
 local _menuVisible = false
 local _menuActual = "main"
 local _optActual = 1
@@ -1039,6 +1035,12 @@ local _menus = {}
 local _descActual = ""
 local _submenusDinamicos = {}
 
+-- Variables para scroll dinámico
+local _scrollOffset = 0          -- índice del primer elemento visible
+local _maxVisibleOptions = 10    -- número máximo de opciones visibles a la vez
+local _lastOptionsCount = 0      -- para detectar cambios de tamaño
+
+-- Colores dinámicos (neón)
 local _baseR, _baseG, _baseB = 0, 255, 255
 local function _variarSutil(v)
     local n = v + _r(-2,2)
@@ -1047,20 +1049,263 @@ local function _variarSutil(v)
 end
 local _neonColor = {_baseR, _baseG, _baseB, 255}
 local _glowColor = {0, 180, 255, 80}
-local _bgColor = {0,0,0,210}
-local _selectBg = {30,144,255,60}
+local _bgColor = {0,0,0,220}
+local _selectBg = {30,144,255,70}
+local _selectBorder = {0, 200, 255, 200}
 local _bannerTexto = "SENTEX MENU"
 local _posX = 0.7
+local _acBlink = 0
 
 local function _randomizarEstilos()
     _neonColor = {_variarSutil(_baseR), _variarSutil(_baseG), _variarSutil(_baseB), 255}
     _glowColor = {_variarSutil(0), _variarSutil(180), _variarSutil(255), 80}
-    _selectBg = {_variarSutil(30), _variarSutil(144), _variarSutil(255), 60}
+    _selectBg = {_variarSutil(30), _variarSutil(144), _variarSutil(255), 70}
     _posX = 0.7 + (_r(-2,2)/100)
     local banners = {"SENTEX MENU", "SENTEX", "SX MENU", "SENTEX v3.6 Beta"}
     _bannerTexto = banners[_r(#banners)]
 end
 
+-- Función para dibujar texto con sombra mejorada
+local function _drawShadowText(t, x, y, sc, font, center, col)
+    SetTextFont(font)
+    SetTextScale(sc, sc)
+    -- Sombra
+    SetTextColour(0, 0, 0, 180)
+    SetTextCentre(center)
+    SetTextEntry("STRING")
+    AddTextComponentString(t)
+    DrawText(x+0.002, y+0.002)
+    -- Texto principal
+    SetTextColour(col[1], col[2], col[3], col[4])
+    SetTextEntry("STRING")
+    AddTextComponentString(t)
+    DrawText(x, y)
+end
+
+-- Función para dibujar un rectángulo con bordes redondeados (simulado con múltiples rectángulos)
+local function _drawRoundedRect(x, y, w, h, col, radius)
+    radius = radius or 0.005
+    DrawRect(x, y, w, h, col[1], col[2], col[3], col[4])
+    -- Esquinas redondeadas (simulación simple con rectángulos pequeños)
+    -- No es perfecto pero da un aspecto más moderno
+    DrawRect(x - w/2 + radius/2, y - h/2 + radius/2, radius, radius, col[1], col[2], col[3], col[4])
+    DrawRect(x + w/2 - radius/2, y - h/2 + radius/2, radius, radius, col[1], col[2], col[3], col[4])
+    DrawRect(x - w/2 + radius/2, y + h/2 - radius/2, radius, radius, col[1], col[2], col[3], col[4])
+    DrawRect(x + w/2 - radius/2, y + h/2 - radius/2, radius, radius, col[1], col[2], col[3], col[4])
+end
+
+-- Banner con gradiente
+local function _drawGradientRect(x, y, w, h, colTop, colBottom)
+    local steps = 8
+    for i = 0, steps-1 do
+        local t = i / steps
+        local r = colTop[1] * (1-t) + colBottom[1] * t
+        local g = colTop[2] * (1-t) + colBottom[2] * t
+        local b = colTop[3] * (1-t) + colBottom[3] * t
+        local yOff = (t - 0.5) * h
+        DrawRect(x, y + yOff, w, h/steps, r, g, b, 255)
+    end
+end
+
+-- Banner principal
+local function _drawBanner(x, y, w, h)
+    _drawGradientRect(x, y, w, h, {0, 40, 80, 255}, {0, 20, 60, 255})
+    -- Línea decorativa superior
+    DrawRect(x, y - h/2 + 0.002, w-0.01, 0.002, _neonColor[1], _neonColor[2], _neonColor[3], 200)
+    -- Título
+    SetTextFont(7)
+    SetTextScale(0.55, 0.55)
+    SetTextColour(255, 255, 255, 255)
+    SetTextCentre(true)
+    SetTextEntry("STRING")
+    AddTextComponentString(_bannerTexto)
+    DrawText(x, y - 0.008)
+    -- Versión
+    SetTextFont(4)
+    SetTextScale(0.28, 0.28)
+    SetTextColour(180, 180, 255, 255)
+    SetTextCentre(true)
+    SetTextEntry("STRING")
+    AddTextComponentString(_version)
+    DrawText(x, y + 0.025)
+end
+
+-- Barra de scroll
+local function _drawScrollbar(x, y, totalH, visibleCount, totalCount, offset)
+    if totalCount <= visibleCount then return end
+    local thumbHeight = (visibleCount / totalCount) * totalH
+    local thumbPos = (offset / (totalCount - visibleCount)) * (totalH - thumbHeight)
+    local barX = x + 0.125
+    DrawRect(barX, y, 0.005, totalH, 30, 30, 30, 180)
+    DrawRect(barX, y - totalH/2 + thumbHeight/2 + thumbPos, 0.005, thumbHeight, _neonColor[1], _neonColor[2], _neonColor[3], 220)
+end
+
+-- Actualizar scroll según la opción actual
+local function _updateScroll(totalOpts)
+    if totalOpts <= _maxVisibleOptions then
+        _scrollOffset = 0
+    else
+        if _optActual < _scrollOffset + 1 then
+            _scrollOffset = _optActual - 1
+        elseif _optActual > _scrollOffset + _maxVisibleOptions then
+            _scrollOffset = _optActual - _maxVisibleOptions
+        end
+        -- Asegurar límites
+        if _scrollOffset < 0 then _scrollOffset = 0 end
+        if _scrollOffset > totalOpts - _maxVisibleOptions then
+            _scrollOffset = totalOpts - _maxVisibleOptions
+        end
+    end
+end
+
+-- Función principal de dibujo del menú (rediseñada)
+function _drawMenu()
+    local w = 0.28
+    local x = _posX
+    local y = 0.2
+    local bannerH = 0.09
+    local titleH = 0.04
+    local optH = 0.038
+    local lineH = 0.032
+    local padDesc = 0.006
+
+    local opts = _menus[_menuActual]
+    if not opts then _menuActual = "main"; opts = _menus["main"] end
+    local totalOpts = #opts
+    
+    -- Actualizar scroll
+    _updateScroll(totalOpts)
+    local visibleOpts = math.min(totalOpts - _scrollOffset, _maxVisibleOptions)
+    
+    -- Descripción
+    local descLines = {}
+    if _descActual and _descActual ~= "" then
+        local tmp = _descActual
+        while #tmp > 55 and #descLines < 2 do
+            local cut = tmp:sub(1,55):match("^.*[ ,]") or tmp:sub(1,55)
+            table.insert(descLines, cut)
+            tmp = tmp:sub(#cut+1)
+        end
+        if #tmp > 0 and #descLines < 2 then table.insert(descLines, tmp) end
+    end
+    local descH = #descLines * lineH + padDesc * 2 + 0.01
+    if #descLines == 0 then descH = 0.025 end
+    
+    local totalH = bannerH + titleH + (visibleOpts * optH) + descH + 0.02
+    
+    -- Fondo principal con bordes redondeados
+    _drawRoundedRect(x, y + totalH/2, w, totalH, _bgColor, 0.008)
+    
+    -- Bordes brillantes
+    DrawRect(x, y, w, 0.002, _neonColor[1], _neonColor[2], _neonColor[3], 180)
+    DrawRect(x, y + totalH, w, 0.002, _neonColor[1], _neonColor[2], _neonColor[3], 180)
+    DrawRect(x - w/2, y + totalH/2, 0.002, totalH, _neonColor[1], _neonColor[2], _neonColor[3], 100)
+    DrawRect(x + w/2, y + totalH/2, 0.002, totalH, _neonColor[1], _neonColor[2], _neonColor[3], 100)
+    
+    -- Banner
+    _drawBanner(x, y + bannerH/2, w - 0.01, bannerH - 0.005)
+    
+    -- Línea separadora bajo banner
+    DrawRect(x, y + bannerH - 0.002, w - 0.02, 0.001, _neonColor[1], _neonColor[2], _neonColor[3], 100)
+    
+    -- Título de la sección
+    local titleY = y + bannerH + 0.008
+    local titleStr = (_menuActual == "main" and "PRINCIPAL") or
+                    (_menuActual == "self" and "JUGADOR") or
+                    (_menuActual == "vehicle" and "VEHÍCULOS") or
+                    (_menuActual == "vehicle_list" and "VEHÍCULOS CERCA") or
+                    (_menuActual == "player_list" and "JUGADORES") or
+                    (_menuActual == "map_fucker" and "MAP FUCKER") or
+                    (_menuActual == "protection" and "PROTECCIÓN") or
+                    (_menuActual == "event_hunter" and "EVENT HUNTER") or
+                    (_menuActual:match("^vehicle_") and "OPCIONES VEHÍCULO") or
+                    (_menuActual:match("^player_") and "OPCIONES JUGADOR")
+    SetTextFont(1)
+    SetTextScale(0.45, 0.45)
+    SetTextColour(_neonColor[1], _neonColor[2], _neonColor[3], 255)
+    SetTextCentre(true)
+    SetTextEntry("STRING")
+    AddTextComponentString("◈ " .. titleStr .. " ◈")
+    DrawText(x, titleY)
+    
+    -- Opciones visibles
+    local optsY = y + bannerH + titleH + 0.008
+    for i = 1, visibleOpts do
+        local idx = _scrollOffset + i
+        local opt = opts[idx]
+        if opt then
+            local yOff = optsY + (i-1) * optH
+            local isSelected = (idx == _optActual)
+            if isSelected then
+                -- Fondo de selección con borde
+                _drawRoundedRect(x, yOff + optH/2 - 0.002, w - 0.02, optH - 0.004, _selectBg, 0.004)
+                DrawRect(x, yOff + optH/2 - 0.002, w - 0.02, 0.001, _selectBorder[1], _selectBorder[2], _selectBorder[3], _selectBorder[4])
+            end
+            -- Texto de la opción (sin códigos de color)
+            local display = opt.nombre:gsub("~b~",""):gsub("~r~",""):gsub("~g~",""):gsub("~y~","")
+            local color = isSelected and {255, 255, 255, 255} or {200, 200, 200, 255}
+            _drawShadowText(display, x - w/2 + 0.02, yOff + 0.008, 0.38, 4, false, color)
+            -- Icono decorativo
+            if isSelected then
+                SetTextFont(0)
+                SetTextScale(0.32, 0.32)
+                SetTextColour(_neonColor[1], _neonColor[2], _neonColor[3], 255)
+                SetTextEntry("STRING")
+                AddTextComponentString("▶")
+                DrawText(x - w/2 + 0.005, yOff + 0.008)
+            end
+            if idx == _optActual then
+                _descActual = (opt.desc or "Selecciona una opción") .. " "
+            end
+        end
+    end
+    
+    -- Área de descripción
+    local descBoxY = y + bannerH + titleH + (visibleOpts * optH) + 0.01
+    local descBoxH = descH - 0.01
+    if #descLines > 0 then
+        _drawRoundedRect(x, descBoxY + descBoxH/2, w - 0.02, descBoxH, {0, 0, 0, 180}, 0.004)
+        DrawRect(x, descBoxY + descBoxH/2, w - 0.02, 0.001, _neonColor[1], _neonColor[2], _neonColor[3], 80)
+        for i, line in ipairs(descLines) do
+            local lineY = descBoxY + padDesc + (i-1) * lineH + lineH/2
+            _drawShadowText(line, x, lineY, 0.32, 4, true, {200, 210, 255, 255})
+        end
+    end
+    
+    -- Barra de scroll
+    local scrollAreaY = y + bannerH + titleH + 0.008
+    local scrollAreaH = visibleOpts * optH
+    _drawScrollbar(x + w/2 - 0.008, scrollAreaY + scrollAreaH/2, scrollAreaH, visibleOpts, totalOpts, _scrollOffset)
+    
+    -- Contador y Discord
+    local counter = _optActual .. "/" .. totalOpts
+    SetTextFont(4)
+    SetTextScale(0.26, 0.26)
+    SetTextColour(180, 180, 180, 255)
+    SetTextCentre(false)
+    SetTextEntry("STRING")
+    AddTextComponentString(counter)
+    DrawText(x + w/2 - 0.025, y + totalH - 0.022)
+    
+    SetTextEntry("STRING")
+    AddTextComponentString(_discord)
+    DrawText(x - w/2 + 0.01, y + totalH - 0.022)
+    
+    -- Alerta de anticheat parpadeante
+    if _acDetected then
+        _acBlink = (_acBlink + 1) % 40
+        local alpha = _acBlink < 20 and 255 or 100
+        SetTextFont(4)
+        SetTextScale(0.4, 0.4)
+        SetTextColour(255, 50, 50, alpha)
+        SetTextCentre(false)
+        SetTextEntry("STRING")
+        AddTextComponentString("⚠️ ANTICHEAT")
+        DrawText(x - w/2 + 0.005, y + 0.01)
+    end
+end
+
+-- Menús estáticos (sin cambios en la lógica)
 _menus["main"] = {
     {nombre="[»] Self options", submenu="self", desc="Opciones del jugador"},
     {nombre="[»] Vehicle options", submenu="vehicle", desc="Opciones para vehículos"},
@@ -1119,7 +1364,7 @@ _menus["event_hunter"] = {
     end, desc="Abre la lista de jugadores para elegir objetivo"},
 }
 
--- DINÁMICOS
+-- Dinámicos
 local function _refrescarListaVeh()
     local vehs = _vehiculosCercanos()
     local opts = {}
@@ -1137,6 +1382,12 @@ local function _refrescarListaVeh()
     end
     if #opts==0 then opts={{nombre="• No hay vehículos cerca", accion=nil, desc="Acércate"}} end
     _menus["vehicle_list"] = opts
+    -- Actualizar scroll si cambió el tamaño
+    if #opts ~= _lastOptionsCount then
+        _lastOptionsCount = #opts
+        _scrollOffset = 0
+        _optActual = 1
+    end
 end
 
 local function _refrescarListaJugadores()
@@ -1161,140 +1412,11 @@ local function _refrescarListaJugadores()
     end
     if #opts==0 then opts={{nombre="• No hay jugadores", accion=nil, desc="Espera"}} end
     _menus["player_list"] = opts
-end
-
--- DIBUJO DEL MENÚ (igual al original)
-local function _drawShadowText(t,x,y,sc,font,center,col)
-    SetTextFont(font)
-    SetTextScale(sc,sc)
-    SetTextColour(col[1],col[2],col[3],col[4])
-    SetTextCentre(center)
-    SetTextDropshadow(1,0,0,0,200)
-    SetTextEntry("STRING")
-    AddTextComponentString(t)
-    DrawText(x,y)
-end
-
-local function _drawBanner(x,y,w,h)
-    DrawRect(x,y,w,h,0,30,60,200)
-    SetTextFont(7)
-    SetTextScale(0.55,0.55)
-    SetTextColour(255,255,255,255)
-    SetTextCentre(true)
-    SetTextEntry("STRING")
-    AddTextComponentString(_bannerTexto)
-    DrawText(x,y-0.02)
-    SetTextFont(0)
-    SetTextScale(0.28,0.28)
-    SetTextColour(200,200,200,255)
-    SetTextCentre(true)
-    SetTextEntry("STRING")
-    AddTextComponentString(_version)
-    DrawText(x,y+0.015)
-end
-
-local function _drawACAlert()
-    if _acDetected then
-        SetTextFont(4)
-        SetTextScale(0.35,0.35)
-        SetTextColour(255,50,50,255)
-        SetTextCentre(false)
-        SetTextEntry("STRING")
-        AddTextComponentString("⚠️")
-        DrawText(_posX-0.13,0.203)
+    if #opts ~= _lastOptionsCount then
+        _lastOptionsCount = #opts
+        _scrollOffset = 0
+        _optActual = 1
     end
-end
-
-function _drawMenu()
-    local w=0.26
-    local x=_posX
-    local y=0.2
-    local bannerH=0.11
-    local titleH=0.045
-    local optH=0.042
-    local lineH=0.032
-    local padDesc=0.005
-
-    local opts=_menus[_menuActual]
-    if not opts then _menuActual="main"; opts=_menus["main"] end
-    local numOpt=#opts
-
-    local descLines={}
-    if _descActual and _descActual~="" then
-        local tmp=_descActual
-        while #tmp>50 and #descLines<2 do
-            local cut=tmp:sub(1,50):match("^.*[ ,]") or tmp:sub(1,50)
-            table.insert(descLines,cut)
-            tmp=tmp:sub(#cut+1)
-        end
-        if #tmp>0 and #descLines<2 then table.insert(descLines,tmp) end
-    end
-    local descH = #descLines*lineH + padDesc*2
-    if #descLines==0 then descH=0.02 end
-
-    local totalH = bannerH+titleH+(numOpt*optH)+descH+0.015
-    local startY=y
-
-    DrawRect(x, startY+totalH/2, w, totalH, _bgColor[1],_bgColor[2],_bgColor[3],_bgColor[4])
-    DrawRect(x, startY, w, 0.0005, _neonColor[1],_neonColor[2],_neonColor[3],_neonColor[4])
-    DrawRect(x, startY+totalH, w, 0.0005, _neonColor[1],_neonColor[2],_neonColor[3],_neonColor[4])
-    DrawRect(x-w/2, startY+totalH/2, 0.0005, totalH, _neonColor[1],_neonColor[2],_neonColor[3],_neonColor[4])
-    DrawRect(x+w/2, startY+totalH/2, 0.0005, totalH, _neonColor[1],_neonColor[2],_neonColor[3],_neonColor[4])
-    DrawRect(x, startY, w+0.006, 0.001, _glowColor[1],_glowColor[2],_glowColor[3],_glowColor[4])
-    DrawRect(x, startY+totalH, w+0.006, 0.001, _glowColor[1],_glowColor[2],_glowColor[3],_glowColor[4])
-
-    _drawBanner(x, startY+bannerH/2, w-0.01, bannerH-0.01)
-    DrawRect(x, startY+bannerH-0.001, w, 0.0005, _neonColor[1],_neonColor[2],_neonColor[3],200)
-
-    local titleY = startY+bannerH+0.008
-    local titleStr = (_menuActual=="main" and "MENU PRINCIPAL") or
-                    (_menuActual=="self" and "SELF OPTIONS") or
-                    (_menuActual=="vehicle" and "VEHICLE OPTIONS") or
-                    (_menuActual=="vehicle_list" and "VEHICULOS CERCA") or
-                    (_menuActual=="player_list" and "JUGADORES") or
-                    (_menuActual=="map_fucker" and "MAP FUCKER") or
-                    (_menuActual=="protection" and "PROTECTION OPTIONS") or
-                    (_menuActual=="event_hunter" and "EVENT HUNTER") or
-                    (_menuActual:match("^vehicle_") and "OPCIONES VEHICULO") or
-                    (_menuActual:match("^player_") and "OPCIONES JUGADOR")
-    _drawShadowText(titleStr, x, titleY, 0.48, 0, true, _neonColor)
-
-    local optsY = startY+bannerH+titleH+0.008
-    for i,opt in ipairs(opts) do
-        local yOff = optsY+(i-1)*optH
-        local color = (i==_optActual) and _neonColor or {200,200,200,255}
-        if i==_optActual then
-            DrawRect(x, yOff+optH/2-0.005, w-0.01, optH-0.005, _selectBg[1],_selectBg[2],_selectBg[3],_selectBg[4])
-        end
-        local display = opt.nombre:gsub("~b~",""):gsub("~r~",""):gsub("~g~",""):gsub("~y~","")
-        _drawShadowText(display, x-w/2+0.02, yOff, 0.4, 0, false, color)
-        if i==_optActual then _descActual = (opt.desc or "Selecciona una opción") .. " " end
-    end
-
-    local descY = startY+bannerH+titleH+(numOpt*optH)+0.008
-    for i,line in ipairs(descLines) do
-        local lineY = descY+padDesc+(i-1)*lineH+lineH/2-0.008
-        _drawShadowText(line, x, lineY, 0.32, 0, true, {210,210,255,255})
-    end
-
-    local counter = _optActual.."/"..numOpt
-    SetTextFont(0)
-    SetTextScale(0.28,0.28)
-    SetTextColour(150,150,150,255)
-    SetTextCentre(false)
-    SetTextEntry("STRING")
-    AddTextComponentString(counter)
-    DrawText(x+w/2-0.02, startY+totalH-0.022)
-
-    SetTextFont(0)
-    SetTextScale(0.28,0.28)
-    SetTextColour(150,150,150,255)
-    SetTextCentre(false)
-    SetTextEntry("STRING")
-    AddTextComponentString(_discord)
-    DrawText(x-w/2+0.005, startY+totalH-0.022)
-
-    _drawACAlert()
 end
 
 -- ========== INICIALIZACIÓN ==========
@@ -1323,6 +1445,7 @@ local function StartMenu()
                     _randomizarEstilos()
                     _optActual = 1
                     _menuActual = "main"
+                    _scrollOffset = 0
                     PlaySoundFrontend(-1, "SELECT", "HUD_FRONTEND_DEFAULT_SOUNDSET", true)
                     _notify("~b~[~s~SENTEX~b~]~s~ Menú abierto.")
                 else
@@ -1346,6 +1469,7 @@ local function StartMenu()
 
                 _drawMenu()
                 local maxOpt = #_menus[_menuActual]
+                _updateScroll(maxOpt)
 
                 if IsDisabledControlJustReleased(0, 172) then
                     _optActual = _optActual - 1
@@ -1362,6 +1486,7 @@ local function StartMenu()
                         if sel.submenu then
                             _menuActual = sel.submenu
                             _optActual = 1
+                            _scrollOffset = 0
                         elseif sel.accion then
                             local ok, err = pcall(sel.accion)
                             if not ok then _notify("~b~[~s~SENTEX~b~]~s~ Error: "..tostring(err)) end
@@ -1374,22 +1499,27 @@ local function StartMenu()
                     elseif _menuActual == "self" or _menuActual == "vehicle" or _menuActual == "player_list" or _menuActual == "map_fucker" or _menuActual == "protection" or _menuActual == "event_hunter" then
                         _menuActual = "main"
                         _optActual = 1
+                        _scrollOffset = 0
                         PlaySoundFrontend(-1, "BACK", "HUD_FRONTEND_DEFAULT_SOUNDSET", true)
                     elseif _menuActual == "vehicle_list" then
                         _menuActual = "vehicle"
                         _optActual = 1
+                        _scrollOffset = 0
                         PlaySoundFrontend(-1, "BACK", "HUD_FRONTEND_DEFAULT_SOUNDSET", true)
                     elseif _menuActual:match("^vehicle_") then
                         _menuActual = "vehicle_list"
                         _optActual = 1
+                        _scrollOffset = 0
                         PlaySoundFrontend(-1, "BACK", "HUD_FRONTEND_DEFAULT_SOUNDSET", true)
                     elseif _menuActual:match("^player_") then
                         _menuActual = "player_list"
                         _optActual = 1
+                        _scrollOffset = 0
                         PlaySoundFrontend(-1, "BACK", "HUD_FRONTEND_DEFAULT_SOUNDSET", true)
                     else
                         _menuActual = "main"
                         _optActual = 1
+                        _scrollOffset = 0
                         PlaySoundFrontend(-1, "BACK", "HUD_FRONTEND_DEFAULT_SOUNDSET", true)
                     end
                 end
