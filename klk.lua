@@ -1,6 +1,6 @@
 --[[
     SENTEX MENU v3.6 Beta - Event Hunter + Framing Attack
-    Abre con PAGEDOWN - Banner limpio y NPCs persistentes.
+    Abre con PAGEDOWN - Banner minimalista y NPCs hostiles persistentes.
 ]]
 
 local _r = math.random
@@ -130,7 +130,6 @@ local function _repararVeh(v)
     end
 end
 
--- Tunear al máximo
 local function _tuneVehicleMax(veh)
     if not veh then veh = GetVehiclePedIsIn(PlayerPedId(), false) end
     if veh and veh ~= 0 then
@@ -156,7 +155,6 @@ local function _tuneVehicleMax(veh)
     end
 end
 
--- Shift boost
 local _shiftBoostActive = false
 local function _toggleShiftBoost()
     _shiftBoostActive = not _shiftBoostActive
@@ -280,7 +278,6 @@ local function _nombreVeh(v)
     return name
 end
 
--- CARGAR/LANZAR VEHÍCULO INDIVIDUAL
 local _vehCargado = nil
 local _cargando = false
 
@@ -335,7 +332,6 @@ local function _lanzarVeh()
     _cargando = false
 end
 
--- JUGADORES
 local function _listaJugadores()
     local list = {}
     for i=0,255 do
@@ -353,49 +349,77 @@ local function _nombreJugador(pid)
     return "Jugador "..pid
 end
 
--- SPAWN NPCs hostiles persistentes
-local _spawnedNPCs = {}
+-- ========== NPCs HOSTILES MEJORADOS (PERSISTENTES Y AGRESIVOS) ==========
+local _spawnedNPCs = {}   -- para guardar referencias (opcional)
+
 local function _spawnNPCs(tgt, cantidad)
     cantidad = cantidad or _r(3, 6)
     local tgtPed = GetPlayerPed(tgt)
-    if not tgtPed or tgtPed==0 then _notify("~r~Jugador no encontrado") return end
+    if not tgtPed or tgtPed == 0 then _notify("~r~Jugador no encontrado") return end
     local tgtCoord = GetEntityCoords(tgtPed)
-    local modelos = {"a_m_y_hipster_01", "a_m_y_skater_01", "a_m_y_runner_01", "a_m_y_beach_01", "a_m_y_cyclist_01"}
+    local modelos = {
+        "a_m_y_hipster_01", "a_m_y_skater_01", "a_m_y_runner_01",
+        "a_m_y_beach_01", "a_m_y_cyclist_01", "a_m_y_business_01",
+        "a_m_y_breakdance_01", "a_m_y_roadcyc_01"
+    }
     _notify("~r~Spawneando "..cantidad.." NPCs hostiles contra ".._nombreJugador(tgt))
-    
-    local relationshipGroup = CreateRelationshipGroup("HOSTILE_NPCS")
-    local playerGroup = GetHashKey("PLAYER")
-    SetRelationshipBetweenGroups(1, relationshipGroup, playerGroup)
-    SetRelationshipBetweenGroups(0, relationshipGroup, relationshipGroup)
-    
-    for i=1, cantidad do
+
+    for i = 1, cantidad do
         local model = modelos[_r(#modelos)]
         RequestModel(model)
-        while not HasModelLoaded(model) do _w(10) end
-        local angle = math.rad(_r(0,360))
-        local dist = _r(5, 15)
+        local timeout = 0
+        while not HasModelLoaded(model) and timeout < 50 do
+            _w(10)
+            timeout = timeout + 1
+        end
+        if not HasModelLoaded(model) then
+            _notify("~r~Error cargando modelo de NPC")
+            return
+        end
+
+        local angle = math.rad(_r(0, 360))
+        local dist = _r(8, 20)
         local x = tgtCoord.x + math.cos(angle) * dist
         local y = tgtCoord.y + math.sin(angle) * dist
         local z = tgtCoord.z
-        local npc = CreatePed(0, model, x, y, z, _r(0,360), true, true)
-        SetPedRelationshipGroupHash(npc, relationshipGroup)
-        SetPedCombatAttributes(npc, 0, true)
-        SetPedCombatAbility(npc, 100)
-        SetPedAccuracy(npc, 70)
-        SetPedArmour(npc, 100)
-        SetPedCanRagdoll(npc, true)
-        GiveWeaponToPed(npc, GetHashKey("WEAPON_ASSAULTRIFLE"), 999, true, true)
-        SetPedInfiniteAmmo(npc, true)
-        SetEntityAsMissionEntity(npc, true, true)
-        TaskCombatPed(npc, tgtPed, 0, 16)
-        table.insert(_spawnedNPCs, npc)
+
+        local npc = CreatePed(0, model, x, y, z, _r(0,360), true, false)
+        if npc and npc ~= 0 then
+            -- Hacerlo persistente en red
+            NetworkRegisterEntityAsNetworked(npc)
+            SetNetworkIdExistsOnAllMachines(NetworkGetNetworkIdFromEntity(npc), true)
+            SetEntityAsMissionEntity(npc, true, true)
+            SetEntityInvincible(npc, false)
+            SetEntityProofs(npc, false, false, false, false, false, false, false, false)
+            -- Atributos de combate
+            SetPedCombatAttributes(npc, 0, true)      -- siempre atacar
+            SetPedCombatAttributes(npc, 1, true)      -- usar cobertura
+            SetPedCombatAttributes(npc, 2, true)      -- perseguir
+            SetPedCombatAbility(npc, 100)             -- habilidad máxima
+            SetPedCombatMovement(npc, 2)              -- movimiento agresivo
+            SetPedCombatRange(npc, 2)                 -- distancia larga
+            SetPedAccuracy(npc, 85)
+            SetPedArmour(npc, 100)
+            SetPedCanRagdoll(npc, true)
+            SetPedFleeAttributes(npc, 0, false)       -- no huir nunca
+            -- Armas: rifle de asalto
+            GiveWeaponToPed(npc, GetHashKey("WEAPON_ASSAULTRIFLE"), 999, true, true)
+            SetPedInfiniteAmmo(npc, true)
+            -- Salud
+            SetEntityHealth(npc, 200)
+            -- Tarea de combate contra el jugador objetivo
+            TaskCombatPed(npc, tgtPed, 0, 16)
+
+            -- Guardar referencia (por si queremos borrarlos después, pero no es necesario)
+            table.insert(_spawnedNPCs, npc)
+        end
         SetModelAsNoLongerNeeded(model)
         _w(_r(200, 500))
     end
     _notify("~r~"..cantidad.." NPCs hostiles atacando a ".._nombreJugador(tgt))
 end
+-- =========================================================================
 
--- INVENTARIO
 local function _abrirInventario(tgt)
     local sid = GetPlayerServerId(tgt)
     if not sid then _notify("~r~No se pudo obtener Server ID") return end
@@ -527,7 +551,6 @@ local function _framingAttack(pid)
     _notify("~r~Ataque completado. Si FiveGuard es vulnerable, el jugador será baneado.")
 end
 
--- ========== ACCIONES DE JUGADOR ==========
 local function _crearAccion(pid, tipo)
     return function()
         if tipo=="inventory" then _abrirInventario(pid)
@@ -558,7 +581,6 @@ local function _crearAccion(pid, tipo)
     end
 end
 
--- ========== ENGANCHAR TODOS LOS VEHÍCULOS ==========
 local _vehiclesAttached = {}
 
 local function _attachAllNearbyVehicles()
@@ -593,7 +615,6 @@ local function _detachAllVehicles()
     _notify("~r~Todos los vehículos desenganchados")
 end
 
--- ========== PROPS GIGANTES ==========
 local _spawnedGiantProps = {}
 
 local function _spawnPropGlobal(model, x, y, z, freeze)
@@ -648,7 +669,6 @@ local function _spawnStuntBlock()
     SetModelAsNoLongerNeeded(model)
 end
 
--- ========== BOSQUE ==========
 local treeModels = {
     "prop_tree_olive_01", "prop_rio_del_01", "prop_tree_birch_04",
     "prop_tree_cedar_02", "prop_tree_lficus_02", "prop_tree_cedar_s_04",
@@ -763,7 +783,7 @@ Citizen.CreateThread(function()
     end
 end)
 
--- ========== MENÚ PRINCIPAL CON BANNER LIMPIO ==========
+-- ========== MENÚ PRINCIPAL (con banner minimalista) ==========
 local _menuVisible = false
 local _menuActual = "main"
 local _optActual = 1
@@ -771,11 +791,9 @@ local _menus = {}
 local _descActual = ""
 local _submenusDinamicos = {}
 
--- Scroll
 local _scrollOffset = 0
 local _maxVisibleOptions = 10
 
--- Colores dinámicos
 local _baseR, _baseG, _baseB = 0, 200, 255
 local function _variarSutil(v)
     local n = v + _r(-2,2)
@@ -786,35 +804,43 @@ local _neonColor = {_baseR, _baseG, _baseB, 255}
 local _glowColor = {0, 150, 255, 60}
 local _bgColor = {0,0,0,220}
 local _selectBg = {30,144,255,70}
-local _bannerTexto = "SENTEXMODZ"
 local _posX = 0.7
 
--- Banner limpio con solo texto
+-- Banner MINIMALISTA: solo texto "SENTEXMODZ" y versión
 local function _drawBanner(x, y, w, h)
-    -- Fondo negro semitransparente para el banner
-    DrawRect(x, y, w, h, 0, 0, 0, 200)
-    -- Línea superior neón
-    DrawRect(x, y - h/2 + 0.003, w-0.02, 0.002, _neonColor[1], _neonColor[2], _neonColor[3], 255)
-    -- Línea inferior neón
-    DrawRect(x, y + h/2 - 0.003, w-0.02, 0.001, _neonColor[1], _neonColor[2], _neonColor[3], 180)
-    -- Texto del banner
+    -- Fondo oscuro con gradiente suave
+    local steps = 8
+    for i = 0, steps-1 do
+        local t = i / steps
+        local r = 10
+        local g = 15 + (10 * t)
+        local b = 25 + (15 * t)
+        local yOff = (t - 0.5) * h
+        DrawRect(x, y + yOff, w, h/steps, r, g, b, 255)
+    end
+    -- Línea brillante superior
+    DrawRect(x, y - h/2 + 0.003, w-0.02, 0.002, _neonColor[1], _neonColor[2], _neonColor[3], 200)
+    -- Línea sutil inferior
+    DrawRect(x, y + h/2 - 0.003, w-0.02, 0.001, _neonColor[1], _neonColor[2], _neonColor[3], 120)
+    -- Texto principal
     SetTextFont(7)
-    SetTextScale(0.55, 0.55)
-    SetTextColour(255,255,255,255)
+    SetTextScale(0.70, 0.70)
+    SetTextColour(255, 255, 255, 255)
     SetTextCentre(true)
     SetTextEntry("STRING")
-    AddTextComponentString(_bannerTexto)
-    DrawText(x, y-0.008)
-    -- Versión abajo
+    AddTextComponentString("SENTEXMODZ")
+    DrawText(x, y-0.005)
+    -- Versión
     SetTextFont(0)
-    SetTextScale(0.26, 0.26)
-    SetTextColour(200,200,255,200)
+    SetTextScale(0.28, 0.28)
+    SetTextColour(180, 180, 220, 200)
     SetTextCentre(true)
     SetTextEntry("STRING")
     AddTextComponentString(_version)
-    DrawText(x, y+0.022)
+    DrawText(x, y+0.025)
 end
 
+-- Las funciones de dibujo del menú se mantienen igual (se han copiado del script funcional)
 local function _drawShadowText(t,x,y,sc,font,center,col)
     SetTextFont(font)
     SetTextScale(sc,sc)
@@ -868,8 +894,6 @@ local function _randomizarEstilos()
     _glowColor = {_variarSutil(0), _variarSutil(150), _variarSutil(255), 60}
     _selectBg = {_variarSutil(30), _variarSutil(144), _variarSutil(255), 70}
     _posX = 0.7 + (_r(-2,2)/100)
-    local banners = {"SENTEXMODZ", "SENTEX", "SXMODZ", "SENTEX MODZ"}
-    _bannerTexto = banners[_r(#banners)]
 end
 
 function _drawMenu()
@@ -975,16 +999,15 @@ function _drawMenu()
     _drawScrollbar(x, scrollAreaY + scrollAreaH/2, scrollAreaH, visibleOpts, totalOpts, _scrollOffset)
 end
 
--- ========== MENÚS ESTÁTICOS ==========
+-- ========== MENÚS ESTÁTICOS (igual que antes) ==========
 _menus["main"] = {
     {nombre="[»] Self options", submenu="self", desc="Opciones del jugador"},
     {nombre="[»] Vehicle options", submenu="vehicle", desc="Opciones para vehículos"},
     {nombre="[»] Player list", submenu="player_list", desc="Interactuar con otros jugadores"},
-    {nombre="[»] Map fucker", submenu="map_fucker", desc="Opciones del mapa"},
-    {nombre="[»] Event Hunter", submenu="event_hunter", desc="Buscar eventos vulnerables"},
+    {nombre="[»] Map fucker", submenu="map_fucker", desc="Opciones del mapa (molestas pero seguras)"},
+    {nombre="[»] Event Hunter", submenu="event_hunter", desc="Buscar eventos vulnerables y atacar FiveGuard"},
     {nombre="[»] Protection options", submenu="protection", desc="Herramientas de seguridad"},
 }
-
 _menus["self"] = {
     {nombre="• Curar", accion=_curar, desc="Restaura salud y armadura"},
     {nombre="• Revivir ESX", accion=_revivirESX, desc="Resucita en servidores ESX"},
@@ -993,7 +1016,6 @@ _menus["self"] = {
         if _noclipActivo then _disableNoclip() else _noclipActivo = true; _notify("~b~Noclip ACTIVADO") end
     end, desc="Atraviesa paredes. Controles: WASD, Shift (boost), Espacio (subir), Ctrl (bajar)"},
 }
-
 _menus["vehicle"] = {
     {nombre="• Spawn vehicle", accion=_spawnVeh, desc="Escribe el modelo y spawnea el coche"},
     {nombre="• Vehicle list", submenu="vehicle_list", desc="Lista de vehículos cercanos (150m)"},
@@ -1007,16 +1029,13 @@ _menus["vehicle"] = {
     {nombre="• Voltear", accion=function() _flipVeh() end, desc="Voltea el vehículo"},
     {nombre="• Limpiar", accion=function() _limpiarVeh() end, desc="Limpia el vehículo"},
 }
-
 _menus["map_fucker"] = {
-    {nombre="• Bloque stunt gigante", accion=_spawnStuntBlock, desc="Crea un bloque de stunt enorme"},
-    {nombre="• Spawnear Selva", accion=_createForest, desc="Llena 100m a la redonda de árboles"},
+    {nombre="• Bloque stunt gigante", accion=_spawnStuntBlock, desc="Crea un bloque de stunt enorme (visible globalmente)"},
+    {nombre="• Spawnear Selva", accion=_createForest, desc="Llena 100m a la redonda de árboles (visibles para todos)"},
 }
-
 _menus["protection"] = {
     {nombre="• AC Checker", accion=_scanAC, desc="Detecta anticheats por nombre de recursos"},
 }
-
 _menus["event_hunter"] = {
     {nombre="• Iniciar Event Hunter", accion=_startFuzzing, desc="Prueba eventos comunes (30s)"},
     {nombre="• Ataque Framing (FiveGuard)", accion=function()
@@ -1026,7 +1045,6 @@ _menus["event_hunter"] = {
     end, desc="Abre la lista de jugadores para elegir objetivo"},
 }
 
--- ========== DINÁMICOS ==========
 local function _refrescarListaVeh()
     local vehs = _vehiculosCercanos()
     local opts = {}
@@ -1060,7 +1078,7 @@ local function _refrescarListaJugadores()
                 {nombre="• Matar", accion=_crearAccion(pid,"kill"), desc="Mata al jugador"},
                 {nombre="• Seguir", accion=_crearAccion(pid,"follow"), desc="Sigue al jugador"},
                 {nombre="• Teleportar", accion=_crearAccion(pid,"teleport"), desc="Teletransportarse a él"},
-                {nombre="• Spawn NPCs (3-6)", accion=_crearAccion(pid,"spawnnpc"), desc="Spawns múltiples NPCs hostiles"},
+                {nombre="• Spawn NPCs (3-6)", accion=_crearAccion(pid,"spawnnpc"), desc="Spawns múltiples NPCs hostiles persistentes"},
                 {nombre="• Enganchar vehículo cercano", accion=_crearAccion(pid,"attachveh"), desc="Engancha el vehículo más cercano"},
                 {nombre="• Banear (simple)", accion=_crearAccion(pid,"ban"), desc="Intenta banear con eventos comunes"},
                 {nombre="• Ataque Framing (FiveGuard)", accion=_crearAccion(pid,"framing"), desc="Ataque sigiloso contra FiveGuard"},
@@ -1072,7 +1090,6 @@ local function _refrescarListaJugadores()
     _menus["player_list"] = opts
 end
 
--- ========== INICIALIZACIÓN ==========
 local _menuListo = false
 local _retardo = 5000 + _r(0,10000)
 
