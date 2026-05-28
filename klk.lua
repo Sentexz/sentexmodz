@@ -1,7 +1,7 @@
 --[[
     SENTEX MENU v3.6 Beta + Event Hunter + Framing Attack
-    Abre con PAGEDOWN - Todas las funciones originales + scroll + diseño premium.
-    Banner con gradiente y efecto neón (sin imágenes externas).
+    Abre con PAGEDOWN - Todas las funciones originales.
+    Banner personalizado desde Imgur (con CreateDui).
 ]]
 
 local _r = math.random
@@ -1027,7 +1027,7 @@ Citizen.CreateThread(function()
     end
 end)
 
--- ========== MENÚ PRINCIPAL CON DISEÑO PROFESIONAL ==========
+-- ========== MENÚ PRINCIPAL CON BANNER DE IMGUR ==========
 local _menuVisible = false
 local _menuActual = "main"
 local _optActual = 1
@@ -1054,56 +1054,77 @@ local _bannerTexto = "SENTEX MENU"
 local _bannerSubtexto = _version
 local _posX = 0.7
 
-local function _randomizarEstilos()
-    _neonColor = {_variarSutil(_baseR), _variarSutil(_baseG), _variarSutil(_baseB), 255}
-    _glowColor = {_variarSutil(0), _variarSutil(150), _variarSutil(255), 60}
-    _selectBg = {_variarSutil(30), _variarSutil(144), _variarSutil(255), 70}
-    _posX = 0.7 + (_r(-2,2)/100)
-    local banners = {"SENTEX MENU", "SENTEX PRO", "SX v3.6", "SENTEX EDITION"}
-    _bannerTexto = banners[_r(#banners)]
+-- Banner personalizado desde Imgur
+local BANNER_URL = "https://i.imgur.com/Mb0iRY3.png"
+local CUSTOM_BANNER_TXD = nil
+local CUSTOM_BANNER_LOADED = false
+
+-- Función para cargar el banner desde URL usando CreateDui
+local function LoadCustomBanner()
+    Citizen.CreateThread(function()
+        -- Esperar a que el juego esté completamente listo
+        _w(2000)
+        print("[SENTEX] Intentando cargar banner desde: " .. BANNER_URL)
+        local txd = CreateRuntimeTxd('SentexCustomBanner')
+        local duiObj = CreateDui(BANNER_URL, 1152, 256)
+        local duiHandle = GetDuiHandle(duiObj)
+        if duiHandle and duiHandle ~= 0 then
+            local texture = CreateRuntimeTextureFromDuiHandle(txd, 'banner_texture', duiHandle)
+            if texture then
+                CUSTOM_BANNER_TXD = 'SentexCustomBanner'
+                CUSTOM_BANNER_LOADED = true
+                _notify("~g~Banner de Imgur cargado correctamente.")
+                print("[SENTEX] Banner cargado exitosamente.")
+                return
+            end
+        end
+        print("[SENTEX] Falló la carga del banner. Usando gradiente.")
+        _notify("~y~No se pudo cargar el banner de Imgur. Usando gradiente.")
+    end)
 end
 
--- Banner con gradiente profesional
+-- Banner con fallback (gradiente profesional)
 local function _drawBanner(x,y,w,h)
-    local steps = 10
-    for i = 0, steps-1 do
-        local t = i / steps
-        local r = 0 + (20 * t)
-        local g = 40 + (30 * t)
-        local b = 80 + (40 * t)
-        local yOff = (t - 0.5) * h
-        DrawRect(x, y + yOff, w, h/steps, r, g, b, 255)
+    if CUSTOM_BANNER_LOADED and CUSTOM_BANNER_TXD then
+        DrawSprite(CUSTOM_BANNER_TXD, 'banner_texture', x, y, 0.24, 0.085, 0.0, 255, 255, 255, 255)
+    else
+        -- Banner gradiente de respaldo
+        local steps = 10
+        for i = 0, steps-1 do
+            local t = i / steps
+            local r = 0 + (20 * t)
+            local g = 40 + (30 * t)
+            local b = 80 + (40 * t)
+            local yOff = (t - 0.5) * h
+            DrawRect(x, y + yOff, w, h/steps, r, g, b, 255)
+        end
+        DrawRect(x, y - h/2 + 0.003, w-0.02, 0.002, _neonColor[1], _neonColor[2], _neonColor[3], 255)
+        DrawRect(x, y + h/2 - 0.003, w-0.02, 0.001, _neonColor[1], _neonColor[2], _neonColor[3], 180)
+        SetTextFont(7)
+        SetTextScale(0.65, 0.65)
+        SetTextColour(255, 255, 255, 255)
+        SetTextCentre(true)
+        SetTextEntry("STRING")
+        AddTextComponentString(_bannerTexto)
+        DrawText(x, y-0.01)
+        SetTextFont(0)
+        SetTextScale(0.28, 0.28)
+        SetTextColour(0, 200, 255, 255)
+        SetTextCentre(true)
+        SetTextEntry("STRING")
+        AddTextComponentString("◆ ◆ ◆")
+        DrawText(x, y+0.008)
+        SetTextFont(0)
+        SetTextScale(0.26, 0.26)
+        SetTextColour(200, 200, 255, 200)
+        SetTextCentre(true)
+        SetTextEntry("STRING")
+        AddTextComponentString(_bannerSubtexto)
+        DrawText(x, y+0.028)
     end
-    -- Líneas neón
-    DrawRect(x, y - h/2 + 0.003, w-0.02, 0.002, _neonColor[1], _neonColor[2], _neonColor[3], 255)
-    DrawRect(x, y + h/2 - 0.003, w-0.02, 0.001, _neonColor[1], _neonColor[2], _neonColor[3], 180)
-    -- Texto principal
-    SetTextFont(7)
-    SetTextScale(0.65, 0.65)
-    SetTextColour(255, 255, 255, 255)
-    SetTextCentre(true)
-    SetTextEntry("STRING")
-    AddTextComponentString(_bannerTexto)
-    DrawText(x, y-0.01)
-    -- Línea decorativa
-    SetTextFont(0)
-    SetTextScale(0.28, 0.28)
-    SetTextColour(0, 200, 255, 255)
-    SetTextCentre(true)
-    SetTextEntry("STRING")
-    AddTextComponentString("◆ ◆ ◆")
-    DrawText(x, y+0.008)
-    -- Versión
-    SetTextFont(0)
-    SetTextScale(0.26, 0.26)
-    SetTextColour(200, 200, 255, 200)
-    SetTextCentre(true)
-    SetTextEntry("STRING")
-    AddTextComponentString(_bannerSubtexto)
-    DrawText(x, y+0.028)
 end
 
--- Función de texto con sombra (sin duplicación)
+-- Función de texto con sombra
 local function _drawShadowText(t,x,y,sc,font,center,col)
     SetTextFont(font)
     SetTextScale(sc,sc)
@@ -1153,6 +1174,16 @@ local function _updateScroll(totalOpts)
             _scrollOffset = totalOpts - _maxVisibleOptions
         end
     end
+end
+
+-- Aleatorizar colores al abrir menú
+local function _randomizarEstilos()
+    _neonColor = {_variarSutil(_baseR), _variarSutil(_baseG), _variarSutil(_baseB), 255}
+    _glowColor = {_variarSutil(0), _variarSutil(150), _variarSutil(255), 60}
+    _selectBg = {_variarSutil(30), _variarSutil(144), _variarSutil(255), 70}
+    _posX = 0.7 + (_r(-2,2)/100)
+    local banners = {"SENTEX MENU", "SENTEX PRO", "SX v3.6", "SENTEX EDITION"}
+    _bannerTexto = banners[_r(#banners)]
 end
 
 -- Menú principal
@@ -1366,6 +1397,7 @@ Citizen.CreateThread(function()
     _notify("~b~[~s~SENTEX~b~]~s~ Inicializando módulos...")
     _w(1500)
     _notify("~b~[~s~SENTEX~b~]~s~ Cargando recursos gráficos...")
+    LoadCustomBanner()
     _w(1000)
     _notify("~b~[~s~SENTEX~b~]~s~ Estableciendo conexión con la API del juego...")
     _w(_retardo - 2500)
