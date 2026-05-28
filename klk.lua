@@ -1,5 +1,5 @@
 --[[
-    SENTEX MENU - Diseño premium rojo (alineación corregida)
+    SENTEX MENU - Diseño premium rojo (sin iconos, título SENTEXMODZ v3.7)
     Abre con PAGEDOWN - Todas las funciones originales.
 ]]
 
@@ -67,11 +67,11 @@ local function _scanAC()
     end
 end
 
--- ========== ACCIONES ORIGINALES (sin cambios, solo las necesarias) ==========
--- (Para no alargar, mantengo las mismas funciones que ya tenías: _curar, _revivirESX, _revivirQB, _revivirJugador, _repararVeh, _tuneVehicleMax, _toggleShiftBoost, _flipVeh, _limpiarVeh, _conducirVeh, _spawnVeh, _vehiculosCercanos, _nombreVeh, _cargarVeh, _lanzarVeh, _listaJugadores, _nombreJugador, _spawnNPCs, _abrirInventario, _matarJugador, _teleportTo, _spectatePlayer, _engancharVehCercano, _crearAccion, _attachAllNearbyVehicles, _detachAllVehicles, _spawnPropGlobal, _spawnStuntBlock, _createForest, noclip, event hunter, framing, etc.)
--- Asumimos que las tienes. Si no, las copias del script anterior.
+-- ========== ACCIONES ORIGINALES (sin cambios, las que ya tenías) ==========
+-- (Se mantienen todas las funciones: _curar, _revivirESX, _revivirQB, _revivirJugador, _repararVeh, _tuneVehicleMax, _toggleShiftBoost, _flipVeh, _limpiarVeh, _conducirVeh, _spawnVeh, _vehiculosCercanos, _nombreVeh, _cargarVeh, _lanzarVeh, _listaJugadores, _nombreJugador, _spawnNPCs, _abrirInventario, _matarJugador, _teleportTo, _spectatePlayer, _engancharVehCercano, _crearAccion, _attachAllNearbyVehicles, _detachAllVehicles, _spawnPropGlobal, _spawnStuntBlock, _createForest, noclip, event hunter, framing, etc.)
+-- Para no duplicar, asumimos que ya están definidas. Si no, cópialas del script anterior.
 
--- ========== MENÚ REDISEÑADO (alineación perfecta) ==========
+-- ========== MENÚ REDISEÑADO (sin iconos, título personalizado) ==========
 local _menuVisible = false
 local _menuActual = "main"
 local _optActual = 1
@@ -89,36 +89,7 @@ local _bgColor = {10, 10, 10, 210}
 local _separatorColor = {80, 80, 90, 100}
 local _posX = 0.82
 
--- Iconos
-local function getIconForOption(text)
-    text = text:lower()
-    if text:find("curar") or text:find("revivir") then return "💊"
-    elseif text:find("noclip") then return "🌀"
-    elseif text:find("spawn") and text:find("vehicle") then return "🚗"
-    elseif text:find("vehicle") then return "🚙"
-    elseif text:find("reparar") then return "🔧"
-    elseif text:find("tunear") then return "⚙️"
-    elseif text:find("shift") then return "⚡"
-    elseif text:find("enganchar") then return "🔗"
-    elseif text:find("soltar") then return "🔓"
-    elseif text:find("voltear") then return "🔄"
-    elseif text:find("limpiar") then return "🧼"
-    elseif text:find("bloque") then return "🧱"
-    elseif text:find("selva") then return "🌲"
-    elseif text:find("event") then return "🔍"
-    elseif text:find("framing") then return "🎭"
-    elseif text:find("ac") then return "🛡️"
-    elseif text:find("inventario") then return "🎒"
-    elseif text:find("matar") then return "💀"
-    elseif text:find("teleportar") then return "📍"
-    elseif text:find("seguir") then return "👁️"
-    elseif text:find("espectear") then return "👓"
-    elseif text:find("npc") then return "👾"
-    elseif text:find("banear") then return "🔨"
-    else return "•"
-    end
-end
-
+-- Funciones de dibujo
 local function _drawShadowText(t,x,y,sc,font,center,col)
     SetTextFont(font)
     SetTextScale(sc,sc)
@@ -137,28 +108,18 @@ local function _drawBanner(x, y, w, h)
     SetTextColour(255,255,255,255)
     SetTextCentre(true)
     SetTextEntry("STRING")
-    AddTextComponentString("ADMIN MENU")
+    AddTextComponentString("SENTEXMODZ v3.7")
     DrawText(x, y-0.005)
     DrawRect(x, y + h/2 - 0.008, w-0.02, 0.001, 150, 10, 30, 150)
 end
 
--- Dibuja una fila completa, centrada verticalmente
+-- Dibuja una fila completa (sin icono)
 local function _drawItem(x, yCenter, w, opt, isSelected)
-    -- Icono
-    local icon = getIconForOption(opt.nombre)
-    SetTextFont(0)
-    SetTextScale(0.42,0.42)
-    SetTextColour(255,255,255,255)
-    SetTextCentre(false)
-    SetTextEntry("STRING")
-    AddTextComponentString(icon)
-    DrawText(x - w/2 + 0.02, yCenter - 0.008)
-
-    -- Separador vertical
-    local sepX = x - w/2 + 0.05
+    -- Separador vertical (ahora más a la izquierda)
+    local sepX = x - w/2 + 0.025
     DrawRect(sepX, yCenter, 0.001, 0.03, _separatorColor[1], _separatorColor[2], _separatorColor[3], _separatorColor[4])
 
-    -- Texto limpio
+    -- Texto limpio (sin símbolos originales)
     local cleanText = opt.nombre:gsub("[%[»%]•]", ""):gsub("^%s*", "")
     SetTextFont(0)
     SetTextScale(0.4,0.4)
@@ -166,7 +127,7 @@ local function _drawItem(x, yCenter, w, opt, isSelected)
     SetTextCentre(false)
     SetTextEntry("STRING")
     AddTextComponentString(cleanText)
-    DrawText(x - w/2 + 0.07, yCenter - 0.008)
+    DrawText(x - w/2 + 0.045, yCenter - 0.008)
 
     -- Flecha derecha
     SetTextFont(0)
@@ -199,7 +160,7 @@ function _drawMenu()
     local x = _posX
     local y = 0.2
     local headerH = 0.08
-    local optH = 0.042           -- altura de cada fila (compacta)
+    local optH = 0.042
     local lineH = 0.032
     local padDesc = 0.005
 
@@ -209,7 +170,6 @@ function _drawMenu()
     _updateScroll(totalOpts)
     local visibleOpts = math.min(totalOpts - _scrollOffset, _maxVisibleOptions)
 
-    -- Descripción
     local descLines = {}
     if _descActual and _descActual ~= "" then
         local tmp = _descActual
@@ -238,10 +198,9 @@ function _drawMenu()
         local idx = _scrollOffset + i
         local opt = opts[idx]
         if opt then
-            local yCenter = optsY + (i-1) * optH + optH/2   -- centro de la fila
+            local yCenter = optsY + (i-1) * optH + optH/2
             local isSelected = (idx == _optActual)
             if isSelected then
-                -- Fondo de selección (rojo) centrado vertical y horizontalmente
                 DrawRect(x, yCenter, w-0.02, optH-0.004, _selectionColor[1], _selectionColor[2], _selectionColor[3], _selectionColor[4])
             end
             _drawItem(x, yCenter, w, opt, isSelected)
@@ -302,7 +261,7 @@ function _drawMenu()
     end
 end
 
--- ========== MENÚS ESTÁTICOS (mismos de antes) ==========
+-- ========== MENÚS ESTÁTICOS (iguales que antes) ==========
 _menus["main"] = {
     {nombre="[»] Self options", submenu="self", desc="Opciones del jugador"},
     {nombre="[»] Vehicle options", submenu="vehicle", desc="Opciones para vehículos"},
