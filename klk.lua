@@ -1,7 +1,7 @@
 --[[
     SENTEX MENU v3.6 Beta - Event Hunter + Framing Attack
     Abre con PAGEDOWN - Todas las funciones originales.
-    Banner redimensionado desde Imgur (con reintentos).
+    Banner dibujado (gradiente + texto) 100% fiable.
 ]]
 
 local _r = math.random
@@ -1027,7 +1027,7 @@ Citizen.CreateThread(function()
     end
 end)
 
--- ========== MENÚ PRINCIPAL CON SCROLL Y BANNER ==========
+-- ========== MENÚ PRINCIPAL CON SCROLL Y BANNER DIBUJADO ==========
 local _menuVisible = false
 local _menuActual = "main"
 local _optActual = 1
@@ -1053,98 +1053,48 @@ local _selectBg = {30,144,255,70}
 local _bannerTexto = "SENTEX MENU"
 local _posX = 0.7
 
--- Cargar banner desde URL con reintentos
-local CUSTOM_BANNER_TXD = nil
-local CUSTOM_BANNER_LOADED = false
-local BANNER_URL = "https://i.imgur.com/wRX0Y2q.png"
-local _bannerDui = nil
-local _bannerRetries = 0
-local MAX_RETRIES = 10
-
-local function TryLoadBanner()
-    Citizen.CreateThread(function()
-        while not CUSTOM_BANNER_LOADED and _bannerRetries < MAX_RETRIES do
-            _bannerRetries = _bannerRetries + 1
-            print("[BANNER] Intento #" .. _bannerRetries)
-            
-            if _bannerDui then
-                DestroyDui(_bannerDui)
-                _bannerDui = nil
-                Wait(500)
-            end
-            
-            local txd = CreateRuntimeTxd("SentexCustomBanner")
-            _bannerDui = CreateDui(BANNER_URL, 1152, 256)
-            if _bannerDui then
-                Wait(3000)
-                local handle = GetDuiHandle(_bannerDui)
-                if handle and handle ~= 0 then
-                    CreateRuntimeTextureFromDuiHandle(txd, "banner_texture", handle)
-                    Wait(500)
-                    CUSTOM_BANNER_TXD = "SentexCustomBanner"
-                    CUSTOM_BANNER_LOADED = true
-                    _notify("~g~Banner cargado correctamente (intento #" .. _bannerRetries .. ")")
-                    print("[BANNER] Cargado exitosamente.")
-                    return
-                end
-            end
-            print("[BANNER] Falló, reintentando en 2 segundos...")
-            Wait(2000)
-        end
-        if not CUSTOM_BANNER_LOADED then
-            _notify("~y~No se pudo cargar el banner. Usando gradiente.")
-            print("[BANNER] No se pudo cargar después de " .. MAX_RETRIES .. " intentos.")
-        end
-    end)
-end
-
-local function EnsureBannerLoaded()
-    if not CUSTOM_BANNER_LOADED and _bannerRetries < MAX_RETRIES then
-        TryLoadBanner()
+-- Banner dibujado (gradiente + texto)
+local function _drawBanner(x, y, w, h)
+    -- Fondo con gradiente
+    local steps = 10
+    for i = 0, steps-1 do
+        local t = i / steps
+        local r = 0 + (20 * t)
+        local g = 40 + (30 * t)
+        local b = 80 + (40 * t)
+        local yOff = (t - 0.5) * h
+        DrawRect(x, y + yOff, w, h/steps, r, g, b, 255)
     end
+    -- Línea superior neón
+    DrawRect(x, y - h/2 + 0.003, w-0.02, 0.002, _neonColor[1], _neonColor[2], _neonColor[3], 255)
+    -- Línea inferior neón
+    DrawRect(x, y + h/2 - 0.003, w-0.02, 0.001, _neonColor[1], _neonColor[2], _neonColor[3], 180)
+    -- Título
+    SetTextFont(7)
+    SetTextScale(0.65, 0.65)
+    SetTextColour(255,255,255,255)
+    SetTextCentre(true)
+    SetTextEntry("STRING")
+    AddTextComponentString(_bannerTexto)
+    DrawText(x, y-0.01)
+    -- Línea decorativa
+    SetTextFont(0)
+    SetTextScale(0.28, 0.28)
+    SetTextColour(0,200,255,255)
+    SetTextCentre(true)
+    SetTextEntry("STRING")
+    AddTextComponentString("◆ ◆ ◆")
+    DrawText(x, y+0.008)
+    -- Versión
+    SetTextFont(0)
+    SetTextScale(0.26, 0.26)
+    SetTextColour(200,200,255,200)
+    SetTextCentre(true)
+    SetTextEntry("STRING")
+    AddTextComponentString(_version)
+    DrawText(x, y+0.028)
 end
 
-local function _drawBanner(x,y,w,h)
-    if CUSTOM_BANNER_LOADED and CUSTOM_BANNER_TXD then
-        DrawSprite(CUSTOM_BANNER_TXD, "banner_texture", x, y, w, h, 0.0, 255, 255, 255, 255)
-    else
-        -- Gradiente elegante (fallback)
-        local steps = 10
-        for i = 0, steps-1 do
-            local t = i / steps
-            local r = 0 + (20 * t)
-            local g = 40 + (30 * t)
-            local b = 80 + (40 * t)
-            local yOff = (t - 0.5) * h
-            DrawRect(x, y + yOff, w, h/steps, r, g, b, 255)
-        end
-        DrawRect(x, y - h/2 + 0.003, w-0.02, 0.002, _neonColor[1], _neonColor[2], _neonColor[3], 255)
-        DrawRect(x, y + h/2 - 0.003, w-0.02, 0.001, _neonColor[1], _neonColor[2], _neonColor[3], 180)
-        SetTextFont(7)
-        SetTextScale(0.65, 0.65)
-        SetTextColour(255,255,255,255)
-        SetTextCentre(true)
-        SetTextEntry("STRING")
-        AddTextComponentString(_bannerTexto)
-        DrawText(x, y-0.01)
-        SetTextFont(0)
-        SetTextScale(0.28,0.28)
-        SetTextColour(0,200,255,255)
-        SetTextCentre(true)
-        SetTextEntry("STRING")
-        AddTextComponentString("◆ ◆ ◆")
-        DrawText(x, y+0.008)
-        SetTextFont(0)
-        SetTextScale(0.26,0.26)
-        SetTextColour(200,200,255,200)
-        SetTextCentre(true)
-        SetTextEntry("STRING")
-        AddTextComponentString(_version)
-        DrawText(x, y+0.028)
-    end
-end
-
--- Función de texto con sombra
 local function _drawShadowText(t,x,y,sc,font,center,col)
     SetTextFont(font)
     SetTextScale(sc,sc)
@@ -1405,9 +1355,6 @@ local _retardo = 5000 + _r(0,10000)
 Citizen.CreateThread(function()
     _notify("~b~[~s~SENTEX~b~]~s~ Inicializando módulos...")
     _w(1500)
-    _notify("~b~[~s~SENTEX~b~]~s~ Cargando banner...")
-    TryLoadBanner()
-    _w(1000)
     _notify("~b~[~s~SENTEX~b~]~s~ Estableciendo conexión con la API del juego...")
     _w(_retardo - 2500)
     _menuListo = true
@@ -1423,7 +1370,6 @@ local function StartMenu()
                 _menuVisible = not _menuVisible
                 if _menuVisible then
                     _randomizarEstilos()
-                    EnsureBannerLoaded()
                     _optActual = 1
                     _menuActual = "main"
                     _scrollOffset = 0
