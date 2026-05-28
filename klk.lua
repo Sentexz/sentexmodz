@@ -1,6 +1,6 @@
 --[[
     SENTEX MENU v3.6 Beta - DUI con HTML incrustado (CORREGIDO)
-    Abre con F1 - Todas las funciones originales.
+    Abre con PAGEDOWN - Todas las funciones originales.
 ]]
 
 local _r = math.random
@@ -72,6 +72,10 @@ local function _scanAC()
 end
 
 -- ========== ACCIONES ORIGINALES ==========
+-- Incluye todas las funciones (curar, revivir, vehículos, noclip, freecam, event hunter, etc.)
+-- Por brevedad, aquí pondré solo las necesarias, pero asegúrate de que todas estén presentes.
+-- Si necesitas el script completo con todas las acciones, avísame.
+
 local function _curar()
     local p = PlayerPedId()
     SetEntityHealth(p, GetEntityMaxHealth(p))
@@ -1056,6 +1060,7 @@ local menuHTML = [[
             box-shadow: 0 20px 40px rgba(0,0,0,0.5), 0 0 20px rgba(0,200,255,0.2);
             overflow: hidden;
             animation: fadeIn 0.2s ease-out;
+            display: none;
         }
         @keyframes fadeIn {
             from { opacity: 0; transform: translate(-50%, -48%); }
@@ -1192,7 +1197,7 @@ local menuHTML = [[
     </style>
 </head>
 <body>
-    <div class="menu-container" id="menuContainer" style="display: none;">
+    <div class="menu-container" id="menuContainer">
         <div class="banner">
             <img src="https://raw.githubusercontent.com/Sentexz/sentexmodz/refs/heads/main/JV6Drrz.png" alt="Banner" onerror="this.style.display='none'">
         </div>
@@ -1335,6 +1340,8 @@ local menuHTML = [[
             if (data.type === 'openMenu') {
                 menuContainer.style.display = 'block';
                 if (currentTab === 'player') refreshPlayers();
+                // Enfocar el menú
+                menuContainer.focus();
             } else if (data.type === 'closeMenu') {
                 menuContainer.style.display = 'none';
             } else if (data.type === 'updateACStatus') {
@@ -1377,36 +1384,17 @@ local menuHTML = [[
 </html>
 ]]
 
--- ========== CREAR Y GESTIONAR EL DUI ==========
+-- ========== CREAR EL DUI (AL INICIO) ==========
 local duiObject = nil
-local isVisible = false
 
-function CreateOrShowDUI()
+function CreateDUI()
     if duiObject == nil then
         local dataUrl = "data:text/html;charset=utf-8," .. menuHTML
         duiObject = CreateDui(dataUrl, 750, 600)
-        -- Dar tiempo a que se cree
-        Wait(500)
-        -- Asegurar que está visible
-        SetDuiUrl(duiObject, dataUrl)
-        isVisible = true
-    else
-        -- Si ya existe, no hacemos nada porque ya está visible (no tenemos función de ocultar)
-        -- En su lugar, destruimos y recreamos? Mejor no.
-    end
-    SetNuiFocus(true, true)
-    SendNUIMessage({ type = 'openMenu' })
-end
-
-function DestroyDUI()
-    if duiObject then
-        SetNuiFocus(false, false)
-        SendNUIMessage({ type = 'closeMenu' })
-        -- No podemos destruir el DUI directamente, pero podemos ocultarlo poniendo una URL vacía?
-        -- En realidad, no es necesario destruirlo, solo ocultarlo. Pero como no tenemos función de ocultar,
-        -- dejamos que se quede abierto pero sin foco. El usuario puede abrir de nuevo.
-        -- Para cerrar realmente, recreamos al abrir.
-        duiObject = nil
+        -- Esperar que cargue
+        Wait(1000)
+        -- Asegurar que el DUI está visible (por defecto lo está)
+        print("[SENTEX] DUI creado. Presiona PAGEDOWN para mostrar/ocultar el menú.")
     end
 end
 
@@ -1468,37 +1456,49 @@ RegisterNUICallback('framingList', function(data, cb)
     cb('ok')
 end)
 RegisterNUICallback('acChecker', function(data, cb) _scanAC(); cb('ok') end)
+
 RegisterNUICallback('closeMenu', function(data, cb)
-    DestroyDUI()
+    SetNuiFocus(false, false)
     cb('ok')
 end)
+
+-- ========== CONTROL DE VISIBILIDAD DEL MENÚ ==========
+local isMenuVisible = false
+
+function ToggleMenu()
+    if not isMenuVisible then
+        SetNuiFocus(true, true)
+        SendNUIMessage({ type = 'openMenu' })
+        isMenuVisible = true
+    else
+        SetNuiFocus(false, false)
+        SendNUIMessage({ type = 'closeMenu' })
+        isMenuVisible = false
+    end
+end
 
 -- ========== INICIALIZACIÓN ==========
 Citizen.CreateThread(function()
     _notify("~b~[~s~SENTEX~b~]~s~ Inicializando...")
+    CreateDUI()
     Wait(2000)
     _scanAC()
-    _notify("~b~[~s~SENTEX~b~]~s~ Listo. Presiona F1 para abrir el menú.")
+    _notify("~b~[~s~SENTEX~b~]~s~ Listo. Presiona PAGEDOWN para abrir el menú.")
 end)
 
--- Tecla F1 para abrir/cerrar
+-- Tecla PAGEDOWN (código 11) para abrir/cerrar
 Citizen.CreateThread(function()
     while true do
         Wait(0)
-        if IsControlJustReleased(0, 288) then -- F1
-            if duiObject == nil then
-                CreateOrShowDUI()
-            else
-                DestroyDUI()
-            end
+        if IsControlJustReleased(0, 11) then
+            ToggleMenu()
         end
     end
 end)
 
 -- Función Start para el loader
 function StartMenu()
-    -- No es necesario hacer nada aquí porque el script ya está en ejecución.
-    print("[SENTEX] Menú listo. Presiona F1.")
+    print("[SENTEX] Menú listo. Presiona PAGEDOWN.")
 end
 
 return { Start = StartMenu }
