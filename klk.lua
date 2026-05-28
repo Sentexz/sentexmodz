@@ -1,8 +1,7 @@
 --[[
     SENTEX MENU v3.6 Beta + Event Hunter + Framing Attack
     Abre con PAGEDOWN - Todas las funciones originales.
-    Banner: se intenta cargar desde URL proporcionada por loader (variable global).
-    Diseño: scroll, barra de scroll, colores neón dinámicos.
+    Banner cargado desde base64 proporcionado por loader (Susano).
 ]]
 
 local _r = math.random
@@ -406,7 +405,7 @@ end
 
 local _siguienteJugador = nil
 
--- ========== NUEVAS FUNCIONES: EVENT HUNTER Y FRAMING ==========
+-- ========== EVENT HUNTER Y FRAMING ==========
 local _fuzzingActive = false
 local _foundEvents = {}
 local _eventsToFuzz = {
@@ -1028,7 +1027,7 @@ Citizen.CreateThread(function()
     end
 end)
 
--- ========== MENÚ PRINCIPAL CON BANNER DESDE LOADER ==========
+-- ========== MENÚ PRINCIPAL CON BANNER BASE64 ==========
 local _menuVisible = false
 local _menuActual = "main"
 local _optActual = 1
@@ -1055,20 +1054,22 @@ local _bannerTexto = "SENTEX MENU"
 local _bannerSubtexto = _version
 local _posX = 0.7
 
--- Banner personalizado desde Susano (URL pasada por loader)
-local BANNER_URL = _G.SUSANO_BANNER_URL  -- Variable global definida por el loader
+-- Banner personalizado desde base64
 local CUSTOM_BANNER_TXD = nil
 local CUSTOM_BANNER_LOADED = false
 
--- Función para cargar el banner desde URL (se ejecuta al inicio)
-local function LoadBannerFromURL()
-    if not BANNER_URL then
-        print("[SENTEX] No se proporcionó URL de banner vía _G.SUSANO_BANNER_URL. Usando gradiente.")
+-- Función para cargar banner desde base64 usando data URL
+local function LoadBannerFromBase64()
+    local b64 = _G.SUSANO_BANNER_BASE64
+    if not b64 then
+        print("[SENTEX] No se encontró banner base64 en _G.SUSANO_BANNER_BASE64")
         return
     end
     Citizen.CreateThread(function()
+        print("[SENTEX] Intentando cargar banner desde base64...")
+        local dataUrl = "data:image/png;base64," .. b64
         local txd = CreateRuntimeTxd('SentexCustomBanner')
-        local duiObj = CreateDui(BANNER_URL, 1152, 256)
+        local duiObj = CreateDui(dataUrl, 1152, 256)
         local duiHandle = GetDuiHandle(duiObj)
         if duiHandle and duiHandle ~= 0 then
             local texture = CreateRuntimeTextureFromDuiHandle(txd, 'banner_texture', duiHandle)
@@ -1083,13 +1084,12 @@ local function LoadBannerFromURL()
     end)
 end
 
--- Función de dibujo del banner (gradiente o personalizado)
+-- Función de dibujo del banner
 local function _drawBanner(x,y,w,h)
     if CUSTOM_BANNER_LOADED and CUSTOM_BANNER_TXD then
-        -- Dibujar sprite con la imagen cargada
         DrawSprite(CUSTOM_BANNER_TXD, 'banner_texture', x, y, 0.24, 0.085, 0.0, 255, 255, 255, 255)
     else
-        -- Banner de respaldo: gradiente elegante
+        -- Banner gradiente elegante (fallback)
         local steps = 10
         for i = 0, steps-1 do
             local t = i / steps
@@ -1099,10 +1099,8 @@ local function _drawBanner(x,y,w,h)
             local yOff = (t - 0.5) * h
             DrawRect(x, y + yOff, w, h/steps, r, g, b, 255)
         end
-        -- Líneas decorativas
         DrawRect(x, y - h/2 + 0.003, w-0.02, 0.002, _neonColor[1], _neonColor[2], _neonColor[3], 255)
         DrawRect(x, y + h/2 - 0.003, w-0.02, 0.001, _neonColor[1], _neonColor[2], _neonColor[3], 180)
-        -- Texto
         SetTextFont(7)
         SetTextScale(0.65, 0.65)
         SetTextColour(255, 255, 255, 255)
@@ -1110,7 +1108,6 @@ local function _drawBanner(x,y,w,h)
         SetTextEntry("STRING")
         AddTextComponentString("SENTEX  MENU")
         DrawText(x, y-0.01)
-        
         SetTextFont(0)
         SetTextScale(0.28, 0.28)
         SetTextColour(0, 200, 255, 255)
@@ -1118,7 +1115,6 @@ local function _drawBanner(x,y,w,h)
         SetTextEntry("STRING")
         AddTextComponentString("◆ ◆ ◆")
         DrawText(x, y+0.008)
-        
         SetTextFont(0)
         SetTextScale(0.26, 0.26)
         SetTextColour(200, 200, 255, 200)
@@ -1129,7 +1125,7 @@ local function _drawBanner(x,y,w,h)
     end
 end
 
--- Función de texto con sombra (original, sin duplicación)
+-- Función de texto con sombra
 local function _drawShadowText(t,x,y,sc,font,center,col)
     SetTextFont(font)
     SetTextScale(sc,sc)
@@ -1402,7 +1398,7 @@ Citizen.CreateThread(function()
     _notify("~b~[~s~SENTEX~b~]~s~ Inicializando módulos...")
     _w(1500)
     _notify("~b~[~s~SENTEX~b~]~s~ Cargando recursos gráficos...")
-    LoadBannerFromURL()
+    LoadBannerFromBase64()
     _w(1000)
     _notify("~b~[~s~SENTEX~b~]~s~ Estableciendo conexión con la API del juego...")
     _w(_retardo - 2500)
