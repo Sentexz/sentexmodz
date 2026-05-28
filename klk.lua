@@ -1,7 +1,8 @@
 --[[
     SENTEX MENU v3.6 Beta + Event Hunter + Framing Attack
-    Abre con PAGEDOWN - Todas las funciones originales + scroll y barra.
-    Banner personalizado (carga desde imgur) con fallback a gradiente.
+    Abre con PAGEDOWN - Todas las funciones originales.
+    Banner: se intenta cargar desde URL proporcionada por loader (variable global).
+    Diseño: scroll, barra de scroll, colores neón dinámicos.
 ]]
 
 local _r = math.random
@@ -70,7 +71,7 @@ local function _scanAC()
     end
 end
 
--- ========== ACCIONES ORIGINALES (Todas) ==========
+-- ========== ACCIONES ORIGINALES ==========
 local function _curar()
     local p = PlayerPedId()
     SetEntityHealth(p, GetEntityMaxHealth(p))
@@ -1027,7 +1028,7 @@ Citizen.CreateThread(function()
     end
 end)
 
--- ========== MENÚ PRINCIPAL (CON SCROLL Y BANNER PERSONALIZADO) ==========
+-- ========== MENÚ PRINCIPAL CON BANNER DESDE LOADER ==========
 local _menuVisible = false
 local _menuActual = "main"
 local _optActual = 1
@@ -1051,61 +1052,84 @@ local _glowColor = {0, 150, 255, 60}
 local _bgColor = {0,0,0,220}
 local _selectBg = {30,144,255,70}
 local _bannerTexto = "SENTEX MENU"
+local _bannerSubtexto = _version
 local _posX = 0.7
 
--- Banner personalizado
-local bannerTextureDict = nil
-local bannerTextureName = nil
-local bannerLoaded = false
-local bannerImageWidth = 0.24
-local bannerImageHeight = 0.085
+-- Banner personalizado desde Susano (URL pasada por loader)
+local BANNER_URL = _G.SUSANO_BANNER_URL  -- Variable global definida por el loader
+local CUSTOM_BANNER_TXD = nil
+local CUSTOM_BANNER_LOADED = false
 
-local function LoadCustomBanner()
-    local url = "https://i.imgur.com/Mb0iRY3.png"
+-- Función para cargar el banner desde URL (se ejecuta al inicio)
+local function LoadBannerFromURL()
+    if not BANNER_URL then
+        print("[SENTEX] No se proporcionó URL de banner vía _G.SUSANO_BANNER_URL. Usando gradiente.")
+        return
+    end
     Citizen.CreateThread(function()
-        local txd = CreateRuntimeTxd('SentexBanner')
-        local duiObj = CreateDui(url, 1152, 256)
-        local handle = GetDuiHandle(duiObj)
-        if handle and handle ~= 0 then
-            local texture = CreateRuntimeTextureFromDuiHandle(txd, 'banner_texture', handle)
+        local txd = CreateRuntimeTxd('SentexCustomBanner')
+        local duiObj = CreateDui(BANNER_URL, 1152, 256)
+        local duiHandle = GetDuiHandle(duiObj)
+        if duiHandle and duiHandle ~= 0 then
+            local texture = CreateRuntimeTextureFromDuiHandle(txd, 'banner_texture', duiHandle)
             if texture then
-                bannerTextureDict = 'SentexBanner'
-                bannerTextureName = 'banner_texture'
-                bannerLoaded = true
+                CUSTOM_BANNER_TXD = 'SentexCustomBanner'
+                CUSTOM_BANNER_LOADED = true
                 _notify("~g~Banner personalizado cargado correctamente.")
                 return
             end
         end
-        -- Fallback: usar banner por defecto
-        bannerLoaded = false
-        _notify("~y~No se pudo cargar banner externo, usando gradiente.")
+        _notify("~y~No se pudo cargar banner personalizado, usando gradiente.")
     end)
 end
 
+-- Función de dibujo del banner (gradiente o personalizado)
 local function _drawBanner(x,y,w,h)
-    if bannerLoaded and bannerTextureDict and bannerTextureName then
-        DrawSprite(bannerTextureDict, bannerTextureName, x, y, bannerImageWidth, bannerImageHeight, 0.0, 255, 255, 255, 255)
+    if CUSTOM_BANNER_LOADED and CUSTOM_BANNER_TXD then
+        -- Dibujar sprite con la imagen cargada
+        DrawSprite(CUSTOM_BANNER_TXD, 'banner_texture', x, y, 0.24, 0.085, 0.0, 255, 255, 255, 255)
     else
-        -- Banner por defecto (gradiente)
-        DrawRect(x,y,w,h,0,30,60,200)
+        -- Banner de respaldo: gradiente elegante
+        local steps = 10
+        for i = 0, steps-1 do
+            local t = i / steps
+            local r = 0 + (20 * t)
+            local g = 40 + (30 * t)
+            local b = 80 + (40 * t)
+            local yOff = (t - 0.5) * h
+            DrawRect(x, y + yOff, w, h/steps, r, g, b, 255)
+        end
+        -- Líneas decorativas
+        DrawRect(x, y - h/2 + 0.003, w-0.02, 0.002, _neonColor[1], _neonColor[2], _neonColor[3], 255)
+        DrawRect(x, y + h/2 - 0.003, w-0.02, 0.001, _neonColor[1], _neonColor[2], _neonColor[3], 180)
+        -- Texto
         SetTextFont(7)
-        SetTextScale(0.55,0.55)
-        SetTextColour(255,255,255,255)
+        SetTextScale(0.65, 0.65)
+        SetTextColour(255, 255, 255, 255)
         SetTextCentre(true)
         SetTextEntry("STRING")
-        AddTextComponentString(_bannerTexto)
-        DrawText(x,y-0.02)
+        AddTextComponentString("SENTEX  MENU")
+        DrawText(x, y-0.01)
+        
         SetTextFont(0)
-        SetTextScale(0.28,0.28)
-        SetTextColour(200,200,200,255)
+        SetTextScale(0.28, 0.28)
+        SetTextColour(0, 200, 255, 255)
         SetTextCentre(true)
         SetTextEntry("STRING")
-        AddTextComponentString(_version)
-        DrawText(x,y+0.015)
+        AddTextComponentString("◆ ◆ ◆")
+        DrawText(x, y+0.008)
+        
+        SetTextFont(0)
+        SetTextScale(0.26, 0.26)
+        SetTextColour(200, 200, 255, 200)
+        SetTextCentre(true)
+        SetTextEntry("STRING")
+        AddTextComponentString(_bannerSubtexto)
+        DrawText(x, y+0.028)
     end
 end
 
--- Función de texto original (sin duplicación)
+-- Función de texto con sombra (original, sin duplicación)
 local function _drawShadowText(t,x,y,sc,font,center,col)
     SetTextFont(font)
     SetTextScale(sc,sc)
@@ -1117,6 +1141,7 @@ local function _drawShadowText(t,x,y,sc,font,center,col)
     DrawText(x,y)
 end
 
+-- Alerta anticheat
 local function _drawACAlert()
     if _acDetected then
         SetTextFont(4)
@@ -1129,6 +1154,7 @@ local function _drawACAlert()
     end
 end
 
+-- Barra de scroll
 local function _drawScrollbar(x, y, totalH, visibleCount, totalCount, offset)
     if totalCount <= visibleCount then return end
     local thumbHeight = (visibleCount / totalCount) * totalH
@@ -1138,6 +1164,7 @@ local function _drawScrollbar(x, y, totalH, visibleCount, totalCount, offset)
     DrawRect(barX, y - totalH/2 + thumbHeight/2 + thumbPos, 0.005, thumbHeight, _neonColor[1], _neonColor[2], _neonColor[3], 220)
 end
 
+-- Actualizar scroll
 local function _updateScroll(totalOpts)
     if totalOpts <= _maxVisibleOptions then
         _scrollOffset = 0
@@ -1154,6 +1181,7 @@ local function _updateScroll(totalOpts)
     end
 end
 
+-- Aleatorizar colores al abrir menú
 local function _randomizarEstilos()
     _neonColor = {_variarSutil(_baseR), _variarSutil(_baseG), _variarSutil(_baseB), 255}
     _glowColor = {_variarSutil(0), _variarSutil(150), _variarSutil(255), 60}
@@ -1163,6 +1191,7 @@ local function _randomizarEstilos()
     _bannerTexto = banners[_r(#banners)]
 end
 
+-- Menú principal
 function _drawMenu()
     local w=0.26
     local x=_posX
@@ -1195,6 +1224,7 @@ function _drawMenu()
     local totalH = bannerH+titleH+(visibleOpts*optH)+descH+0.015
     local startY=y
 
+    -- Fondo
     DrawRect(x, startY+totalH/2, w, totalH, _bgColor[1],_bgColor[2],_bgColor[3],_bgColor[4])
     DrawRect(x, startY, w, 0.0005, _neonColor[1],_neonColor[2],_neonColor[3],_neonColor[4])
     DrawRect(x, startY+totalH, w, 0.0005, _neonColor[1],_neonColor[2],_neonColor[3],_neonColor[4])
@@ -1206,6 +1236,7 @@ function _drawMenu()
     _drawBanner(x, startY+bannerH/2, w-0.01, bannerH-0.01)
     DrawRect(x, startY+bannerH-0.001, w, 0.0005, _neonColor[1],_neonColor[2],_neonColor[3],200)
 
+    -- Título de sección
     local titleY = startY+bannerH+0.008
     local titleStr = (_menuActual=="main" and "MENU PRINCIPAL") or
                     (_menuActual=="self" and "SELF OPTIONS") or
@@ -1219,6 +1250,7 @@ function _drawMenu()
                     (_menuActual:match("^player_") and "OPCIONES JUGADOR")
     _drawShadowText(titleStr, x, titleY, 0.48, 0, true, _neonColor)
 
+    -- Opciones visibles
     local optsY = startY+bannerH+titleH+0.008
     for i = 1, visibleOpts do
         local idx = _scrollOffset + i
@@ -1235,12 +1267,14 @@ function _drawMenu()
         end
     end
 
+    -- Descripción
     local descY = startY+bannerH+titleH+(visibleOpts*optH)+0.008
     for i,line in ipairs(descLines) do
         local lineY = descY+padDesc+(i-1)*lineH+lineH/2-0.008
         _drawShadowText(line, x, lineY, 0.32, 0, true, {210,210,255,255})
     end
 
+    -- Contador y discord
     local counter = _optActual.."/"..totalOpts
     SetTextFont(0)
     SetTextScale(0.28,0.28)
@@ -1250,22 +1284,19 @@ function _drawMenu()
     AddTextComponentString(counter)
     DrawText(x+w/2-0.02, startY+totalH-0.022)
 
-    SetTextFont(0)
-    SetTextScale(0.28,0.28)
-    SetTextColour(150,150,150,255)
-    SetTextCentre(false)
     SetTextEntry("STRING")
     AddTextComponentString(_discord)
     DrawText(x-w/2+0.005, startY+totalH-0.022)
 
     _drawACAlert()
 
+    -- Barra de scroll
     local scrollAreaY = startY + bannerH + titleH + 0.008
     local scrollAreaH = visibleOpts * optH
     _drawScrollbar(x, scrollAreaY + scrollAreaH/2, scrollAreaH, visibleOpts, totalOpts, _scrollOffset)
 end
 
--- Menús estáticos
+-- ========== MENÚS ESTÁTICOS ==========
 _menus["main"] = {
     {nombre="[»] Self options", submenu="self", desc="Opciones del jugador"},
     {nombre="[»] Vehicle options", submenu="vehicle", desc="Opciones para vehículos"},
@@ -1319,7 +1350,7 @@ _menus["event_hunter"] = {
     end, desc="Abre la lista de jugadores para elegir objetivo"},
 }
 
--- Dinámicos
+-- ========== DINÁMICOS ==========
 local function _refrescarListaVeh()
     local vehs = _vehiculosCercanos()
     local opts = {}
@@ -1371,7 +1402,7 @@ Citizen.CreateThread(function()
     _notify("~b~[~s~SENTEX~b~]~s~ Inicializando módulos...")
     _w(1500)
     _notify("~b~[~s~SENTEX~b~]~s~ Cargando recursos gráficos...")
-    LoadCustomBanner()
+    LoadBannerFromURL()
     _w(1000)
     _notify("~b~[~s~SENTEX~b~]~s~ Estableciendo conexión con la API del juego...")
     _w(_retardo - 2500)
