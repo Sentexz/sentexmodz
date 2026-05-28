@@ -1059,7 +1059,7 @@ local CUSTOM_BANNER_TXD = nil
 local CUSTOM_BANNER_LOADED = false
 
 local function LoadBannerFromURL()
-    local url = "https://i.imgur.com/Mb0iRY3.png"
+    local url = "https://i.ibb.co/LD0xLqv1/434e648a-51dd-4457-9900-bc6321d62a13.png"
     Citizen.CreateThread(function()
         -- Esperamos un poco para asegurar que el juego esté listo
         _w(1000)
