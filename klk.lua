@@ -402,7 +402,7 @@ local function _spawnNPCs(targetPid, cantidad)
     end)
 end
 
--- ========== FUNCIÓN ENGANCHAR DILDO ==========
+-- ========== FUNCIÓN ENGANCHAR DILDO CORREGIDA ==========
 local _attachedDildos = {}
 local function _attachDildoToPlayer(pid)
     local targetPed = GetPlayerPed(pid)
@@ -410,17 +410,33 @@ local function _attachDildoToPlayer(pid)
         _notify("~r~Jugador no encontrado")
         return
     end
-    local modelHash = GetHashKey("prop_dildo_01")
-    RequestModel(modelHash)
-    local timeout = 0
-    while not HasModelLoaded(modelHash) and timeout < 50 do
-        _w(10)
-        timeout = timeout + 1
+    
+    -- Modelos de dildo disponibles (el primero es el más común y funcional)
+    local modelosDildo = {"prop_cs_dildo_01", "prop_dildo_01", "prop_dildo_02", "prop_dildo_03"}
+    local modeloUsado = nil
+    local modelHash = nil
+    
+    for _, modelo in ipairs(modelosDildo) do
+        local hash = GetHashKey(modelo)
+        RequestModel(hash)
+        local timeout = 0
+        while not HasModelLoaded(hash) and timeout < 30 do
+            _w(10)
+            timeout = timeout + 1
+        end
+        if HasModelLoaded(hash) then
+            modeloUsado = modelo
+            modelHash = hash
+            break
+        end
+        SetModelAsNoLongerNeeded(hash)
     end
-    if not HasModelLoaded(modelHash) then
-        _notify("~r~No se pudo cargar el modelo del objeto")
+    
+    if not modelHash then
+        _notify("~r~No se pudo cargar ningún modelo de dildo (probados: " .. table.concat(modelosDildo, ", ") .. ")")
         return
     end
+    
     local coords = GetEntityCoords(targetPed)
     local dildo = CreateObject(modelHash, coords.x, coords.y, coords.z, true, true, false)
     if not dildo or dildo == 0 then
@@ -428,17 +444,25 @@ local function _attachDildoToPlayer(pid)
         SetModelAsNoLongerNeeded(modelHash)
         return
     end
-    local boneIndex = GetPedBoneIndex(targetPed, 0x796e)
+    
+    local boneIndex = GetPedBoneIndex(targetPed, 0x796e) -- SKEL_HEAD
     if boneIndex == -1 then
-        boneIndex = GetPedBoneIndex(targetPed, 0x322)
+        boneIndex = GetPedBoneIndex(targetPed, 0x322) -- SKEL_FACE
     end
+    
+    -- Ajusta estos valores para que quede bien en la cara (sobresale hacia adelante)
     local offset = vector3(0.22, 0.0, 0.03)
     local rot = vector3(-90.0, 0.0, 0.0)
+    
     if not NetworkHasControlOfEntity(dildo) then
         NetworkRequestControlOfEntity(dildo)
         local t = 0
-        while not NetworkHasControlOfEntity(dildo) and t < 20 do _w(50) t=t+1 end
+        while not NetworkHasControlOfEntity(dildo) and t < 20 do 
+            _w(50) 
+            t = t + 1 
+        end
     end
+    
     AttachEntityToEntity(dildo, targetPed, boneIndex, offset.x, offset.y, offset.z, rot.x, rot.y, rot.z, true, true, false, true, 2, true)
     NetworkRegisterEntityAsNetworked(dildo)
     SetNetworkIdExistsOnAllMachines(NetworkGetNetworkIdFromEntity(dildo), true)
@@ -447,7 +471,7 @@ local function _attachDildoToPlayer(pid)
     FreezeEntityPosition(dildo, false)
     table.insert(_attachedDildos, dildo)
     SetModelAsNoLongerNeeded(modelHash)
-    _notify("~p~Le has enganchado un nepe en la cara a " .. _nombreJugador(pid) .. " (sobresale hacia afuera)")
+    _notify("~p~Le has enganchado un nepe en la cara a " .. _nombreJugador(pid) .. " (modelo: " .. modeloUsado .. ")")
 end
 
 -- ========== EVENT HUNTER Y FRAMING ==========
