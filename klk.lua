@@ -760,8 +760,8 @@ end
 
 local _siguienteJugador = nil
 
--- ========== CREAR ACCIONES (DEFINIDA ANTES DE USARSE) ==========
-function _crearAccion(pid, tipo)   -- Sin "local" para que sea global
+-- ========== CREAR ACCIONES (DEFINIDA AHORA, ANTES DE USARSE) ==========
+local function _crearAccion(pid, tipo)
     return function()
         if tipo=="inventory" then _abrirInventario(pid)
         elseif tipo=="revive" then _revivirJugador(pid)
@@ -792,7 +792,7 @@ function _crearAccion(pid, tipo)   -- Sin "local" para que sea global
     end
 end
 
--- ========== MENÚ REDISEÑADO (texto centrado) ==========
+-- ========== MENÚ REDISEÑADO ==========
 local _menuVisible = false
 local _menuActual = "main"
 local _optActual = 1
@@ -961,7 +961,7 @@ function _drawMenu()
     end
 end
 
--- ========== TEXTO DEL DISCORD (esquina inferior izquierda) ==========
+-- ========== TEXTO DEL DISCORD ==========
 Citizen.CreateThread(function()
     while true do
         Citizen.Wait(0)
