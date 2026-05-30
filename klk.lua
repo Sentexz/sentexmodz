@@ -687,7 +687,7 @@ Citizen.CreateThread(function()
     end
 end)
 
--- ========== FUNCIONES PARA MENÚ (abrir inventario, matar, teleport, espectar, etc.) ==========
+-- ========== FUNCIONES AUXILIARES PARA MENÚ ==========
 local function _abrirInventario(tgt)
     local sid = GetPlayerServerId(tgt)
     if not sid then _notify("~r~No se pudo obtener Server ID") return end
@@ -760,8 +760,8 @@ end
 
 local _siguienteJugador = nil
 
--- ========== CREAR ACCIONES (AHORA SÍ DEFINIDA ANTES DE USARSE) ==========
-local function _crearAccion(pid, tipo)
+-- ========== CREAR ACCIONES (DEFINIDA ANTES DE USARSE) ==========
+function _crearAccion(pid, tipo)   -- Sin "local" para que sea global
     return function()
         if tipo=="inventory" then _abrirInventario(pid)
         elseif tipo=="revive" then _revivirJugador(pid)
