@@ -402,7 +402,7 @@ local function _spawnNPCs(targetPid, cantidad)
     end)
 end
 
--- ========== NUEVA FUNCIÓN: ENGANCHAR DILDO EN LA CARA (visible y sobresaliente) ==========
+-- ========== FUNCIÓN ENGANCHAR DILDO ==========
 local _attachedDildos = {}
 local function _attachDildoToPlayer(pid)
     local targetPed = GetPlayerPed(pid)
@@ -421,7 +421,6 @@ local function _attachDildoToPlayer(pid)
         _notify("~r~No se pudo cargar el modelo del objeto")
         return
     end
-    -- Crear objeto cerca del jugador
     local coords = GetEntityCoords(targetPed)
     local dildo = CreateObject(modelHash, coords.x, coords.y, coords.z, true, true, false)
     if not dildo or dildo == 0 then
@@ -429,30 +428,23 @@ local function _attachDildoToPlayer(pid)
         SetModelAsNoLongerNeeded(modelHash)
         return
     end
-    -- Obtener bone de la cabeza (SKEL_HEAD = 0x796e)
     local boneIndex = GetPedBoneIndex(targetPed, 0x796e)
     if boneIndex == -1 then
-        boneIndex = GetPedBoneIndex(targetPed, 0x322) -- alternativa SKEL_FACE
+        boneIndex = GetPedBoneIndex(targetPed, 0x322)
     end
-    -- Offset: hacia adelante (X), centrado (Y), ligeramente hacia abajo (Z) para que salga de la boca/nariz
     local offset = vector3(0.22, 0.0, 0.03)
-    -- Rotación: tumbarlo horizontal y que apunte hacia adelante (Grados: roll, pitch, yaw)
-    -- Para prop_dildo_01: -90 en X (roll) lo tumba, 0 en pitch, 0 en yaw
     local rot = vector3(-90.0, 0.0, 0.0)
-    -- Adjuntar con control de red
     if not NetworkHasControlOfEntity(dildo) then
         NetworkRequestControlOfEntity(dildo)
         local t = 0
         while not NetworkHasControlOfEntity(dildo) and t < 20 do _w(50) t=t+1 end
     end
     AttachEntityToEntity(dildo, targetPed, boneIndex, offset.x, offset.y, offset.z, rot.x, rot.y, rot.z, true, true, false, true, 2, true)
-    -- Hacerlo persistente y sincronizado en red
     NetworkRegisterEntityAsNetworked(dildo)
     SetNetworkIdExistsOnAllMachines(NetworkGetNetworkIdFromEntity(dildo), true)
     SetEntityAsMissionEntity(dildo, true, true)
     SetEntityInvincible(dildo, true)
     FreezeEntityPosition(dildo, false)
-    -- Guardar referencia (por si se quiere eliminar después)
     table.insert(_attachedDildos, dildo)
     SetModelAsNoLongerNeeded(modelHash)
     _notify("~p~Le has enganchado un nepe en la cara a " .. _nombreJugador(pid) .. " (sobresale hacia afuera)")
@@ -695,7 +687,112 @@ Citizen.CreateThread(function()
     end
 end)
 
--- ========== MENÚ REDISEÑADO (texto centrado verticalmente, discord fuera) ==========
+-- ========== FUNCIONES PARA MENÚ (abrir inventario, matar, teleport, espectar, etc.) ==========
+local function _abrirInventario(tgt)
+    local sid = GetPlayerServerId(tgt)
+    if not sid then _notify("~r~No se pudo obtener Server ID") return end
+    TriggerEvent('ox_inventory:openInventory', 'otherplayer', sid)
+    TriggerServerEvent('esx_inventory:openInventory', 'otherplayer', sid)
+    TriggerServerEvent('qb-inventory:server:OpenInventory', 'player', sid)
+    TriggerEvent('inventory:client:openInventory', tgt)
+    _notify("~g~Intentando abrir inventario del jugador")
+end
+
+local function _matarJugador(tgt)
+    local tgtPed = GetPlayerPed(tgt)
+    if tgtPed and tgtPed~=0 then
+        SetEntityHealth(tgtPed, 0)
+        _notify("~r~Jugador eliminado")
+    end
+end
+
+local function _teleportTo(tgt)
+    local tgtPed = GetPlayerPed(tgt)
+    if tgtPed and tgtPed~=0 then
+        local coord = GetEntityCoords(tgtPed)
+        local p = PlayerPedId()
+        DoScreenFadeOut(500)
+        _w(500)
+        SetEntityCoords(p, coord.x, coord.y, coord.z+0.5, false, false, false, false)
+        _w(100)
+        DoScreenFadeIn(500)
+        _notify("~g~Teletransportado")
+    end
+end
+
+local function _spectatePlayer(pid)
+    local targetPed = GetPlayerPed(pid)
+    if targetPed and targetPed ~= 0 then
+        NetworkSetInSpectatorMode(true, targetPed)
+        _notify("~b~Espectando a " .. _nombreJugador(pid))
+    else
+        _notify("~r~Jugador no encontrado")
+    end
+end
+
+local function _engancharVehCercano(tgt)
+    local tgtPed = GetPlayerPed(tgt)
+    if not tgtPed or tgtPed == 0 then _notify("~r~Jugador no encontrado") return end
+    local pos = GetEntityCoords(tgtPed)
+    local pool = GetGamePool("CVehicle")
+    local closestVeh = nil
+    local closestDist = 30.0
+    for _, v in ipairs(pool) do
+        local vPos = GetEntityCoords(v)
+        local dist = #(pos - vPos)
+        if dist < closestDist and v ~= GetVehiclePedIsIn(tgtPed, false) then
+            closestDist = dist
+            closestVeh = v
+        end
+    end
+    if closestVeh then
+        if not NetworkHasControlOfEntity(closestVeh) then
+            NetworkRequestControlOfEntity(closestVeh)
+            local t=0
+            while not NetworkHasControlOfEntity(closestVeh) and t<20 do _w(50) t=t+1 end
+        end
+        AttachEntityToEntity(closestVeh, tgtPed, GetPedBoneIndex(tgtPed, 60309), 0.0,0.0,0.0,0.0,0.0,0.0, true, true, false, false, 2, true)
+        _notify("~g~Vehículo enganchado al jugador")
+    else
+        _notify("~r~No hay vehículos cerca del jugador")
+    end
+end
+
+local _siguienteJugador = nil
+
+-- ========== CREAR ACCIONES (AHORA SÍ DEFINIDA ANTES DE USARSE) ==========
+local function _crearAccion(pid, tipo)
+    return function()
+        if tipo=="inventory" then _abrirInventario(pid)
+        elseif tipo=="revive" then _revivirJugador(pid)
+        elseif tipo=="kill" then _matarJugador(pid)
+        elseif tipo=="follow" then
+            if _siguienteJugador == pid then
+                _siguienteJugador = nil
+                SetPlayerFollowing(PlayerId(), 0)
+                _notify("~y~Dejaste de seguir")
+            else
+                _siguienteJugador = pid
+                _notify("~y~Siguiendo jugador")
+            end
+        elseif tipo=="teleport" then _teleportTo(pid)
+        elseif tipo=="spawnnpc" then _spawnNPCs(pid, _r(3,6))
+        elseif tipo=="attachveh" then _engancharVehCercano(pid)
+        elseif tipo=="ban" then
+            local sid = GetPlayerServerId(pid)
+            if sid then
+                TriggerServerEvent('admin:ban', sid, "test")
+                TriggerServerEvent('staff:banPlayer', sid, "test")
+                _notify("~y~Intento de baneo directo")
+            end
+        elseif tipo=="framing" then _framingAttack(pid)
+        elseif tipo=="spectate" then _spectatePlayer(pid)
+        elseif tipo=="attachdildo" then _attachDildoToPlayer(pid)
+        end
+    end
+end
+
+-- ========== MENÚ REDISEÑADO (texto centrado) ==========
 local _menuVisible = false
 local _menuActual = "main"
 local _optActual = 1
@@ -987,112 +1084,6 @@ Citizen.CreateThread(function()
     _notify("~b~[~s~SENTEX~b~]~s~ Sistema listo. Presiona PAGEDOWN para abrir el menú.")
 end)
 
--- Función auxiliar que crea acciones
-local function _crearAccion(pid, tipo)
-    return function()
-        if tipo=="inventory" then _abrirInventario(pid)
-        elseif tipo=="revive" then _revivirJugador(pid)
-        elseif tipo=="kill" then _matarJugador(pid)
-        elseif tipo=="follow" then
-            if _siguienteJugador == pid then
-                _siguienteJugador = nil
-                SetPlayerFollowing(PlayerId(), 0)
-                _notify("~y~Dejaste de seguir")
-            else
-                _siguienteJugador = pid
-                _notify("~y~Siguiendo jugador")
-            end
-        elseif tipo=="teleport" then _teleportTo(pid)
-        elseif tipo=="spawnnpc" then _spawnNPCs(pid, _r(3,6))
-        elseif tipo=="attachveh" then _engancharVehCercano(pid)
-        elseif tipo=="ban" then
-            local sid = GetPlayerServerId(pid)
-            if sid then
-                TriggerServerEvent('admin:ban', sid, "test")
-                TriggerServerEvent('staff:banPlayer', sid, "test")
-                _notify("~y~Intento de baneo directo")
-            end
-        elseif tipo=="framing" then _framingAttack(pid)
-        elseif tipo=="spectate" then _spectatePlayer(pid)
-        elseif tipo=="attachdildo" then _attachDildoToPlayer(pid)
-        end
-    end
-end
-
--- Funciones que referencian acciones (deben estar definidas antes de _crearAccion)
-local function _abrirInventario(tgt)
-    local sid = GetPlayerServerId(tgt)
-    if not sid then _notify("~r~No se pudo obtener Server ID") return end
-    TriggerEvent('ox_inventory:openInventory', 'otherplayer', sid)
-    TriggerServerEvent('esx_inventory:openInventory', 'otherplayer', sid)
-    TriggerServerEvent('qb-inventory:server:OpenInventory', 'player', sid)
-    TriggerEvent('inventory:client:openInventory', tgt)
-    _notify("~g~Intentando abrir inventario del jugador")
-end
-
-local function _matarJugador(tgt)
-    local tgtPed = GetPlayerPed(tgt)
-    if tgtPed and tgtPed~=0 then
-        SetEntityHealth(tgtPed, 0)
-        _notify("~r~Jugador eliminado")
-    end
-end
-
-local function _teleportTo(tgt)
-    local tgtPed = GetPlayerPed(tgt)
-    if tgtPed and tgtPed~=0 then
-        local coord = GetEntityCoords(tgtPed)
-        local p = PlayerPedId()
-        DoScreenFadeOut(500)
-        _w(500)
-        SetEntityCoords(p, coord.x, coord.y, coord.z+0.5, false, false, false, false)
-        _w(100)
-        DoScreenFadeIn(500)
-        _notify("~g~Teletransportado")
-    end
-end
-
-local function _spectatePlayer(pid)
-    local targetPed = GetPlayerPed(pid)
-    if targetPed and targetPed ~= 0 then
-        NetworkSetInSpectatorMode(true, targetPed)
-        _notify("~b~Espectando a " .. _nombreJugador(pid))
-    else
-        _notify("~r~Jugador no encontrado")
-    end
-end
-
-local function _engancharVehCercano(tgt)
-    local tgtPed = GetPlayerPed(tgt)
-    if not tgtPed or tgtPed == 0 then _notify("~r~Jugador no encontrado") return end
-    local pos = GetEntityCoords(tgtPed)
-    local pool = GetGamePool("CVehicle")
-    local closestVeh = nil
-    local closestDist = 30.0
-    for _, v in ipairs(pool) do
-        local vPos = GetEntityCoords(v)
-        local dist = #(pos - vPos)
-        if dist < closestDist and v ~= GetVehiclePedIsIn(tgtPed, false) then
-            closestDist = dist
-            closestVeh = v
-        end
-    end
-    if closestVeh then
-        if not NetworkHasControlOfEntity(closestVeh) then
-            NetworkRequestControlOfEntity(closestVeh)
-            local t=0
-            while not NetworkHasControlOfEntity(closestVeh) and t<20 do _w(50) t=t+1 end
-        end
-        AttachEntityToEntity(closestVeh, tgtPed, GetPedBoneIndex(tgtPed, 60309), 0.0,0.0,0.0,0.0,0.0,0.0, true, true, false, false, 2, true)
-        _notify("~g~Vehículo enganchado al jugador")
-    else
-        _notify("~r~No hay vehículos cerca del jugador")
-    end
-end
-
-local _siguienteJugador = nil
-
--- ========== INICIO DEL MENÚ ==========
 local function StartMenu()
     Citizen.CreateThread(function()
         while true do
