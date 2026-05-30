@@ -1,7 +1,7 @@
 --[[
     SENTEX MENU v3.7 - Diseño premium rojo (texto centrado, todas las funciones)
     Abre con PAGEDOWN - Versión completa y funcional.
-    Añadida opción "Enganchar nepe" en player list.
+    Añadida opción "Enganchar nepe" en player list (dildo sobresale hacia adelante).
 ]]
 
 local _r = math.random
@@ -402,8 +402,8 @@ local function _spawnNPCs(targetPid, cantidad)
     end)
 end
 
--- ========== NUEVA FUNCIÓN: ENGANCHAR DILDO EN LA CARA ==========
-local _attachedDildos = {}  -- para guardar referencia si se necesita luego
+-- ========== NUEVA FUNCIÓN: ENGANCHAR DILDO EN LA CARA (visible y sobresaliente) ==========
+local _attachedDildos = {}
 local function _attachDildoToPlayer(pid)
     local targetPed = GetPlayerPed(pid)
     if not targetPed or targetPed == 0 then
@@ -432,12 +432,19 @@ local function _attachDildoToPlayer(pid)
     -- Obtener bone de la cabeza (SKEL_HEAD = 0x796e)
     local boneIndex = GetPedBoneIndex(targetPed, 0x796e)
     if boneIndex == -1 then
-        boneIndex = GetPedBoneIndex(targetPed, 0x322) -- alternativa
+        boneIndex = GetPedBoneIndex(targetPed, 0x322) -- alternativa SKEL_FACE
     end
-    -- Ajustar offset para que quede en la cara (X ligeramente hacia adelante, Y centrado, Z ajustado)
-    local offset = vector3(0.15, 0.0, 0.05)
-    -- Rotación para que apunte hacia adelante
-    local rot = vector3(0.0, 0.0, 0.0)
+    -- Offset: hacia adelante (X), centrado (Y), ligeramente hacia abajo (Z) para que salga de la boca/nariz
+    local offset = vector3(0.22, 0.0, 0.03)
+    -- Rotación: tumbarlo horizontal y que apunte hacia adelante (Grados: roll, pitch, yaw)
+    -- Para prop_dildo_01: -90 en X (roll) lo tumba, 0 en pitch, 0 en yaw
+    local rot = vector3(-90.0, 0.0, 0.0)
+    -- Adjuntar con control de red
+    if not NetworkHasControlOfEntity(dildo) then
+        NetworkRequestControlOfEntity(dildo)
+        local t = 0
+        while not NetworkHasControlOfEntity(dildo) and t < 20 do _w(50) t=t+1 end
+    end
     AttachEntityToEntity(dildo, targetPed, boneIndex, offset.x, offset.y, offset.z, rot.x, rot.y, rot.z, true, true, false, true, 2, true)
     -- Hacerlo persistente y sincronizado en red
     NetworkRegisterEntityAsNetworked(dildo)
@@ -445,10 +452,10 @@ local function _attachDildoToPlayer(pid)
     SetEntityAsMissionEntity(dildo, true, true)
     SetEntityInvincible(dildo, true)
     FreezeEntityPosition(dildo, false)
-    -- Guardar referencia opcional (por si se quiere eliminar después)
+    -- Guardar referencia (por si se quiere eliminar después)
     table.insert(_attachedDildos, dildo)
     SetModelAsNoLongerNeeded(modelHash)
-    _notify("~p~Le has enganchado un nepe en la cara a " .. _nombreJugador(pid))
+    _notify("~p~Le has enganchado un nepe en la cara a " .. _nombreJugador(pid) .. " (sobresale hacia afuera)")
 end
 
 -- ========== EVENT HUNTER Y FRAMING ==========
@@ -958,8 +965,7 @@ local function _refrescarListaJugadores()
                 {nombre="• Banear (simple)", accion=_crearAccion(pid,"ban"), desc="Intenta banear"},
                 {nombre="• Ataque Framing", accion=_crearAccion(pid,"framing"), desc="Contra FiveGuard"},
                 {nombre="• Espectear", accion=_crearAccion(pid,"spectate"), desc="Espectar al jugador"},
-                -- NUEVA OPCIÓN: ENGANCHAR NEPE
-                {nombre="• Enganchar nepe", accion=_crearAccion(pid,"attachdildo"), desc="Le engancha un dildo en la cara"},
+                {nombre="• Enganchar nepe", accion=_crearAccion(pid,"attachdildo"), desc="Le engancha un dildo en la cara (sobresale)"},
             }
         end
     end
@@ -981,7 +987,7 @@ Citizen.CreateThread(function()
     _notify("~b~[~s~SENTEX~b~]~s~ Sistema listo. Presiona PAGEDOWN para abrir el menú.")
 end)
 
--- Función auxiliar que crea acciones (modificada para incluir attachdildo)
+-- Función auxiliar que crea acciones
 local function _crearAccion(pid, tipo)
     return function()
         if tipo=="inventory" then _abrirInventario(pid)
@@ -1008,7 +1014,7 @@ local function _crearAccion(pid, tipo)
             end
         elseif tipo=="framing" then _framingAttack(pid)
         elseif tipo=="spectate" then _spectatePlayer(pid)
-        elseif tipo=="attachdildo" then _attachDildoToPlayer(pid)  -- NUEVO
+        elseif tipo=="attachdildo" then _attachDildoToPlayer(pid)
         end
     end
 end
