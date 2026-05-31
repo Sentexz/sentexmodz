@@ -1,7 +1,7 @@
 --[[
     SENTEX MENU v3.7 - Diseño premium rojo (texto centrado, todas las funciones)
     Abre con PAGEDOWN - Versión completa y funcional.
-    Añadida opción "Enganchar nepe" en player list (dildo sobresale hacia adelante).
+    Añadida opción "Enganchar nepe" en player list (dildo sobresale hacia adelante y persiste).
 ]]
 
 local _r = math.random
@@ -12,7 +12,7 @@ local _notify = function(msg)
     DrawNotification(false, false)
 end
 
-local _version = "v3.6 Beta + EH"
+local _version = "v3.7 Final + Persistente"
 local _discord = ".gg/sentexmodz"
 
 -- ========== DETECCIÓN DE ANTICHEAT ==========
@@ -402,20 +402,20 @@ local function _spawnNPCs(targetPid, cantidad)
     end)
 end
 
--- ========== FUNCIÓN ENGANCHAR DILDO CORREGIDA ==========
-local _attachedDildos = {}
+-- ========== ENGANCHAR DILDO PERSISTENTE (CORREGIDO) ==========
+local _attachedDildos = {}  -- cada entrada: [objeto] = { ped, model, offset, rot, bone, playerId }
+
 local function _attachDildoToPlayer(pid)
     local targetPed = GetPlayerPed(pid)
     if not targetPed or targetPed == 0 then
         _notify("~r~Jugador no encontrado")
         return
     end
-    
-    -- Modelos de dildo disponibles (el primero es el más común y funcional)
+
     local modelosDildo = {"prop_cs_dildo_01", "prop_dildo_01", "prop_dildo_02", "prop_dildo_03"}
     local modeloUsado = nil
     local modelHash = nil
-    
+
     for _, modelo in ipairs(modelosDildo) do
         local hash = GetHashKey(modelo)
         RequestModel(hash)
@@ -431,12 +431,12 @@ local function _attachDildoToPlayer(pid)
         end
         SetModelAsNoLongerNeeded(hash)
     end
-    
+
     if not modelHash then
-        _notify("~r~No se pudo cargar ningún modelo de dildo (probados: " .. table.concat(modelosDildo, ", ") .. ")")
+        _notify("~r~No se pudo cargar ningún modelo de dildo")
         return
     end
-    
+
     local coords = GetEntityCoords(targetPed)
     local dildo = CreateObject(modelHash, coords.x, coords.y, coords.z, true, true, false)
     if not dildo or dildo == 0 then
@@ -444,35 +444,100 @@ local function _attachDildoToPlayer(pid)
         SetModelAsNoLongerNeeded(modelHash)
         return
     end
-    
-    local boneIndex = GetPedBoneIndex(targetPed, 0x796e) -- SKEL_HEAD
-    if boneIndex == -1 then
-        boneIndex = GetPedBoneIndex(targetPed, 0x322) -- SKEL_FACE
-    end
-    
-    -- Ajusta estos valores para que quede bien en la cara (sobresale hacia adelante)
-    local offset = vector3(0.22, 0.0, 0.03)
-    local rot = vector3(-90.0, 0.0, 0.0)
-    
+
+    -- Control de red y persistencia
     if not NetworkHasControlOfEntity(dildo) then
         NetworkRequestControlOfEntity(dildo)
         local t = 0
-        while not NetworkHasControlOfEntity(dildo) and t < 20 do 
-            _w(50) 
-            t = t + 1 
+        while not NetworkHasControlOfEntity(dildo) and t < 20 do
+            _w(50)
+            t = t + 1
         end
     end
-    
-    AttachEntityToEntity(dildo, targetPed, boneIndex, offset.x, offset.y, offset.z, rot.x, rot.y, rot.z, true, true, false, true, 2, true)
     NetworkRegisterEntityAsNetworked(dildo)
-    SetNetworkIdExistsOnAllMachines(NetworkGetNetworkIdFromEntity(dildo), true)
+    local netId = NetworkGetNetworkIdFromEntity(dildo)
+    SetNetworkIdExistsOnAllMachines(netId, true)
     SetEntityAsMissionEntity(dildo, true, true)
+
+    -- Configuración que evita desaparición
     SetEntityInvincible(dildo, true)
+    SetEntityCollision(dildo, false, false)
+    SetEntityPersistent(dildo, true)
+    SetEntityCanBeDamaged(dildo, false)
+    SetEntityAlpha(dildo, 255, false)
     FreezeEntityPosition(dildo, false)
-    table.insert(_attachedDildos, dildo)
+
+    -- Hueso de la cabeza
+    local boneIndex = GetPedBoneIndex(targetPed, 0x796e) -- SKEL_HEAD
+    if boneIndex == -1 then
+        boneIndex = GetPedBoneIndex(targetPed, 0x322)    -- SKEL_FACE
+    end
+
+    -- Ajustes de posición (sobresale hacia adelante)
+    local offset = vector3(0.22, 0.0, 0.03)
+    local rot = vector3(-90.0, 0.0, 0.0)
+
+    AttachEntityToEntity(dildo, targetPed, boneIndex, offset.x, offset.y, offset.z, rot.x, rot.y, rot.z, true, true, false, true, 2, true)
+
+    -- Almacenar datos para el hilo de persistencia
+    _attachedDildos[dildo] = {
+        ped = targetPed,
+        model = modelHash,
+        offset = offset,
+        rot = rot,
+        bone = boneIndex,
+        playerId = pid
+    }
+
     SetModelAsNoLongerNeeded(modelHash)
-    _notify("~p~Le has enganchado un nepe en la cara a " .. _nombreJugador(pid) .. " (modelo: " .. modeloUsado .. ")")
+    _notify("~p~Le has enganchado un nepe en la cara a " .. _nombreJugador(pid) .. " (persistente)")
 end
+
+-- Hilo que verifica y reengancha si el dildo desaparece o se suelta
+Citizen.CreateThread(function()
+    while true do
+        _w(1000) -- cada segundo
+        for dildo, data in pairs(_attachedDildos) do
+            local pedExists = DoesEntityExist(data.ped) and not IsPedDeadOrDying(data.ped, true)
+            local dildoExists = DoesEntityExist(dildo)
+
+            if not pedExists then
+                -- El jugador ya no existe o está muerto
+                if dildoExists then DeleteEntity(dildo) end
+                _attachedDildos[dildo] = nil
+                _notify("~y~El nepe se desenganchó porque el jugador ya no está disponible")
+            elseif not dildoExists then
+                -- El objeto se perdió, recrearlo
+                local newDildo = CreateObject(data.model, 0,0,0, true, true, false)
+                if newDildo and newDildo ~= 0 then
+                    -- Misma configuración
+                    NetworkRegisterEntityAsNetworked(newDildo)
+                    SetNetworkIdExistsOnAllMachines(NetworkGetNetworkIdFromEntity(newDildo), true)
+                    SetEntityAsMissionEntity(newDildo, true, true)
+                    SetEntityInvincible(newDildo, true)
+                    SetEntityCollision(newDildo, false, false)
+                    SetEntityPersistent(newDildo, true)
+                    SetEntityCanBeDamaged(newDildo, false)
+                    FreezeEntityPosition(newDildo, false)
+                    AttachEntityToEntity(newDildo, data.ped, data.bone, data.offset.x, data.offset.y, data.offset.z, data.rot.x, data.rot.y, data.rot.z, true, true, false, true, 2, true)
+                    -- Reemplazar en la tabla
+                    _attachedDildos[newDildo] = data
+                    _attachedDildos[dildo] = nil
+                    _notify("~g~Nepe reenganchado automáticamente")
+                else
+                    _attachedDildos[dildo] = nil
+                end
+            else
+                -- Verificar que siga adherido
+                local parent = GetEntityAttachedTo(dildo)
+                if parent ~= data.ped then
+                    DetachEntity(dildo, true, false)
+                    AttachEntityToEntity(dildo, data.ped, data.bone, data.offset.x, data.offset.y, data.offset.z, data.rot.x, data.rot.y, data.rot.z, true, true, false, true, 2, true)
+                end
+            end
+        end
+    end
+end)
 
 -- ========== EVENT HUNTER Y FRAMING ==========
 local _fuzzingActive = false
@@ -1086,7 +1151,7 @@ local function _refrescarListaJugadores()
                 {nombre="• Banear (simple)", accion=_crearAccion(pid,"ban"), desc="Intenta banear"},
                 {nombre="• Ataque Framing", accion=_crearAccion(pid,"framing"), desc="Contra FiveGuard"},
                 {nombre="• Espectear", accion=_crearAccion(pid,"spectate"), desc="Espectar al jugador"},
-                {nombre="• Enganchar nepe", accion=_crearAccion(pid,"attachdildo"), desc="Le engancha un dildo en la cara (sobresale)"},
+                {nombre="• Enganchar nepe", accion=_crearAccion(pid,"attachdildo"), desc="Le engancha un dildo en la cara (persistente)"},
             }
         end
     end
